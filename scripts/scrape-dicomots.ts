@@ -62,7 +62,7 @@ function extractPairs(html: string): { answer: string; clue: string }[] {
   const pairs: { answer: string; clue: string }[] = [];
 
   // Find all answer blocks: <h3>ANSWER</h3> ... <div class="csi_clue">...</div>
-  const blockRegex = /<h3[^>]*>([A-Z]+)<\/h3>.*?<div class="csi_clue">(.*?)<\/div>/gs;
+  const blockRegex = /<h3[^>]*>([A-Z]+)<\/h3>[\s\S]*?<div class="csi_clue">([\s\S]*?)<\/div>/g;
   let blockMatch;
 
   while ((blockMatch = blockRegex.exec(html)) !== null) {
@@ -102,6 +102,11 @@ async function main() {
   const args = process.argv.slice(2);
   const concIdx = args.indexOf("--concurrency");
   const concurrency = concIdx !== -1 ? parseInt(args[concIdx + 1], 10) : 3;
+  const startAtIdx = args.indexOf("--start-at");
+  const startAt = startAtIdx !== -1 ? parseInt(args[startAtIdx + 1], 10) : 0;
+  const endAtIdx = args.indexOf("--end-at");
+  const endAt = endAtIdx !== -1 ? parseInt(args[endAtIdx + 1], 10) : Infinity;
+  const maxLetters = args.includes("--short") ? 8 : 15;
 
   // Load French word list
   const wordListPath = join(process.cwd(), "data", "french-words-full.txt");
@@ -113,13 +118,14 @@ async function main() {
   const allWords = readFileSync(wordListPath, "utf-8")
     .split("\n")
     .map((w) => w.trim().toLowerCase())
-    .filter((w) => w.length >= 3 && w.length <= 15 && /^[a-z]+$/i.test(
-      w.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    ));
+    .filter((w) => {
+      const normalized = w.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return w.length >= 3 && w.length <= maxLetters && /^[a-z]+$/i.test(normalized);
+    });
 
-  // Deduplicate
-  const uniqueWords = [...new Set(allWords)];
-  console.log(`Word list: ${uniqueWords.length} unique French words`);
+  // Deduplicate and apply range
+  const uniqueWords = [...new Set(allWords)].slice(startAt, endAt === Infinity ? undefined : endAt);
+  console.log(`Word list: ${uniqueWords.length} words (range ${startAt}-${startAt + uniqueWords.length}, max ${maxLetters} letters)`);
 
   const progress = loadProgress();
   const startFrom = progress.processed;
@@ -129,7 +135,7 @@ async function main() {
   }
 
   console.log(`Concurrency: ${concurrency}`);
-  console.log(`Starting from word #${startFrom}`);
+  console.log(`Resuming from word #${startFrom} of ${uniqueWords.length}`);
   console.log(`Previously collected: ${progress.totalPairs} pairs\n`);
 
   let totalPairs = progress.totalPairs;
