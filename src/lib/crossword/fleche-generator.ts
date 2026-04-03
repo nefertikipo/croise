@@ -46,16 +46,14 @@ function generatePattern(width: number, height: number): string[] {
     Array.from({ length: width }, () => ".")
   );
 
-  // Potence: clue cells spaced every 4-5 cells in first row and column.
-  // Each clue cell serves as a dual clue (→ and ↓).
-  // Spacing of 4 means 3 letter cells between clue cells = valid 3-letter words.
-  const POTENCE_SPACING = 4 + Math.floor(Math.random() * 2); // 4 or 5
+  // Potence: alternating clue/letter in top row and left column.
+  // Clue cells on even positions, letter cells on odd.
   grid[0][0] = "#";
-  for (let c = POTENCE_SPACING; c < width; c += POTENCE_SPACING) {
-    grid[0][c] = "#";
+  for (let c = 1; c < width; c++) {
+    grid[0][c] = c % 2 === 0 ? "#" : ".";
   }
-  for (let r = POTENCE_SPACING; r < height; r += POTENCE_SPACING) {
-    grid[r][0] = "#";
+  for (let r = 1; r < height; r++) {
+    grid[r][0] = r % 2 === 0 ? "#" : ".";
   }
 
   // Interior clue cells: fewer needed since potence covers edges.
