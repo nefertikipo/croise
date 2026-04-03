@@ -1,82 +1,84 @@
-import type { Slot, Crossing, PlacedEntry, GeneratorResult } from "@/lib/crossword/types";
+import clg from "crossword-layout-generator";
 import type { WordList } from "@/lib/crossword/word-list";
 import type { CustomClue } from "@/types";
 import { getPatterns } from "@/lib/crossword/patterns";
 
-const MAX_BACKTRACKS = 50_000;
+export interface GeneratorResult {
+  success: boolean;
+  grid: string[];
+  width: number;
+  height: number;
+  words: {
+    answer: string;
+    clue: string;
+    direction: "across" | "down";
+    number: number;
+    startRow: number;
+    startCol: number;
+    length: number;
+    isCustom: boolean;
+  }[];
+  error?: string;
+}
 
-/**
- * Extract slots (word positions) from a grid pattern.
- */
+// -------------------------------------------------------------------
+// Dense grid generator (traditional crossword with black/white pattern)
+// -------------------------------------------------------------------
+
+interface Slot {
+  row: number;
+  col: number;
+  direction: "across" | "down";
+  length: number;
+  crossings: { slotIdx: number; thisPos: number; otherPos: number }[];
+}
+
 function extractSlots(pattern: string[]): Slot[] {
-  const height = pattern.length;
-  const width = pattern[0].length;
+  const h = pattern.length;
+  const w = pattern[0].length;
   const slots: Slot[] = [];
-  let id = 0;
 
-  // Across slots
-  for (let r = 0; r < height; r++) {
-    let col = 0;
-    while (col < width) {
-      if (pattern[r][col] === "#") {
-        col++;
-        continue;
-      }
-      let end = col;
-      while (end < width && pattern[r][end] !== "#") end++;
-      const len = end - col;
-      if (len >= 3) {
-        slots.push({ id: id++, row: r, col, direction: "across", length: len, crossings: [] });
-      }
-      col = end;
+  for (let r = 0; r < h; r++) {
+    let c = 0;
+    while (c < w) {
+      if (pattern[r][c] === "#") { c++; continue; }
+      let end = c;
+      while (end < w && pattern[r][end] !== "#") end++;
+      if (end - c >= 3) slots.push({ row: r, col: c, direction: "across", length: end - c, crossings: [] });
+      c = end;
+    }
+  }
+  for (let c = 0; c < w; c++) {
+    let r = 0;
+    while (r < h) {
+      if (pattern[r][c] === "#") { r++; continue; }
+      let end = r;
+      while (end < h && pattern[end][c] !== "#") end++;
+      if (end - r >= 3) slots.push({ row: r, col: c, direction: "down", length: end - r, crossings: [] });
+      r = end;
     }
   }
 
-  // Down slots
-  for (let c = 0; c < width; c++) {
-    let row = 0;
-    while (row < height) {
-      if (pattern[row][c] === "#") {
-        row++;
-        continue;
-      }
-      let end = row;
-      while (end < height && pattern[end][c] !== "#") end++;
-      const len = end - row;
-      if (len >= 3) {
-        slots.push({ id: id++, row, col: c, direction: "down", length: len, crossings: [] });
-      }
-      row = end;
-    }
-  }
-
-  // Build crossing relationships
+  // Build crossings
   for (let i = 0; i < slots.length; i++) {
     for (let j = i + 1; j < slots.length; j++) {
       const a = slots[i];
       const b = slots[j];
       if (a.direction === b.direction) continue;
-
       const across = a.direction === "across" ? a : b;
       const down = a.direction === "across" ? b : a;
-
-      // Check if they cross
       if (
         down.col >= across.col &&
         down.col < across.col + across.length &&
         across.row >= down.row &&
         across.row < down.row + down.length
       ) {
-        const acrossPos = down.col - across.col;
-        const downPos = across.row - down.row;
-
-        if (a.direction === "across") {
-          a.crossings.push({ slotId: b.id, thisPos: acrossPos, otherPos: downPos });
-          b.crossings.push({ slotId: a.id, thisPos: downPos, otherPos: acrossPos });
-        } else {
-          a.crossings.push({ slotId: b.id, thisPos: downPos, otherPos: acrossPos });
-          b.crossings.push({ slotId: a.id, thisPos: acrossPos, otherPos: downPos });
-        }
+        const ap = down.col - across.col;
+        const dp = across.row - down.row;
+        const ai = a.direction === "across" ? i : j;
+        const bi = a.direction === "across" ? j : i;
+        slots[ai].crossings.push({ slotIdx: bi, thisPos: ap, otherPos: dp });
+        slots[bi].crossings.push({ slotIdx: ai, thisPos: dp, otherPos: ap });
       }
     }
   }
@@ -84,371 +86,313 @@ function extractSlots(pattern: string[]): Slot[] {
   return slots;
 }
 
-/**
- * Assign clue numbers to slots (standard crossword numbering).
- */
-function assignNumbers(slots: Slot[], width: number, height: number): Map<number, number> {
-  const numberMap = new Map<number, number>();
-  const cellStarts = new Map<string, number>();
+function assignNumbers(slots: Slot[]): number[] {
+  const nums: number[] = new Array(slots.length).fill(0);
+  const cellMap = new Map<string, number>();
   let num = 1;
 
-  // Collect all slot start positions and sort by position (top-left to bottom-right)
-  const starts: { row: number; col: number; slotId: number }[] = [];
-  for (const slot of slots) {
-    starts.push({ row: slot.row, col: slot.col, slotId: slot.id });
-  }
+  const sorted = slots
+    .map((s, i) => ({ i, row: s.row, col: s.col }))
+    .sort((a, b) => a.row !== b.row ? a.row - b.row : a.col - b.col);
 
-  // Group by cell position
-  const cellToSlots = new Map<string, number[]>();
-  for (const s of starts) {
-    const key = `${s.row},${s.col}`;
-    if (!cellToSlots.has(key)) cellToSlots.set(key, []);
-    cellToSlots.get(key)!.push(s.slotId);
-  }
-
-  // Sort cells top-to-bottom, left-to-right
-  const sortedCells = [...cellToSlots.entries()].sort((a, b) => {
-    const [ar, ac] = a[0].split(",").map(Number);
-    const [br, bc] = b[0].split(",").map(Number);
-    return ar !== br ? ar - br : ac - bc;
-  });
-
-  for (const [, slotIds] of sortedCells) {
-    for (const sid of slotIds) {
-      numberMap.set(sid, num);
+  for (const { i, row, col } of sorted) {
+    const key = `${row},${col}`;
+    if (!cellMap.has(key)) {
+      cellMap.set(key, num++);
     }
-    num++;
+    nums[i] = cellMap.get(key)!;
   }
-
-  return numberMap;
+  return nums;
 }
 
-/**
- * Filter candidates for a slot given current grid state.
- */
-function getCandidates(
-  slot: Slot,
-  grid: (string | null)[][],
+function generateDense(
+  pattern: string[],
   wordList: WordList,
-  usedWords: Set<string>
-): string[] {
-  // Get initial candidates by length
-  let candidates = wordList.getByLength(slot.length).map((e) => e.word);
-
-  // Filter by already-placed letters in the grid
-  const constraints: { pos: number; letter: string }[] = [];
-  for (let i = 0; i < slot.length; i++) {
-    const r = slot.direction === "across" ? slot.row : slot.row + i;
-    const c = slot.direction === "across" ? slot.col + i : slot.col;
-    const letter = grid[r][c];
-    if (letter) {
-      constraints.push({ pos: i, letter });
-    }
-  }
-
-  if (constraints.length > 0) {
-    // Use index for the first constraint, then filter the rest
-    const first = constraints[0];
-    candidates = wordList.getByConstraint(slot.length, first.pos, first.letter);
-    for (let i = 1; i < constraints.length; i++) {
-      const { pos, letter } = constraints[i];
-      candidates = candidates.filter((w) => w[pos] === letter);
-    }
-  }
-
-  // Remove already-used words
-  return candidates.filter((w) => !usedWords.has(w));
-}
-
-/**
- * Place a word into the grid.
- */
-function placeWord(
-  slot: Slot,
-  word: string,
-  grid: (string | null)[][]
-) {
-  for (let i = 0; i < word.length; i++) {
-    const r = slot.direction === "across" ? slot.row : slot.row + i;
-    const c = slot.direction === "across" ? slot.col + i : slot.col;
-    grid[r][c] = word[i];
-  }
-}
-
-/**
- * Remove a word from the grid (only clear cells not used by other placed words).
- */
-function removeWord(
-  slot: Slot,
-  grid: (string | null)[][],
-  occupiedBy: Map<string, Set<number>>
-) {
-  for (let i = 0; i < slot.length; i++) {
-    const r = slot.direction === "across" ? slot.row : slot.row + i;
-    const c = slot.direction === "across" ? slot.col + i : slot.col;
-    const key = `${r},${c}`;
-    const owners = occupiedBy.get(key);
-    if (owners) {
-      owners.delete(slot.id);
-      if (owners.size === 0) {
-        grid[r][c] = null;
-        occupiedBy.delete(key);
-      }
-    }
-  }
-}
-
-function markOccupied(slot: Slot, occupiedBy: Map<string, Set<number>>) {
-  for (let i = 0; i < slot.length; i++) {
-    const r = slot.direction === "across" ? slot.row : slot.row + i;
-    const c = slot.direction === "across" ? slot.col + i : slot.col;
-    const key = `${r},${c}`;
-    if (!occupiedBy.has(key)) occupiedBy.set(key, new Set());
-    occupiedBy.get(key)!.add(slot.id);
-  }
-}
-
-/**
- * Main crossword generation using constraint satisfaction + backtracking.
- */
-export function generateCrossword(
-  patternRows: string[],
-  wordList: WordList,
-  customClues: CustomClue[] = []
+  customClues: CustomClue[]
 ): GeneratorResult {
-  const height = patternRows.length;
-  const width = patternRows[0].length;
+  const height = pattern.length;
+  const width = pattern[0].length;
+  const slots = extractSlots(pattern);
+  const numbers = assignNumbers(slots);
 
-  // Initialize grid
-  const grid: (string | null)[][] = [];
-  for (let r = 0; r < height; r++) {
-    grid.push([]);
-    for (let c = 0; c < width; c++) {
-      grid[r].push(patternRows[r][c] === "#" ? null : null);
-    }
-  }
+  // Grid: null means unfilled white cell
+  const grid: (string | null)[][] = Array.from({ length: height }, () =>
+    Array.from({ length: width }, () => null)
+  );
 
-  const slots = extractSlots(patternRows);
-  const numberMap = assignNumbers(slots, width, height);
+  const placed: (string | null)[] = new Array(slots.length).fill(null);
   const usedWords = new Set<string>();
-  const occupiedBy = new Map<string, Set<number>>();
-  const placed: PlacedEntry[] = [];
 
-  // Phase 1: Place custom words first (longest first for best fit)
-  const sortedCustom = [...customClues]
-    .map((c) => ({ ...c, answer: c.answer.toUpperCase().replace(/[^A-Z]/g, "") }))
-    .filter((c) => c.answer.length >= 3)
-    .sort((a, b) => b.answer.length - a.answer.length);
+  // Place custom words first
+  const customs = customClues
+    .map((c) => ({ answer: c.answer.toUpperCase().replace(/[^A-Z]/g, ""), clue: c.clue }))
+    .filter((c) => c.answer.length >= 3);
 
-  const customPlaced = new Set<number>();
+  const customSlotIdx = new Set<number>();
+  const customMap = new Map<number, string>(); // slotIdx -> clue
 
-  for (const custom of sortedCustom) {
-    let placed_ok = false;
-    for (const slot of slots) {
-      if (slot.length !== custom.answer.length) continue;
-      if (customPlaced.has(slot.id)) continue;
-
-      // Check if this slot is compatible with current grid state
-      let compatible = true;
-      for (let i = 0; i < custom.answer.length; i++) {
-        const r = slot.direction === "across" ? slot.row : slot.row + i;
-        const c = slot.direction === "across" ? slot.col + i : slot.col;
-        if (grid[r][c] !== null && grid[r][c] !== custom.answer[i]) {
-          compatible = false;
-          break;
-        }
+  for (const cw of customs.sort((a, b) => b.answer.length - a.answer.length)) {
+    for (let si = 0; si < slots.length; si++) {
+      if (customSlotIdx.has(si)) continue;
+      if (slots[si].length !== cw.answer.length) continue;
+      // Check compatibility
+      let ok = true;
+      for (let p = 0; p < cw.answer.length; p++) {
+        const r = slots[si].direction === "across" ? slots[si].row : slots[si].row + p;
+        const c = slots[si].direction === "across" ? slots[si].col + p : slots[si].col;
+        if (grid[r][c] !== null && grid[r][c] !== cw.answer[p]) { ok = false; break; }
       }
-
-      if (compatible) {
-        placeWord(slot, custom.answer, grid);
-        markOccupied(slot, occupiedBy);
-        usedWords.add(custom.answer);
-        customPlaced.add(slot.id);
-        placed.push({
-          slot,
-          word: custom.answer,
-          clue: custom.clue,
-          isCustom: true,
-        });
-        placed_ok = true;
+      if (ok) {
+        for (let p = 0; p < cw.answer.length; p++) {
+          const r = slots[si].direction === "across" ? slots[si].row : slots[si].row + p;
+          const c = slots[si].direction === "across" ? slots[si].col + p : slots[si].col;
+          grid[r][c] = cw.answer[p];
+        }
+        placed[si] = cw.answer;
+        usedWords.add(cw.answer);
+        customSlotIdx.add(si);
+        customMap.set(si, cw.clue);
         break;
       }
     }
-
-    if (!placed_ok) {
-      // Custom word couldn't be placed; continue with others
-    }
   }
 
-  // Phase 2: Fill remaining slots with backtracking
-  const remainingSlots = slots.filter((s) => !customPlaced.has(s.id));
+  // Helper to get cell
+  function getCell(slot: Slot, pos: number): { r: number; c: number } {
+    return slot.direction === "across"
+      ? { r: slot.row, c: slot.col + pos }
+      : { r: slot.row + pos, c: slot.col };
+  }
 
-  // Sort by most constrained first (MRV heuristic)
-  let backtracks = 0;
+  // Get candidates for a slot given current grid
+  function candidates(si: number): string[] {
+    const slot = slots[si];
 
-  function solve(idx: number): boolean {
-    if (idx >= remainingSlots.length) return true;
-    if (backtracks > MAX_BACKTRACKS) return false;
-
-    // Re-sort remaining slots by number of candidates (MRV)
-    // Only do this for the current choice to avoid excessive sorting
-    let bestIdx = idx;
-    let bestCount = Infinity;
-    for (let i = idx; i < remainingSlots.length; i++) {
-      const candidates = getCandidates(remainingSlots[i], grid, wordList, usedWords);
-      if (candidates.length < bestCount) {
-        bestCount = candidates.length;
-        bestIdx = i;
+    // Collect all constraints from the grid
+    const constraints: { pos: number; letter: string }[] = [];
+    for (let p = 0; p < slot.length; p++) {
+      const { r, c } = getCell(slot, p);
+      const letter = grid[r][c];
+      if (letter !== null) {
+        constraints.push({ pos: p, letter });
       }
-      if (bestCount === 0) break;
     }
 
-    // Swap to put most constrained slot at current index
-    [remainingSlots[idx], remainingSlots[bestIdx]] = [remainingSlots[bestIdx], remainingSlots[idx]];
-
-    const slot = remainingSlots[idx];
-    const candidates = getCandidates(slot, grid, wordList, usedWords);
-
-    // Sort candidates by word quality score (prefer common crossword words)
-    const scored = candidates.map((w) => {
-      const entry = wordList.getByLength(w.length).find((e) => e.word === w);
-      return { word: w, score: entry?.score ?? 50 };
-    });
-    scored.sort((a, b) => b.score - a.score);
-
-    // Try a limited number of top candidates to keep it fast
-    const limit = Math.min(scored.length, 50);
-
-    for (let i = 0; i < limit; i++) {
-      const word = scored[i].word;
-
-      // Save grid state
-      const savedCells: { r: number; c: number; val: string | null }[] = [];
-      for (let j = 0; j < slot.length; j++) {
-        const r = slot.direction === "across" ? slot.row : slot.row + j;
-        const c = slot.direction === "across" ? slot.col + j : slot.col;
-        savedCells.push({ r, c, val: grid[r][c] });
+    let words: string[];
+    if (constraints.length === 0) {
+      words = wordList.getByLength(slot.length).map((e) => e.word);
+    } else {
+      // Use index for the first constraint, filter the rest
+      words = wordList.getByConstraint(slot.length, constraints[0].pos, constraints[0].letter);
+      for (let i = 1; i < constraints.length; i++) {
+        const { pos, letter } = constraints[i];
+        words = words.filter((w) => w[pos] === letter);
       }
+    }
 
-      placeWord(slot, word, grid);
-      markOccupied(slot, occupiedBy);
+    return words.filter((w) => !usedWords.has(w));
+  }
+
+  // Fill remaining with backtracking
+  const unfilled = slots.map((_, i) => i).filter((i) => !customSlotIdx.has(i));
+  let backtracks = 0;
+  const MAX_BT = 500_000;
+
+  function solve(idx: number): boolean {
+    if (idx >= unfilled.length) return true;
+    if (backtracks > MAX_BT) return false;
+
+    // MRV: pick the most constrained unfilled slot
+    let bestIdx = idx;
+    let bestCount = Infinity;
+    for (let i = idx; i < unfilled.length; i++) {
+      const count = candidates(unfilled[i]).length;
+      if (count < bestCount) { bestCount = count; bestIdx = i; }
+      if (count === 0) break;
+    }
+    if (bestCount === 0) { backtracks++; return false; }
+
+    // Swap into position
+    [unfilled[idx], unfilled[bestIdx]] = [unfilled[bestIdx], unfilled[idx]];
+
+    const si = unfilled[idx];
+    const slot = slots[si];
+    const cands = candidates(si);
+
+    // Randomize a bit within quality tiers for variety
+    const shuffled = cands
+      .map((w) => ({ w, score: (wordList.getByLength(w.length).find((e) => e.word === w)?.score ?? 50) + Math.random() * 10 }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 100)
+      .map((x) => x.w);
+
+    for (const word of shuffled) {
+      // Save state
+      const saved: { r: number; c: number; v: string | null }[] = [];
+      for (let p = 0; p < slot.length; p++) {
+        const { r, c } = getCell(slot, p);
+        saved.push({ r, c, v: grid[r][c] });
+        grid[r][c] = word[p];
+      }
+      placed[si] = word;
       usedWords.add(word);
 
-      // Check if crossing slots still have valid candidates
+      // Forward check: do all crossing slots still have candidates?
       let valid = true;
-      for (const crossing of slot.crossings) {
-        const crossSlot = slots.find((s) => s.id === crossing.slotId);
-        if (!crossSlot || customPlaced.has(crossSlot.id)) continue;
-        const crossCandidates = getCandidates(crossSlot, grid, wordList, usedWords);
-        if (crossCandidates.length === 0) {
-          valid = false;
-          break;
-        }
+      for (const cr of slot.crossings) {
+        if (placed[cr.slotIdx] !== null) continue; // already filled
+        if (candidates(cr.slotIdx).length === 0) { valid = false; break; }
       }
 
-      if (valid && solve(idx + 1)) {
-        placed.push({ slot, word, isCustom: false });
-        return true;
-      }
+      if (valid && solve(idx + 1)) return true;
 
-      // Backtrack
+      // Undo
       backtracks++;
       usedWords.delete(word);
-      removeWord(slot, grid, occupiedBy);
-      for (const cell of savedCells) {
-        grid[cell.r][cell.c] = cell.val;
-      }
+      placed[si] = null;
+      for (const s of saved) grid[s.r][s.c] = s.v;
     }
 
     // Swap back
-    [remainingSlots[idx], remainingSlots[bestIdx]] = [remainingSlots[bestIdx], remainingSlots[idx]];
+    [unfilled[idx], unfilled[bestIdx]] = [unfilled[bestIdx], unfilled[idx]];
     return false;
   }
 
   const success = solve(0);
 
-  // Build flat grid strings
-  const patternStr = patternRows.join("");
-  let solutionStr = "";
+  if (!success) {
+    return { success: false, grid: [], width, height, words: [], error: "Could not fill grid" };
+  }
+
+  // Build result
+  const gridRows: string[] = [];
   for (let r = 0; r < height; r++) {
+    let row = "";
     for (let c = 0; c < width; c++) {
-      if (patternRows[r][c] === "#") {
-        solutionStr += "#";
-      } else {
-        solutionStr += grid[r][c] ?? ".";
-      }
+      row += pattern[r][c] === "#" ? "#" : (grid[r][c] ?? ".");
     }
+    gridRows.push(row);
   }
 
-  // Assign clue numbers to placed entries
-  for (const entry of placed) {
-    const num = numberMap.get(entry.slot.id);
-    if (num !== undefined) {
-      entry.slot = { ...entry.slot }; // don't mutate
-    }
-  }
+  const words = slots.map((slot, si) => ({
+    answer: placed[si]!,
+    clue: customMap.get(si) ?? `Clue for ${placed[si]}`,
+    direction: slot.direction,
+    number: numbers[si],
+    startRow: slot.row,
+    startCol: slot.col,
+    length: slot.length,
+    isCustom: customSlotIdx.has(si),
+  }));
 
-  return {
-    success,
-    grid: patternRows.map((_, r) =>
-      Array.from({ length: width }, (_, c) =>
-        patternRows[r][c] === "#" ? "#" : (grid[r][c] ?? ".")
-      ).join("")
-    ),
-    placed: placed.map((p) => ({
-      ...p,
-      slot: { ...p.slot },
-    })),
-    error: success ? undefined : "Could not fill all slots within backtrack limit",
-  };
+  return { success: true, grid: gridRows, width, height, words };
 }
 
-/**
- * High-level generation: tries multiple patterns until one succeeds.
- */
+// -------------------------------------------------------------------
+// Freeform generator (words crossing on blank canvas)
+// -------------------------------------------------------------------
+
+interface LayoutWord {
+  answer: string;
+  clue: string;
+  orientation: "across" | "down" | "none";
+  startx: number;
+  starty: number;
+  position: number;
+}
+
+interface LayoutResult {
+  table: (string | null)[][];
+  rows: number;
+  cols: number;
+  result: LayoutWord[];
+}
+
+function generateFreeform(
+  targetWordCount: number,
+  wordList: WordList,
+  customClues: CustomClue[]
+): GeneratorResult {
+  const customWords = customClues
+    .map((c) => ({ answer: c.answer.toUpperCase().replace(/[^A-Z]/g, ""), clue: c.clue }))
+    .filter((c) => c.answer.length >= 3);
+
+  const usedAnswers = new Set(customWords.map((w) => w.answer));
+  const fillerCount = Math.max(0, targetWordCount - customWords.length);
+
+  const allWords = [
+    ...wordList.getByLength(5),
+    ...wordList.getByLength(4),
+    ...wordList.getByLength(6),
+    ...wordList.getByLength(3),
+    ...wordList.getByLength(7),
+  ];
+
+  const shuffled = allWords
+    .filter((w) => !usedAnswers.has(w.word))
+    .sort((a, b) => b.score - a.score + (Math.random() - 0.5) * 30);
+
+  const fillerWords = shuffled.slice(0, fillerCount).map((w) => ({
+    answer: w.word,
+    clue: `Clue for ${w.word}`,
+  }));
+
+  const inputWords = [...customWords, ...fillerWords];
+  if (inputWords.length < 3) {
+    return { success: false, grid: [], width: 0, height: 0, words: [], error: "Need at least 3 words" };
+  }
+
+  const layout = clg.generateLayout(inputWords) as LayoutResult;
+  if (!layout.table || layout.rows === 0) {
+    return { success: false, grid: [], width: 0, height: 0, words: [], error: "Layout generation failed" };
+  }
+
+  const grid: string[] = [];
+  for (let r = 0; r < layout.rows; r++) {
+    let row = "";
+    for (let c = 0; c < layout.cols; c++) {
+      const cell = layout.table[r]?.[c];
+      row += (!cell || cell === " " || cell === "\0") ? "#" : cell;
+    }
+    grid.push(row);
+  }
+
+  const customAnswerSet = new Set(customWords.map((w) => w.answer));
+  const words = layout.result
+    .filter((w) => w.orientation === "across" || w.orientation === "down")
+    .map((w) => ({
+      answer: w.answer,
+      clue: w.clue,
+      direction: w.orientation as "across" | "down",
+      number: w.position,
+      startRow: (w.starty ?? 1) - 1,
+      startCol: (w.startx ?? 1) - 1,
+      length: w.answer.length,
+      isCustom: customAnswerSet.has(w.answer),
+    }));
+
+  return { success: true, grid, width: layout.cols, height: layout.rows, words };
+}
+
+// -------------------------------------------------------------------
+// Public API
+// -------------------------------------------------------------------
+
+const WORD_COUNTS: Record<number, number> = { 5: 8, 11: 25, 13: 35, 15: 50 };
+
 export function generateWithFallback(
   size: number,
   wordList: WordList,
   customClues: CustomClue[] = []
 ): GeneratorResult {
+  // Try dense grid first
   const patterns = getPatterns(size);
-
   for (const pattern of patterns) {
-    const result = generateCrossword(pattern, wordList, customClues);
+    const result = generateDense(pattern, wordList, customClues);
     if (result.success) return result;
   }
 
-  // If all patterns fail, return the last attempt's result
-  return generateCrossword(patterns[0], wordList, customClues);
-}
-
-/**
- * Get the clue number for a slot based on standard numbering.
- */
-export function getSlotNumber(
-  slot: Slot,
-  allSlots: Slot[]
-): number {
-  const numberMap = new Map<string, number>();
-  let num = 1;
-
-  const starts = allSlots
-    .map((s) => ({ key: `${s.row},${s.col}`, slotId: s.id, row: s.row, col: s.col }))
-    .sort((a, b) => (a.row !== b.row ? a.row - b.row : a.col - b.col));
-
-  const seen = new Set<string>();
-  for (const s of starts) {
-    if (!seen.has(s.key)) {
-      seen.add(s.key);
-      numberMap.set(`${s.slotId}`, num++);
-    } else {
-      // Same cell, same number
-      const existing = starts.find((x) => x.key === s.key && seen.has(x.key));
-      if (existing) {
-        numberMap.set(`${s.slotId}`, numberMap.get(`${existing.slotId}`) ?? num);
-      }
-    }
-  }
-
-  return numberMap.get(`${slot.id}`) ?? 0;
+  // Fall back to freeform
+  const targetWords = WORD_COUNTS[size] ?? 30;
+  return generateFreeform(targetWords, wordList, customClues);
 }

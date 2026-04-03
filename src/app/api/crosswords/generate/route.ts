@@ -4,9 +4,7 @@ import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
 import { generateWithFallback } from "@/lib/crossword/generator";
-import { getSlotNumber } from "@/lib/crossword/generator";
-import { WordList } from "@/lib/crossword/word-list";
-import { DEFAULT_WORDS } from "@/lib/crossword/default-words";
+import { getWordList } from "@/lib/crossword/load-words";
 import { findCluesForAnswers, getWordFrequencies } from "@/lib/clues/repository";
 import { buildWordListFromClues } from "@/lib/crossword/word-list";
 import { personalizeClues } from "@/lib/clues/personalizer";
@@ -34,8 +32,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const params = requestSchema.parse(body);
 
-    // Build word list: try DB first, fall back to built-in list
-    let wordList: WordList;
+    // Build word list: try DB first, fall back to file-based list
+    let wordList;
     try {
       const frequencies = await getWordFrequencies(params.language as Language);
       if (frequencies.length > 1000) {
@@ -44,10 +42,7 @@ export async function POST(request: Request) {
         throw new Error("Not enough words in DB");
       }
     } catch {
-      wordList = new WordList();
-      for (const word of DEFAULT_WORDS) {
-        wordList.addWord(word, 50);
-      }
+      wordList = getWordList();
     }
 
     // Generate the grid
@@ -59,81 +54,76 @@ export async function POST(request: Request) {
 
     if (!result.success) {
       return NextResponse.json(
-        { error: "Failed to generate crossword. Try a smaller grid or fewer custom words." },
+        { error: result.error ?? "Failed to generate crossword." },
         { status: 422 }
       );
     }
 
     // Find clues from DB for non-custom words
-    const nonCustomWords = result.placed
-      .filter((p) => !p.isCustom)
-      .map((p) => p.word);
+    const nonCustomAnswers = result.words
+      .filter((w) => !w.isCustom)
+      .map((w) => w.answer);
 
     let clueMap = new Map<string, { clue: string; id: number }>();
     try {
-      clueMap = await findCluesForAnswers(
-        nonCustomWords,
-        params.language as Language,
-        params.difficulty as Difficulty
-      );
+      if (nonCustomAnswers.length > 0) {
+        clueMap = await findCluesForAnswers(
+          nonCustomAnswers,
+          params.language as Language,
+          params.difficulty as Difficulty
+        );
+      }
     } catch {
-      // DB not available; generate placeholder clues
+      // DB clues not available; keep placeholder clues
     }
 
-    // Assign clues to placed words
-    const wordsWithClues = result.placed.map((p) => {
-      if (p.isCustom && p.clue) {
-        return { ...p, assignedClue: p.clue, clueId: null };
+    // Assign DB clues where available
+    const wordsWithClues = result.words.map((w) => {
+      if (w.isCustom) {
+        return { ...w, clueId: null as number | null };
       }
-      const dbClue = clueMap.get(p.word);
+      const dbClue = clueMap.get(w.answer);
       return {
-        ...p,
-        assignedClue: dbClue?.clue ?? `Clue for ${p.word}`,
+        ...w,
+        clue: dbClue?.clue ?? w.clue,
         clueId: dbClue?.id ?? null,
       };
     });
 
     // Personalize non-custom clues if theme or notes provided
-    let personalizedClues: { answer: string; clue: string }[] | null = null;
     if (params.theme || params.personalizationNotes) {
       try {
         const toPersonalize = wordsWithClues
           .filter((w) => !w.isCustom)
-          .map((w) => ({ answer: w.word, originalClue: w.assignedClue }));
+          .map((w) => ({ answer: w.answer, originalClue: w.clue }));
 
         if (toPersonalize.length > 0) {
-          personalizedClues = await personalizeClues(toPersonalize, {
+          const personalized = await personalizeClues(toPersonalize, {
             vibe: params.vibe as Vibe,
             difficulty: params.difficulty as Difficulty,
             language: params.language as Language,
             theme: params.theme,
             personalizationNotes: params.personalizationNotes,
           });
-        }
-      } catch {
-        // Personalization failed; use original clues
-      }
-    }
 
-    // Apply personalized clues
-    if (personalizedClues) {
-      const personalizedMap = new Map(
-        personalizedClues.map((c) => [c.answer.toUpperCase(), c.clue])
-      );
-      for (const w of wordsWithClues) {
-        if (!w.isCustom) {
-          const personalized = personalizedMap.get(w.word);
-          if (personalized) {
-            w.assignedClue = personalized;
+          const personalizedMap = new Map(
+            personalized.map((c) => [c.answer.toUpperCase(), c.clue])
+          );
+          for (const w of wordsWithClues) {
+            if (!w.isCustom) {
+              const pc = personalizedMap.get(w.answer);
+              if (pc) w.clue = pc;
+            }
           }
         }
+      } catch {
+        // Personalization failed; keep original clues
       }
     }
 
     // Save to database
     const code = generateCrosswordCode();
-    const pattern = result.grid.join("");
-    const solution = result.grid.join("");
+    const gridFlat = result.grid.join("");
 
     const [crossword] = await db
       .insert(crosswords)
@@ -141,10 +131,10 @@ export async function POST(request: Request) {
         code,
         title: params.theme ?? "My Crossword",
         language: params.language,
-        width: params.size,
-        height: params.size,
-        gridPattern: pattern,
-        gridSolution: solution,
+        width: result.width,
+        height: result.height,
+        gridPattern: gridFlat,
+        gridSolution: gridFlat,
         status: "ready",
         difficulty: params.difficulty,
         theme: params.theme,
@@ -154,17 +144,16 @@ export async function POST(request: Request) {
       .returning();
 
     // Save placed words
-    const allSlots = result.placed.map((p) => p.slot);
     const wordRows = wordsWithClues.map((w) => ({
       crosswordId: crossword.id,
-      answer: w.word,
-      direction: w.slot.direction,
-      number: getSlotNumber(w.slot, allSlots),
-      startRow: w.slot.row,
-      startCol: w.slot.col,
-      length: w.slot.length,
+      answer: w.answer,
+      direction: w.direction,
+      number: w.number,
+      startRow: w.startRow,
+      startCol: w.startCol,
+      length: w.length,
       originalClueId: w.clueId,
-      clueText: w.assignedClue,
+      clueText: w.clue,
       isCustom: w.isCustom,
     }));
 
@@ -176,14 +165,16 @@ export async function POST(request: Request) {
       code: crossword.code,
       id: crossword.id,
       grid: result.grid,
+      width: result.width,
+      height: result.height,
       words: wordsWithClues.map((w) => ({
-        answer: w.word,
-        clue: w.assignedClue,
-        direction: w.slot.direction,
-        number: getSlotNumber(w.slot, allSlots),
-        startRow: w.slot.row,
-        startCol: w.slot.col,
-        length: w.slot.length,
+        answer: w.answer,
+        clue: w.clue,
+        direction: w.direction,
+        number: w.number,
+        startRow: w.startRow,
+        startCol: w.startCol,
+        length: w.length,
         isCustom: w.isCustom,
       })),
     });

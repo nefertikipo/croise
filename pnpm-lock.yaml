@@ -26,6 +26,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      crossword-layout-generator:
+        specifier: ^0.1.1
+        version: 0.1.1
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@types/pg@8.20.0)
@@ -1720,6 +1723,9 @@ packages:
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
+
+  crossword-layout-generator@0.1.1:
+    resolution: {integrity: sha512-wunaTcpzDc1UL7iC77ckh4mMEjFuBDMYIKhJn3yq6b7jvHu5zcxe17cGh4Pv1VbLu1BfC6kgDV0IowfqDUm2sg==}
 
   cssesc@3.0.0:
     resolution: {integrity: sha512-/Tb/JcjK111nNScGob5MNtsntNM1aCNUDipB/TkwZFhyDrrE47SOx/18wF2bbjgc3ZzCSKW1T5nt5EbFoAz/Vg==}
@@ -5054,6 +5060,8 @@ snapshots:
       path-key: 3.1.1
       shebang-command: 2.0.0
       which: 2.0.2
+
+  crossword-layout-generator@0.1.1: {}
 
   cssesc@3.0.0: {}
 

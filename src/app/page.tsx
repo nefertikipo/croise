@@ -1,6 +1,4 @@
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 export default function Home() {
   return (
@@ -17,7 +15,7 @@ export default function Home() {
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link
             href="/create"
-            className={cn(buttonVariants({ size: "lg" }), "text-lg px-8")}
+            className="inline-flex items-center justify-center rounded-lg bg-primary text-primary-foreground text-lg font-medium px-8 h-11 hover:bg-primary/80 transition-colors"
           >
             Create a crossword
           </Link>
