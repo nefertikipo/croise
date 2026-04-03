@@ -42,7 +42,7 @@ export async function POST(request: Request) {
         throw new Error("Not enough words in DB");
       }
     } catch {
-      wordList = getWordList();
+      wordList = getWordList(params.language as Language);
     }
 
     // Generate the grid
@@ -73,8 +73,8 @@ export async function POST(request: Request) {
           params.difficulty as Difficulty
         );
       }
-    } catch {
-      // DB clues not available; keep placeholder clues
+    } catch (err) {
+      console.error("Clue lookup failed:", err);
     }
 
     // Assign DB clues where available

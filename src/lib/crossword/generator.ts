@@ -219,9 +219,9 @@ function generateDense(
     const slot = slots[si];
     const cands = candidates(si);
 
-    // Randomize a bit within quality tiers for variety
+    // Randomize heavily for variety (different puzzle each time)
     const shuffled = cands
-      .map((w) => ({ w, score: (wordList.getByLength(w.length).find((e) => e.word === w)?.score ?? 50) + Math.random() * 10 }))
+      .map((w) => ({ w, score: (wordList.getByLength(w.length).find((e) => e.word === w)?.score ?? 50) + Math.random() * 30 }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 100)
       .map((x) => x.w);
@@ -385,8 +385,10 @@ export function generateWithFallback(
   wordList: WordList,
   customClues: CustomClue[] = []
 ): GeneratorResult {
+  // Shuffle patterns so we don't always get the same layout
+  const patterns = [...getPatterns(size)].sort(() => Math.random() - 0.5);
+
   // Try dense grid first
-  const patterns = getPatterns(size);
   for (const pattern of patterns) {
     const result = generateDense(pattern, wordList, customClues);
     if (result.success) return result;

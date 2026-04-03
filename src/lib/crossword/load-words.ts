@@ -1,22 +1,45 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { WordList } from "@/lib/crossword/word-list";
+import type { Language } from "@/types";
 
-let cachedWordList: WordList | null = null;
+const cache = new Map<string, WordList>();
 
 /**
- * Load the crossword word list.
- * Tries scored-words.txt first (WORD;SCORE format from crossword construction community),
- * then falls back to english-words.txt (plain word list), then built-in defaults.
- * Cached in memory after first load.
+ * Normalize a word for crossword use: uppercase, strip diacritics, keep only A-Z.
  */
-export function getWordList(): WordList {
-  if (cachedWordList) return cachedWordList;
+function normalize(word: string): string {
+  return word
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "");
+}
+
+/**
+ * Load word list for a given language.
+ * English: scored crossword word list (scored-words.txt)
+ * French: plain word list (french-words-full.txt)
+ * Cached per language.
+ */
+export function getWordList(language: Language = "en"): WordList {
+  const cached = cache.get(language);
+  if (cached) return cached;
 
   const wl = new WordList();
   const dataDir = join(process.cwd(), "data");
 
-  // Try scored crossword word list first
+  if (language === "en") {
+    loadEnglish(wl, dataDir);
+  } else if (language === "fr") {
+    loadFrench(wl, dataDir);
+  }
+
+  cache.set(language, wl);
+  return wl;
+}
+
+function loadEnglish(wl: WordList, dataDir: string) {
   try {
     const content = readFileSync(join(dataDir, "scored-words.txt"), "utf-8");
     let count = 0;
@@ -30,55 +53,43 @@ export function getWordList(): WordList {
       if (!/^[A-Z]+$/i.test(word)) continue;
 
       const score = parseInt(scoreStr, 10);
-      if (isNaN(score)) continue;
+      if (isNaN(score) || score < 35) continue;
 
-      // Only include words scored 20+ (skip garbage/obscure entries)
-      if (score >= 20) {
-        wl.addWord(word, score);
-        count++;
-      }
+      wl.addWord(word, score);
+      count++;
     }
 
-    console.log(`Loaded ${count} scored crossword words`);
-    cachedWordList = wl;
-    return wl;
+    console.log(`Loaded ${count} English crossword words`);
   } catch {
-    // scored list not available
+    console.log("English word list not found, using minimal fallback");
+    const basics = ["ACE", "ACT", "ADD", "AGE", "AID", "AIM", "AIR", "ALL", "AND", "ARC",
+      "ARE", "ARM", "ART", "ATE", "BAD", "BAG", "BAN", "BAR", "BAT", "BED",
+      "BIG", "BIT", "BOX", "BOY", "BUS", "BUT", "BUY", "CAN", "CAP", "CAR",
+      "CAT", "COP", "CRY", "CUP", "CUT", "DAD", "DAY", "DIG", "DOG", "DRY",
+      "EAR", "EAT", "EGG", "END", "ERA", "EVE", "EYE", "FAN", "FAR", "FAT",
+      "FEW", "FIT", "FLY", "FOR", "FOX", "FUN", "GAP", "GAS", "GET", "GOD"];
+    for (const w of basics) wl.addWord(w, 50);
   }
+}
 
-  // Fallback: plain english word list
+function loadFrench(wl: WordList, dataDir: string) {
   try {
-    const content = readFileSync(join(dataDir, "english-words.txt"), "utf-8");
+    const content = readFileSync(join(dataDir, "french-words-full.txt"), "utf-8");
     let count = 0;
 
     for (const line of content.split("\n")) {
-      const word = line.trim();
-      if (word.length >= 3 && word.length <= 15 && /^[A-Z]+$/i.test(word)) {
-        const score = word.length <= 5 ? 70 : word.length <= 7 ? 50 : 30;
-        wl.addWord(word, score);
-        count++;
-      }
+      const word = normalize(line.trim());
+      if (word.length < 3 || word.length > 15) continue;
+      if (!/^[A-Z]+$/.test(word)) continue;
+
+      // Score by word length (shorter = more crossword-friendly)
+      const score = word.length <= 4 ? 60 : word.length <= 6 ? 50 : word.length <= 8 ? 40 : 35;
+      wl.addWord(word, score);
+      count++;
     }
 
-    console.log(`Loaded ${count} words from plain word list`);
+    console.log(`Loaded ${count} French words`);
   } catch {
-    // No word files available, use minimal built-in
-    const BASIC = [
-      "ACE", "ACT", "ADD", "AGE", "AID", "AIM", "AIR", "ALE", "ALL", "AND",
-      "APE", "ARC", "ARE", "ARK", "ARM", "ART", "ATE", "AWE", "BAD", "BAG",
-      "BAN", "BAR", "BAT", "BAY", "BED", "BIG", "BIT", "BOW", "BOX", "BOY",
-      "BUG", "BUS", "BUT", "BUY", "CAB", "CAN", "CAP", "CAR", "CAT", "COP",
-      "CRY", "CUP", "CUT", "DAD", "DAY", "DIG", "DOG", "DOT", "DRY", "DUE",
-      "EAR", "EAT", "EGG", "END", "ERA", "EVE", "EYE", "FAN", "FAR", "FAT",
-      "FEW", "FIG", "FIT", "FLY", "FOR", "FOX", "FUN", "FUR", "GAP", "GAS",
-      "GET", "GOD", "GOT", "GUM", "GUN", "GUT", "GUY", "GYM", "HAD", "HAM",
-      "HAS", "HAT", "HEN", "HER", "HID", "HIM", "HIP", "HIS", "HIT", "HOG",
-      "HOT", "HOW", "HUB", "HUG", "ICE", "ILL", "INK", "INN", "ION", "IRE",
-    ];
-    for (const w of BASIC) wl.addWord(w, 50);
-    console.log(`Using built-in word list (${wl.size} words)`);
+    console.log("French word list not found");
   }
-
-  cachedWordList = wl;
-  return wl;
 }
