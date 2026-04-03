@@ -83,7 +83,7 @@ function generatePattern(width: number, height: number): string[] {
       let hasRight = false;
       let hasDown = false;
 
-      // Check right run
+      // Check right run (same row)
       if (c + 1 < width && grid[r][c + 1] === ".") {
         let len = 0;
         let cc = c + 1;
@@ -91,11 +91,27 @@ function generatePattern(width: number, height: number): string[] {
         if (len >= 3) hasRight = true;
       }
 
-      // Check down run
+      // Check right run on NEXT row (potence: left column clue defines next row's word)
+      if (c === 0 && r + 1 < height) {
+        let len = 0;
+        let cc = 1;
+        while (cc < width && grid[r + 1][cc] === ".") { len++; cc++; }
+        if (len >= 3) hasRight = true;
+      }
+
+      // Check down run (same column)
       if (r + 1 < height && grid[r + 1][c] === ".") {
         let len = 0;
         let rr = r + 1;
         while (rr < height && grid[rr][c] === ".") { len++; rr++; }
+        if (len >= 3) hasDown = true;
+      }
+
+      // Check down run in NEXT column (potence: top row clue defines next col's word)
+      if (r === 0 && c + 1 < width) {
+        let len = 0;
+        let rr = 0;
+        while (rr < height && grid[rr][c + 1] === ".") { len++; rr++; }
         if (len >= 3) hasDown = true;
       }
 
@@ -117,11 +133,10 @@ function extractSlots(pattern: string[]): Slot[] {
   const w = pattern[0].length;
   const slots: Slot[] = [];
 
-  // Horizontal slots: only where a '#' cell is immediately to the left
+  // Horizontal slots: where a '#' cell is immediately to the left
   for (let r = 0; r < h; r++) {
     for (let c = 0; c < w; c++) {
       if (pattern[r][c] !== "#") continue;
-      // Run of letters to the right
       const start = c + 1;
       let end = start;
       while (end < w && pattern[r][end] === ".") end++;
@@ -131,7 +146,19 @@ function extractSlots(pattern: string[]): Slot[] {
     }
   }
 
-  // Vertical slots: only where a '#' cell is immediately above
+  // Left column potence: '#' cells also define right words on the NEXT row
+  for (let r = 0; r < h; r++) {
+    if (pattern[r][0] !== "#") continue;
+    if (r + 1 >= h) continue;
+    // Right word on row r+1, starting at col 1
+    let end = 1;
+    while (end < w && pattern[r + 1][end] === ".") end++;
+    if (end - 1 >= 3) {
+      slots.push({ row: r + 1, col: 1, direction: "right", length: end - 1, crossings: [] });
+    }
+  }
+
+  // Vertical slots: where a '#' cell is immediately above
   for (let c = 0; c < w; c++) {
     for (let r = 0; r < h; r++) {
       if (pattern[r][c] !== "#") continue;
@@ -141,6 +168,19 @@ function extractSlots(pattern: string[]): Slot[] {
       if (end - start >= 3) {
         slots.push({ row: start, col: c, direction: "down", length: end - start, crossings: [] });
       }
+    }
+  }
+
+  // Top row potence: '#' cells also define down words in the NEXT column
+  for (let c = 0; c < w; c++) {
+    if (pattern[0][c] !== "#") continue;
+    if (c + 1 >= w) continue;
+    // Down word in col c+1, starting at row 1 (or row 0 if letter)
+    const startR = pattern[0][c + 1] === "." ? 0 : 1;
+    let end = startR;
+    while (end < h && pattern[end][c + 1] === ".") end++;
+    if (end - startR >= 3) {
+      slots.push({ row: startR, col: c + 1, direction: "down", length: end - startR, crossings: [] });
     }
   }
 
