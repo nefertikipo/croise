@@ -46,11 +46,17 @@ function generatePattern(width: number, height: number): string[] {
     Array.from({ length: width }, () => ".")
   );
 
-  // Potence: entire first row and first column are clue cells.
-  // Every row gets a clue cell at the start (→), every column gets one at top (↓).
-  // This is the standard mots fléchés layout.
-  for (let c = 0; c < width; c++) grid[0][c] = "#";
-  for (let r = 0; r < height; r++) grid[r][0] = "#";
+  // Potence: clue cells spaced every 4-5 cells in first row and column.
+  // Each clue cell serves as a dual clue (→ and ↓).
+  // Spacing of 4 means 3 letter cells between clue cells = valid 3-letter words.
+  const POTENCE_SPACING = 4 + Math.floor(Math.random() * 2); // 4 or 5
+  grid[0][0] = "#";
+  for (let c = POTENCE_SPACING; c < width; c += POTENCE_SPACING) {
+    grid[0][c] = "#";
+  }
+  for (let r = POTENCE_SPACING; r < height; r += POTENCE_SPACING) {
+    grid[r][0] = "#";
+  }
 
   // Interior clue cells: fewer needed since potence covers edges.
   // Place them on a staggered grid to break long runs into 3-6 letter slots.
@@ -113,31 +119,30 @@ function extractSlots(pattern: string[]): Slot[] {
   const w = pattern[0].length;
   const slots: Slot[] = [];
 
-  // Horizontal slots
+  // Horizontal slots: only where a '#' cell is immediately to the left
   for (let r = 0; r < h; r++) {
-    let c = 0;
-    while (c < w) {
-      if (pattern[r][c] === "#") { c++; continue; }
-      let end = c;
+    for (let c = 0; c < w; c++) {
+      if (pattern[r][c] !== "#") continue;
+      // Run of letters to the right
+      const start = c + 1;
+      let end = start;
       while (end < w && pattern[r][end] === ".") end++;
-      if (end - c >= 3) {
-        slots.push({ row: r, col: c, direction: "right", length: end - c, crossings: [] });
+      if (end - start >= 3) {
+        slots.push({ row: r, col: start, direction: "right", length: end - start, crossings: [] });
       }
-      c = end;
     }
   }
 
-  // Vertical slots
+  // Vertical slots: only where a '#' cell is immediately above
   for (let c = 0; c < w; c++) {
-    let r = 0;
-    while (r < h) {
-      if (pattern[r][c] === "#") { r++; continue; }
-      let end = r;
+    for (let r = 0; r < h; r++) {
+      if (pattern[r][c] !== "#") continue;
+      const start = r + 1;
+      let end = start;
       while (end < h && pattern[end][c] === ".") end++;
-      if (end - r >= 3) {
-        slots.push({ row: r, col: c, direction: "down", length: end - r, crossings: [] });
+      if (end - start >= 3) {
+        slots.push({ row: start, col: c, direction: "down", length: end - start, crossings: [] });
       }
-      r = end;
     }
   }
 
@@ -292,23 +297,77 @@ function pickClue(word: string, clueDb: Map<string, string[]>): string {
 }
 
 /**
- * Find the clue cell for a slot (the '#' cell immediately before the word).
+ * Find the best clue cell for a word.
+ *
+ * Search order:
+ * 1. '#' cell immediately before the word (standard: left for →, above for ↓)
+ * 2. '#' cell that's one row up and same column (for dual → cells in left potence)
+ * 3. '#' cell that's same row and one column left (for dual ↓ cells in top potence)
+ * 4. Any nearby '#' cell with room (< 2 clues)
  */
 function findClueCell(
   slot: Slot,
-  pattern: string[]
+  pattern: string[],
+  cells: FlecheCell[][],
+  height: number,
+  width: number
 ): { row: number; col: number } | null {
+  const candidates: { row: number; col: number; priority: number }[] = [];
+
   if (slot.direction === "right") {
+    // Primary: '#' immediately to the left
     const c = slot.col - 1;
     if (c >= 0 && pattern[slot.row][c] === "#") {
-      return { row: slot.row, col: c };
+      candidates.push({ row: slot.row, col: c, priority: 0 });
+    }
+    // Secondary: '#' one row up, same start column -1 (dual → in potence)
+    if (c >= 0 && slot.row > 0 && pattern[slot.row - 1][c] === "#") {
+      candidates.push({ row: slot.row - 1, col: c, priority: 1 });
+    }
+    // Tertiary: '#' two cols to the left on same row
+    if (slot.col - 2 >= 0 && pattern[slot.row][slot.col - 2] === "#") {
+      candidates.push({ row: slot.row, col: slot.col - 2, priority: 2 });
     }
   } else {
+    // Primary: '#' immediately above
     const r = slot.row - 1;
     if (r >= 0 && pattern[r][slot.col] === "#") {
-      return { row: r, col: slot.col };
+      candidates.push({ row: r, col: slot.col, priority: 0 });
+    }
+    // Secondary: '#' same row, one col to the left (dual ↓ in top row)
+    if (r >= 0 && slot.col > 0 && pattern[r][slot.col - 1] === "#") {
+      candidates.push({ row: r, col: slot.col - 1, priority: 1 });
+    }
+    // Tertiary: '#' two rows up on same col
+    if (slot.row - 2 >= 0 && pattern[slot.row - 2][slot.col] === "#") {
+      candidates.push({ row: slot.row - 2, col: slot.col, priority: 2 });
     }
   }
+
+  // Pick the best candidate that has room (< 2 clues)
+  candidates.sort((a, b) => a.priority - b.priority);
+  for (const c of candidates) {
+    const cell = cells[c.row]?.[c.col];
+    if (cell?.type === "clue" && (cell.clues?.length ?? 0) < 2) {
+      return { row: c.row, col: c.col };
+    }
+  }
+
+  // If all primary candidates are full, find any nearby '#' with room
+  for (let dr = -2; dr <= 0; dr++) {
+    for (let dc = -2; dc <= 0; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const r = slot.row + dr;
+      const c = slot.col + dc;
+      if (r >= 0 && c >= 0 && r < height && c < width && pattern[r][c] === "#") {
+        const cell = cells[r][c];
+        if (cell?.type === "clue" && (cell.clues?.length ?? 0) < 2) {
+          return { row: r, col: c };
+        }
+      }
+    }
+  }
+
   return null;
 }
 
@@ -347,34 +406,57 @@ export function generateFleche(
     };
   }
 
+  // Build letter map for fast lookup
+  const letterMap = new Map<string, string>();
+  for (const [si, word] of placed) {
+    const slot = slots[si];
+    for (let i = 0; i < slot.length; i++) {
+      const r = slot.direction === "right" ? slot.row : slot.row + i;
+      const c = slot.direction === "right" ? slot.col + i : slot.col;
+      letterMap.set(`${r},${c}`, word[i]);
+    }
+  }
+
   // Build cell grid
   const cells: FlecheCell[][] = Array.from({ length: height }, (_, r) =>
     Array.from({ length: width }, (_, c) => {
       if (pattern[r][c] === "#") {
         return { type: "clue" as const, clues: [] as ClueInCell[] };
       }
-      // Find the letter at this position from placed words
-      let letter = "?";
-      for (const [si, word] of placed!) {
-        const slot = slots[si];
-        for (let i = 0; i < slot.length; i++) {
-          const wr = slot.direction === "right" ? slot.row : slot.row + i;
-          const wc = slot.direction === "right" ? slot.col + i : slot.col;
-          if (wr === r && wc === c) { letter = word[i]; break; }
-        }
-        if (letter !== "?") break;
-      }
+      const letter = letterMap.get(`${r},${c}`) ?? "?";
       return { type: "letter" as const, letter };
     })
   );
 
-  // Assign clues to clue cells
+  // Convert unfilled letter cells to clue cells
+  for (let r = 0; r < height; r++) {
+    for (let c = 0; c < width; c++) {
+      if (cells[r][c].type === "letter" && cells[r][c].letter === "?") {
+        cells[r][c] = { type: "clue", clues: [] };
+      }
+    }
+  }
+
+  // Assign clues to clue cells (smart packing)
   const flecheWords: FlecheWord[] = [];
 
-  for (const [si, word] of placed) {
+  // Sort: words with a direct clue cell first, orphans last
+  const sortedEntries = [...placed.entries()].sort((a, b) => {
+    const slotA = slots[a[0]];
+    const slotB = slots[b[0]];
+    const hasDirectA = slotA.direction === "right"
+      ? (slotA.col > 0 && pattern[slotA.row][slotA.col - 1] === "#")
+      : (slotA.row > 0 && pattern[slotA.row - 1][slotA.col] === "#");
+    const hasDirectB = slotB.direction === "right"
+      ? (slotB.col > 0 && pattern[slotB.row][slotB.col - 1] === "#")
+      : (slotB.row > 0 && pattern[slotB.row - 1][slotB.col] === "#");
+    return (hasDirectA ? 0 : 1) - (hasDirectB ? 0 : 1);
+  });
+
+  for (const [si, word] of sortedEntries) {
     const slot = slots[si];
     const clueText = pickClue(word, clueDatabase);
-    const clueCell = findClueCell(slot, pattern);
+    const clueCell = findClueCell(slot, pattern, cells, height, width);
 
     if (clueCell) {
       const cell = cells[clueCell.row][clueCell.col];
@@ -382,6 +464,8 @@ export function generateFleche(
         cell.clues.push({
           text: clueText,
           direction: slot.direction,
+          answerRow: slot.row,
+          answerCol: slot.col,
           answerLength: word.length,
           answer: word,
         });
@@ -392,8 +476,8 @@ export function generateFleche(
       answer: word,
       clue: clueText,
       direction: slot.direction,
-      clueRow: clueCell?.row ?? 0,
-      clueCol: clueCell?.col ?? 0,
+      clueRow: clueCell?.row ?? -1,
+      clueCol: clueCell?.col ?? -1,
       startRow: slot.row,
       startCol: slot.col,
       length: word.length,

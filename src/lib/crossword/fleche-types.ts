@@ -1,20 +1,12 @@
-/**
- * Types for mots fléchés (arrow crossword) generation.
- *
- * In mots fléchés, each cell is one of:
- * - LETTER: contains a letter (part of an answer)
- * - CLUE: contains a definition + arrow direction (points to answer start)
- * - EMPTY: unused cell
- *
- * A clue cell can contain up to 2 definitions:
- * one pointing right (→) and one pointing down (↓).
- */
-
 export type ArrowDirection = "right" | "down";
 
 export interface ClueInCell {
   text: string;
   direction: ArrowDirection;
+  /** Row where the answer starts */
+  answerRow: number;
+  /** Col where the answer starts */
+  answerCol: number;
   answerLength: number;
   answer: string;
 }
@@ -22,20 +14,22 @@ export interface ClueInCell {
 export interface FlecheCell {
   type: "letter" | "clue" | "empty";
   letter?: string;
-  clues?: ClueInCell[]; // 1-2 clues per clue cell
+  /** 0-2 clues per cell. Can be:
+   * - Single: one → or one ↓
+   * - Dual cross: one → and one ↓
+   * - Dual same: two → (top for this row, bottom for next row)
+   *              or two ↓ (top for this col, bottom for next col)
+   */
+  clues?: ClueInCell[];
 }
 
 export interface FlecheWord {
   answer: string;
   clue: string;
   direction: ArrowDirection;
-  /** Row of the clue cell */
   clueRow: number;
-  /** Col of the clue cell */
   clueCol: number;
-  /** Row where the answer starts (cell after the clue cell) */
   startRow: number;
-  /** Col where the answer starts */
   startCol: number;
   length: number;
   isCustom: boolean;
