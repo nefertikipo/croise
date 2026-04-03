@@ -46,32 +46,58 @@ function generatePattern(width: number, height: number): string[] {
     Array.from({ length: width }, () => ".")
   );
 
-  // Potence: top row has clue cells every 2 cols, left col every 2 rows.
-  // This creates the L-shaped frame with enough clue cells to define
-  // both horizontal and vertical words, while keeping letter cells
-  // for crossings.
-  grid[0][0] = "#"; // corner always clue
-  for (let c = 1; c < width; c += 2) {
-    grid[0][c] = "#"; // clue cells on odd columns in top row
-  }
-  for (let r = 1; r < height; r += 2) {
-    grid[r][0] = "#"; // clue cells on odd rows in left column
-  }
+  // Potence: entire first row and first column are clue cells.
+  // Every row gets a clue cell at the start (→), every column gets one at top (↓).
+  // This is the standard mots fléchés layout.
+  for (let c = 0; c < width; c++) grid[0][c] = "#";
+  for (let r = 0; r < height; r++) grid[r][0] = "#";
 
-  // Interior clue cells on a staggered grid (~every 5 cells).
-  // This creates a natural pattern where every run is 3-5 letters.
-  const SPACING = 5;
-  for (let r = 1; r < height; r++) {
+  // Interior clue cells: fewer needed since potence covers edges.
+  // Place them on a staggered grid to break long runs into 3-6 letter slots.
+  const SPACING = 6;
+  for (let r = 2; r < height; r++) {
     const rowOffset = (r % 2 === 0) ? 0 : Math.floor(SPACING / 2);
-    for (let c = 1; c < width; c++) {
+    for (let c = 2; c < width; c++) {
       const pos = c + rowOffset;
       if (pos % SPACING === 0 && c < width - 2 && r < height - 2) {
-        // Add jitter
         const jitter = Math.random() < 0.3 ? 1 : 0;
         const cc = Math.min(c + jitter, width - 2);
         if (grid[r][cc] !== "#") {
           grid[r][cc] = "#";
         }
+      }
+    }
+  }
+
+  // Cleanup: remove orphan clue cells that don't define any word.
+  // A clue cell is useful only if it has a run of 3+ letter cells
+  // going right or going down from it.
+  for (let r = 0; r < height; r++) {
+    for (let c = 0; c < width; c++) {
+      if (grid[r][c] !== "#") continue;
+
+      let hasRight = false;
+      let hasDown = false;
+
+      // Check right run
+      if (c + 1 < width && grid[r][c + 1] === ".") {
+        let len = 0;
+        let cc = c + 1;
+        while (cc < width && grid[r][cc] === ".") { len++; cc++; }
+        if (len >= 3) hasRight = true;
+      }
+
+      // Check down run
+      if (r + 1 < height && grid[r + 1][c] === ".") {
+        let len = 0;
+        let rr = r + 1;
+        while (rr < height && grid[rr][c] === ".") { len++; rr++; }
+        if (len >= 3) hasDown = true;
+      }
+
+      // If this clue cell defines no word, convert to letter cell
+      if (!hasRight && !hasDown) {
+        grid[r][c] = ".";
       }
     }
   }
@@ -261,9 +287,8 @@ function pickClue(word: string, clueDb: Map<string, string[]>): string {
     if (clue.length > 40) clue = clue.slice(0, 37) + "...";
     return clue;
   }
-  // No scraped clue: use the word itself as placeholder
-  // (will be replaced by LLM later)
-  return word.charAt(0) + word.slice(1).toLowerCase();
+  // No scraped clue: show the word in uppercase as a clear placeholder
+  return word;
 }
 
 /**

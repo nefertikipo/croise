@@ -25,6 +25,21 @@ interface FlecheGridProps {
 
 const CELL_SIZE = 70;
 
+function ArrowTriangle({ direction, className }: { direction: "right" | "down"; className?: string }) {
+  if (direction === "right") {
+    return (
+      <svg viewBox="0 0 10 10" className={cn("w-3 h-3 shrink-0", className)}>
+        <polygon points="0,0 10,5 0,10" fill="currentColor" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 10 10" className={cn("w-3 h-3 shrink-0", className)}>
+      <polygon points="0,0 10,0 5,10" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function FlecheGrid({
   cells,
   width,
@@ -45,43 +60,97 @@ export function FlecheGrid({
           if (cell.type === "clue") {
             const clueTexts = cell.clues ?? [];
             const hasTwo = clueTexts.length >= 2;
+
+            if (hasTwo) {
+              // Dual clue cell: diagonal split
+              const rightClue = clueTexts.find((cl) => cl.direction === "right");
+              const downClue = clueTexts.find((cl) => cl.direction === "down");
+
+              return (
+                <div
+                  key={`${r}-${c}`}
+                  className="relative border border-sky-300 overflow-hidden"
+                  style={{
+                    width: CELL_SIZE,
+                    height: CELL_SIZE,
+                    backgroundColor: "#dbeafe",
+                  }}
+                >
+                  {/* Diagonal line */}
+                  <svg
+                    className="absolute inset-0 w-full h-full pointer-events-none"
+                    viewBox={`0 0 ${CELL_SIZE} ${CELL_SIZE}`}
+                  >
+                    <line
+                      x1="0" y1="0"
+                      x2={CELL_SIZE} y2={CELL_SIZE}
+                      stroke="#93c5fd"
+                      strokeWidth="1"
+                    />
+                  </svg>
+
+                  {/* Top-right: down clue */}
+                  {downClue && (
+                    <div className="absolute top-0 right-0 w-[60%] h-[50%] flex flex-col items-end justify-start p-0.5">
+                      <span
+                        className={cn(
+                          "leading-tight text-right",
+                          downClue.text === downClue.answer ? "text-red-400 italic" : "text-black"
+                        )}
+                        style={{ fontSize: "7px" }}
+                      >
+                        {downClue.text}
+                      </span>
+                      <ArrowTriangle direction="down" className="text-black/70 mt-0.5" />
+                    </div>
+                  )}
+
+                  {/* Bottom-left: right clue */}
+                  {rightClue && (
+                    <div className="absolute bottom-0 left-0 w-[60%] h-[50%] flex flex-col items-start justify-end p-0.5">
+                      <span
+                        className={cn(
+                          "leading-tight",
+                          rightClue.text === rightClue.answer ? "text-red-400 italic" : "text-black"
+                        )}
+                        style={{ fontSize: "7px" }}
+                      >
+                        {rightClue.text}
+                      </span>
+                      <ArrowTriangle direction="right" className="text-black/70 mt-0.5" />
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            // Single clue cell
+            const cl = clueTexts[0];
             return (
               <div
                 key={`${r}-${c}`}
-                className="relative border border-sky-300 flex flex-col overflow-hidden"
+                className="relative border border-sky-300 flex flex-col items-start justify-center p-1 overflow-hidden"
                 style={{
                   width: CELL_SIZE,
                   height: CELL_SIZE,
                   backgroundColor: "#dbeafe",
                 }}
               >
-                {clueTexts.map((cl, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "flex items-start gap-0.5 w-full px-1",
-                      hasTwo ? "flex-1 py-0.5" : "flex-1 py-1",
-                      hasTwo && i === 0 && "border-b border-sky-300"
-                    )}
-                  >
+                {cl ? (
+                  <div className="flex items-end gap-0.5 w-full">
                     <span
-                      className="leading-tight flex-1 text-black overflow-hidden"
-                      style={{ fontSize: hasTwo ? "8px" : "9px" }}
+                      className={cn(
+                        "leading-tight flex-1 overflow-hidden",
+                        cl.text === cl.answer ? "text-red-400 italic" : "text-black"
+                      )}
+                      style={{ fontSize: "9px" }}
                     >
                       {cl.text}
                     </span>
-                    <span
-                      className="font-bold shrink-0 text-black leading-none"
-                      style={{ fontSize: hasTwo ? "10px" : "12px" }}
-                    >
-                      {cl.direction === "right" ? "→" : "↓"}
-                    </span>
+                    <ArrowTriangle direction={cl.direction} className="text-black/70" />
                   </div>
-                ))}
-                {clueTexts.length === 0 && (
-                  <div className="flex-1 flex items-center justify-center">
-                    <span className="text-[9px] text-black/30">...</span>
-                  </div>
+                ) : (
+                  <span className="text-[9px] text-black/20">...</span>
                 )}
               </div>
             );
