@@ -53,7 +53,12 @@ function loadEnglish(wl: WordList, dataDir: string) {
       if (!/^[A-Z]+$/i.test(word)) continue;
 
       const score = parseInt(scoreStr, 10);
-      if (isNaN(score) || score < 35) continue;
+      if (isNaN(score) || score < 40) continue;
+
+      // Filter out non-words: must contain a vowel, no 3+ consecutive consonants
+      const upper = word.toUpperCase();
+      if (!/[AEIOU]/.test(upper)) continue;
+      if (/[BCDFGHJKLMNPQRSTVWXYZ]{4,}/.test(upper)) continue;
 
       wl.addWord(word, score);
       count++;
