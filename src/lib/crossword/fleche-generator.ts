@@ -1,19 +1,14 @@
 /**
- * Mots fléchés generator.
+ * Mots fléchés generator - custom-word-first approach.
  *
  * Algorithm:
- * 1. Start with an empty grid of given dimensions
- * 2. Place clue cells in a pattern (typically first row and first column
- *    have more clue cells, but they can appear anywhere)
- * 3. For each clue cell, try to place a word starting from the adjacent cell
- *    in the arrow direction
- * 4. Use backtracking to fill the grid, respecting crossing constraints
+ * 1. Place custom words first, maximizing crossings between them
+ * 2. Place clue cells adjacent to each word's start
+ * 3. Scan remaining empty space, add clue cells to create fillable slots
+ * 4. Fill those slots with dictionary words via backtracking
+ * 5. Assign real clues from the database
  *
- * In a standard mots fléchés layout:
- * - Clue cells form an irregular pattern (not symmetric like mots croisés)
- * - The first row often has clue cells pointing down
- * - The first column often has clue cells pointing right
- * - Interior clue cells can point right, down, or both
+ * Every grid is unique because it's built around the user's words.
  */
 
 import type {
@@ -26,139 +21,293 @@ import type {
 } from "@/lib/crossword/fleche-types";
 import type { WordList } from "@/lib/crossword/word-list";
 
-interface SlotDef {
+// Internal types
+interface PlacedWord {
+  word: string;
+  row: number;
+  col: number;
+  direction: ArrowDirection;
+  clue?: string;
+  isCustom: boolean;
+}
+
+interface Slot {
   clueRow: number;
   clueCol: number;
-  direction: ArrowDirection;
   startRow: number;
   startCol: number;
+  direction: ArrowDirection;
   length: number;
 }
 
+// Grid cell types during generation
+const EMPTY = 0;
+const LETTER = 1;
+const CLUE = 2;
+
+type CellType = typeof EMPTY | typeof LETTER | typeof CLUE;
+
 /**
- * Generate a mots fléchés grid layout.
- * Places clue cells to create word slots of 3-7 letters.
- * Returns the positions of clue cells and the word slots they define.
+ * Check if a word can be placed at a position.
+ * Returns crossing count (>=0) or -1 if invalid.
  */
-function generateLayout(width: number, height: number): SlotDef[] {
-  const isClue = Array.from({ length: height }, () =>
-    Array.from({ length: width }, () => false)
-  );
+function canPlace(
+  word: string,
+  row: number,
+  col: number,
+  dir: ArrowDirection,
+  letterGrid: (string | null)[][],
+  typeGrid: CellType[][],
+  height: number,
+  width: number
+): number {
+  let crossings = 0;
 
-  // First row and first column are all clue cells
-  for (let c = 0; c < width; c++) isClue[0][c] = true;
-  for (let r = 0; r < height; r++) isClue[r][0] = true;
+  for (let i = 0; i < word.length; i++) {
+    const r = dir === "right" ? row : row + i;
+    const c = dir === "right" ? col + i : col;
 
-  // Add interior clue cells with randomized placement.
-  // Each generation produces a different layout.
-  // Target slot length varies randomly between 3-7 for each row/column.
-  for (let r = 1; r < height; r++) {
-    let lastClueCol = 0;
-    let nextGap = 3 + Math.floor(Math.random() * 4); // 3-6
+    if (r < 0 || r >= height || c < 0 || c >= width) return -1;
+    if (typeGrid[r][c] === CLUE) return -1;
 
-    for (let c = 1; c < width; c++) {
-      const gap = c - lastClueCol;
-      if (gap >= nextGap + 1 && c < width - 2) {
-        // Add some randomness to exact position
-        const jitter = Math.random() < 0.4 ? 1 : 0;
-        const placeCol = Math.min(c + jitter, width - 2);
-        if (!isClue[r][placeCol]) {
-          isClue[r][placeCol] = true;
-          lastClueCol = placeCol;
-          nextGap = 3 + Math.floor(Math.random() * 4);
-        }
-      }
+    const existing = letterGrid[r][c];
+    if (existing !== null) {
+      if (existing !== word[i]) return -1;
+      crossings++;
     }
   }
 
-  // Add clue cells in columns too (creates down slots)
-  for (let c = 1; c < width; c++) {
-    let lastClueRow = 0;
-    let nextGap = 3 + Math.floor(Math.random() * 4);
+  // Need the cell before the word start for the clue cell
+  const clueR = dir === "right" ? row : row - 1;
+  const clueC = dir === "right" ? col - 1 : col;
+  if (clueR < 0 || clueC < 0 || clueR >= height || clueC >= width) return -1;
+  // Clue cell position must be empty or already a clue cell
+  if (typeGrid[clueR][clueC] === LETTER) return -1;
 
-    for (let r = 1; r < height; r++) {
-      if (isClue[r][c]) { lastClueRow = r; continue; }
-      const gap = r - lastClueRow;
-      if (gap >= nextGap + 1 && r < height - 2) {
-        const jitter = Math.random() < 0.4 ? 1 : 0;
-        const placeRow = Math.min(r + jitter, height - 2);
-        if (!isClue[placeRow][c]) {
-          isClue[placeRow][c] = true;
-          lastClueRow = placeRow;
-          nextGap = 3 + Math.floor(Math.random() * 4);
+  return crossings;
+}
+
+/**
+ * Place a word on the grid.
+ */
+function placeOnGrid(
+  word: string,
+  row: number,
+  col: number,
+  dir: ArrowDirection,
+  letterGrid: (string | null)[][],
+  typeGrid: CellType[][]
+) {
+  for (let i = 0; i < word.length; i++) {
+    const r = dir === "right" ? row : row + i;
+    const c = dir === "right" ? col + i : col;
+    letterGrid[r][c] = word[i];
+    typeGrid[r][c] = LETTER;
+  }
+  // Mark clue cell
+  const clueR = dir === "right" ? row : row - 1;
+  const clueC = dir === "right" ? col - 1 : col;
+  typeGrid[clueR][clueC] = CLUE;
+}
+
+/**
+ * Place custom words trying to maximize crossings.
+ */
+function placeCustomWords(
+  customWords: { word: string; clue: string }[],
+  letterGrid: (string | null)[][],
+  typeGrid: CellType[][],
+  height: number,
+  width: number
+): PlacedWord[] {
+  const placed: PlacedWord[] = [];
+  const sorted = [...customWords].sort((a, b) => b.word.length - a.word.length);
+
+  for (const cw of sorted) {
+    const word = cw.word;
+    let bestPos: { row: number; col: number; dir: ArrowDirection; crossings: number } | null = null;
+
+    // Try all positions and both directions
+    for (const dir of ["right", "down"] as ArrowDirection[]) {
+      for (let r = 0; r < height; r++) {
+        for (let c = 0; c < width; c++) {
+          // Check bounds
+          const endR = dir === "right" ? r : r + word.length - 1;
+          const endC = dir === "right" ? c + word.length - 1 : c;
+          if (endR >= height || endC >= width) continue;
+
+          const crossings = canPlace(word, r, c, dir, letterGrid, typeGrid, height, width);
+          if (crossings < 0) continue;
+
+          // Prefer positions with more crossings, then more central
+          const centrality = -Math.abs(r - height / 2) - Math.abs(c - width / 2);
+          const score = crossings * 100 + centrality;
+
+          if (!bestPos || score > bestPos.crossings * 100 + (-Math.abs(bestPos.row - height / 2) - Math.abs(bestPos.col - width / 2))) {
+            bestPos = { row: r, col: c, dir, crossings };
+          }
         }
       }
     }
+
+    if (bestPos) {
+      placeOnGrid(word, bestPos.row, bestPos.col, bestPos.dir, letterGrid, typeGrid);
+      placed.push({
+        word,
+        row: bestPos.row,
+        col: bestPos.col,
+        direction: bestPos.dir,
+        clue: cw.clue,
+        isCustom: true,
+      });
+    }
   }
 
-  // Now extract all slots from the clue cell positions
-  const slots: SlotDef[] = [];
+  return placed;
+}
 
+/**
+ * Scan the grid and create word slots by placing additional clue cells.
+ * Targets slot lengths of 3-7 letters.
+ */
+function createSlots(
+  typeGrid: CellType[][],
+  letterGrid: (string | null)[][],
+  height: number,
+  width: number
+): Slot[] {
+  const slots: Slot[] = [];
+
+  // First: collect existing clue-cell slots (from custom word placement)
   for (let r = 0; r < height; r++) {
     for (let c = 0; c < width; c++) {
-      if (!isClue[r][c]) continue;
+      if (typeGrid[r][c] !== CLUE) continue;
 
       // Right slot
-      if (c + 1 < width && !isClue[r][c + 1]) {
-        const len = findRunLength(isClue, r, c + 1, "right", width, height);
-        if (len >= 3 && len <= 8) {
-          slots.push({
-            clueRow: r, clueCol: c,
-            direction: "right",
-            startRow: r, startCol: c + 1,
-            length: len,
-          });
+      if (c + 1 < width && typeGrid[r][c + 1] !== CLUE) {
+        let len = 0;
+        let cc = c + 1;
+        while (cc < width && typeGrid[r][cc] !== CLUE) { len++; cc++; }
+        if (len >= 3) {
+          slots.push({ clueRow: r, clueCol: c, startRow: r, startCol: c + 1, direction: "right", length: len });
         }
       }
 
       // Down slot
-      if (r + 1 < height && !isClue[r + 1][c]) {
-        const len = findRunLength(isClue, r + 1, c, "down", width, height);
-        if (len >= 3 && len <= 8) {
-          slots.push({
-            clueRow: r, clueCol: c,
-            direction: "down",
-            startRow: r + 1, startCol: c,
-            length: len,
-          });
+      if (r + 1 < height && typeGrid[r + 1][c] !== CLUE) {
+        let len = 0;
+        let rr = r + 1;
+        while (rr < height && typeGrid[rr][c] !== CLUE) { len++; rr++; }
+        if (len >= 3) {
+          slots.push({ clueRow: r, clueCol: c, startRow: r + 1, startCol: c, direction: "down", length: len });
         }
       }
     }
   }
 
-  return slots;
-}
-
-/**
- * Find how many consecutive non-clue cells exist from a starting position.
- */
-function findRunLength(
-  isClue: boolean[][],
-  startRow: number,
-  startCol: number,
-  direction: ArrowDirection,
-  width: number,
-  height: number
-): number {
-  let len = 0;
-  let r = startRow;
-  let c = startCol;
-
-  while (r < height && c < width && !isClue[r][c]) {
-    len++;
-    if (direction === "right") c++;
-    else r++;
+  // Second: scan for long empty/letter runs without a clue cell, add clue cells to break them up
+  // Horizontal runs
+  for (let r = 1; r < height; r++) {
+    let runStart = -1;
+    for (let c = 0; c <= width; c++) {
+      const isEnd = c === width || typeGrid[r][c] === CLUE;
+      if (!isEnd && runStart === -1) runStart = c;
+      if (isEnd && runStart !== -1) {
+        const runLen = c - runStart;
+        if (runLen >= 3) {
+          // This run needs a clue cell at its start
+          // Check if the cell before runStart can be a clue
+          const clueC = runStart - 1;
+          if (clueC >= 0 && typeGrid[r][clueC] !== LETTER) {
+            typeGrid[r][clueC] = CLUE;
+            // If run is too long, break it up
+            let segStart = runStart;
+            while (segStart < c) {
+              const maxLen = Math.min(3 + Math.floor(Math.random() * 4), c - segStart);
+              if (maxLen >= 3) {
+                slots.push({
+                  clueRow: r, clueCol: segStart - 1 < 0 ? segStart : segStart - 1,
+                  startRow: r, startCol: segStart,
+                  direction: "right", length: maxLen,
+                });
+              }
+              segStart += maxLen;
+              if (segStart < c - 2) {
+                // Place a clue cell to start next segment
+                if (typeGrid[r][segStart] !== LETTER) {
+                  typeGrid[r][segStart] = CLUE;
+                  segStart++;
+                } else {
+                  break;
+                }
+              }
+            }
+          }
+        }
+        runStart = -1;
+      }
+    }
   }
 
-  return len;
+  // Vertical runs
+  for (let c = 1; c < width; c++) {
+    let runStart = -1;
+    for (let r = 0; r <= height; r++) {
+      const isEnd = r === height || typeGrid[r][c] === CLUE;
+      if (!isEnd && runStart === -1) runStart = r;
+      if (isEnd && runStart !== -1) {
+        const runLen = r - runStart;
+        if (runLen >= 3) {
+          const clueR = runStart - 1;
+          if (clueR >= 0 && typeGrid[clueR][c] !== LETTER) {
+            typeGrid[clueR][c] = CLUE;
+            let segStart = runStart;
+            while (segStart < r) {
+              const maxLen = Math.min(3 + Math.floor(Math.random() * 4), r - segStart);
+              if (maxLen >= 3) {
+                slots.push({
+                  clueRow: segStart - 1 < 0 ? segStart : segStart - 1, clueCol: c,
+                  startRow: segStart, startCol: c,
+                  direction: "down", length: maxLen,
+                });
+              }
+              segStart += maxLen;
+              if (segStart < r - 2) {
+                if (typeGrid[segStart][c] !== LETTER) {
+                  typeGrid[segStart][c] = CLUE;
+                  segStart++;
+                } else {
+                  break;
+                }
+              }
+            }
+          }
+        }
+        runStart = -1;
+      }
+    }
+  }
+
+  // Filter: valid length, and answer start cell must not be a clue cell
+  return slots.filter((s) => {
+    if (s.length < 3 || s.length > 8) return false;
+    // Verify every cell in the slot is not a clue cell
+    for (let i = 0; i < s.length; i++) {
+      const r = s.direction === "right" ? s.startRow : s.startRow + i;
+      const c = s.direction === "right" ? s.startCol + i : s.startCol;
+      if (r >= height || c >= width) return false;
+      if (typeGrid[r][c] === CLUE) return false;
+    }
+    return true;
+  });
 }
 
 /**
- * Get word candidates from the word list that fit constraints.
+ * Get candidates for a slot given current grid state.
  */
 function getCandidates(
-  slot: SlotDef,
-  grid: (string | null)[][],
+  slot: Slot,
+  letterGrid: (string | null)[][],
   wordList: WordList,
   usedWords: Set<string>
 ): string[] {
@@ -167,10 +316,8 @@ function getCandidates(
   for (let i = 0; i < slot.length; i++) {
     const r = slot.direction === "right" ? slot.startRow : slot.startRow + i;
     const c = slot.direction === "right" ? slot.startCol + i : slot.startCol;
-    const letter = grid[r]?.[c];
-    if (letter) {
-      constraints.push({ pos: i, letter });
-    }
+    const letter = letterGrid[r]?.[c];
+    if (letter) constraints.push({ pos: i, letter });
   }
 
   let words: string[];
@@ -187,164 +334,154 @@ function getCandidates(
 }
 
 /**
- * Generate a mots fléchés grid.
+ * Fill slots with dictionary words using backtracking.
  */
-export function generateFleche(
-  params: FlecheGenerationParams,
+function fillSlots(
+  slots: Slot[],
+  letterGrid: (string | null)[][],
   wordList: WordList,
-  clueDatabase: Map<string, string[]>
-): FlecheGrid {
-  const { width, height } = params;
-  const customClues = params.customClues ?? [];
-
-  // Generate layout (clue cell positions and word slots)
-  const slots = generateLayout(width, height);
-
-  // Initialize letter grid (null = empty)
-  const grid: (string | null)[][] = Array.from({ length: height }, () =>
-    Array.from({ length: width }, () => null)
-  );
-
-  // Track which cells are clue cells
-  const clueCells = new Set<string>();
-  for (const slot of slots) {
-    clueCells.add(`${slot.clueRow},${slot.clueCol}`);
-  }
-
-  const usedWords = new Set<string>();
-  const placedSlots: (string | null)[] = new Array(slots.length).fill(null);
-
-  // Place custom words first
-  const customMap = new Map<string, string>();
-  const normalizedCustom = customClues.map((c) => ({
-    answer: c.answer.toUpperCase().replace(/[^A-Z]/g, ""),
-    clue: c.clue,
-  })).filter((c) => c.answer.length >= 2);
-
-  for (const cw of normalizedCustom.sort((a, b) => b.answer.length - a.answer.length)) {
-    for (let si = 0; si < slots.length; si++) {
-      if (placedSlots[si] !== null) continue;
-      if (slots[si].length !== cw.answer.length) continue;
-
-      let ok = true;
-      for (let p = 0; p < cw.answer.length; p++) {
-        const r = slots[si].direction === "right" ? slots[si].startRow : slots[si].startRow + p;
-        const c = slots[si].direction === "right" ? slots[si].startCol + p : slots[si].startCol;
-        if (grid[r][c] !== null && grid[r][c] !== cw.answer[p]) { ok = false; break; }
-      }
-
-      if (ok) {
-        for (let p = 0; p < cw.answer.length; p++) {
-          const r = slots[si].direction === "right" ? slots[si].startRow : slots[si].startRow + p;
-          const c = slots[si].direction === "right" ? slots[si].startCol + p : slots[si].startCol;
-          grid[r][c] = cw.answer[p];
-        }
-        placedSlots[si] = cw.answer;
-        usedWords.add(cw.answer);
-        customMap.set(cw.answer, cw.clue);
-        break;
-      }
-    }
-  }
-
-  // Fill remaining slots with backtracking
-  const unfilled = slots.map((_, i) => i).filter((i) => placedSlots[i] === null);
+  usedWords: Set<string>
+): Map<number, string> {
+  const placed = new Map<number, string>();
   let backtracks = 0;
   const MAX_BT = 200_000;
 
-  function placeWord(si: number, word: string) {
-    const slot = slots[si];
-    for (let p = 0; p < word.length; p++) {
-      const r = slot.direction === "right" ? slot.startRow : slot.startRow + p;
-      const c = slot.direction === "right" ? slot.startCol + p : slot.startCol;
-      grid[r][c] = word[p];
-    }
-  }
-
   function solve(idx: number): boolean {
-    if (idx >= unfilled.length) return true;
+    if (idx >= slots.length) return true;
     if (backtracks > MAX_BT) return false;
 
-    // MRV: pick most constrained
+    // MRV heuristic
     let bestIdx = idx;
     let bestCount = Infinity;
-    for (let i = idx; i < unfilled.length; i++) {
-      const count = getCandidates(slots[unfilled[i]], grid, wordList, usedWords).length;
+    for (let i = idx; i < slots.length; i++) {
+      if (placed.has(i)) continue;
+      const count = getCandidates(slots[i], letterGrid, wordList, usedWords).length;
       if (count < bestCount) { bestCount = count; bestIdx = i; }
       if (count === 0) break;
     }
     if (bestCount === 0) { backtracks++; return false; }
 
-    [unfilled[idx], unfilled[bestIdx]] = [unfilled[bestIdx], unfilled[idx]];
+    [slots[idx], slots[bestIdx]] = [slots[bestIdx], slots[idx]];
 
-    const si = unfilled[idx];
-    const slot = slots[si];
-    const cands = getCandidates(slot, grid, wordList, usedWords);
+    const slot = slots[idx];
+    const cands = getCandidates(slot, letterGrid, wordList, usedWords);
 
-    // Randomize for variety
     const shuffled = cands
-      .map((w) => ({ w, score: (wordList.getByLength(w.length).find((e) => e.word === w)?.score ?? 50) + Math.random() * 30 }))
+      .map((w) => ({
+        w,
+        score: (wordList.getByLength(w.length).find((e) => e.word === w)?.score ?? 50) + Math.random() * 30,
+      }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 80)
       .map((x) => x.w);
 
     for (const word of shuffled) {
       const saved: { r: number; c: number; v: string | null }[] = [];
-      for (let p = 0; p < slot.length; p++) {
-        const r = slot.direction === "right" ? slot.startRow : slot.startRow + p;
-        const c = slot.direction === "right" ? slot.startCol + p : slot.startCol;
-        saved.push({ r, c, v: grid[r][c] });
-        grid[r][c] = word[p];
+      for (let i = 0; i < word.length; i++) {
+        const r = slot.direction === "right" ? slot.startRow : slot.startRow + i;
+        const c = slot.direction === "right" ? slot.startCol + i : slot.startCol;
+        saved.push({ r, c, v: letterGrid[r][c] });
+        letterGrid[r][c] = word[i];
       }
-      placedSlots[si] = word;
       usedWords.add(word);
+      placed.set(idx, word);
 
-      // Forward check crossings
-      let valid = true;
-      for (let p = 0; p < slot.length; p++) {
-        const r = slot.direction === "right" ? slot.startRow : slot.startRow + p;
-        const c = slot.direction === "right" ? slot.startCol + p : slot.startCol;
-        // Check all other unfilled slots that pass through this cell
-        for (let j = idx + 1; j < unfilled.length; j++) {
-          const otherSlot = slots[unfilled[j]];
-          if (placedSlots[unfilled[j]] !== null) continue;
-          // Does this slot pass through (r,c)?
-          for (let op = 0; op < otherSlot.length; op++) {
-            const or2 = otherSlot.direction === "right" ? otherSlot.startRow : otherSlot.startRow + op;
-            const oc = otherSlot.direction === "right" ? otherSlot.startCol + op : otherSlot.startCol;
-            if (or2 === r && oc === c) {
-              if (getCandidates(otherSlot, grid, wordList, usedWords).length === 0) {
-                valid = false;
-              }
-              break;
-            }
-          }
-          if (!valid) break;
-        }
-        if (!valid) break;
-      }
-
-      if (valid && solve(idx + 1)) return true;
+      if (solve(idx + 1)) return true;
 
       backtracks++;
       usedWords.delete(word);
-      placedSlots[si] = null;
-      for (const s of saved) grid[s.r][s.c] = s.v;
+      placed.delete(idx);
+      for (const s of saved) letterGrid[s.r][s.c] = s.v;
     }
 
-    [unfilled[idx], unfilled[bestIdx]] = [unfilled[bestIdx], unfilled[idx]];
+    [slots[idx], slots[bestIdx]] = [slots[bestIdx], slots[idx]];
     return false;
   }
 
-  const success = solve(0);
+  solve(0);
+  return placed;
+}
 
-  // Build the FlecheGrid
+/**
+ * Calculate grid dimensions based on custom words.
+ */
+function calculateGridSize(
+  customWords: { word: string }[],
+  requestedWidth: number,
+  requestedHeight: number
+): { width: number; height: number } {
+  if (customWords.length === 0) {
+    return { width: requestedWidth, height: requestedHeight };
+  }
+
+  const maxWordLen = Math.max(...customWords.map((w) => w.word.length));
+  // Grid needs to be at least maxWordLen + 2 (for clue cell + margin)
+  const minDim = maxWordLen + 3;
+
+  return {
+    width: Math.max(requestedWidth, minDim),
+    height: Math.max(requestedHeight, minDim),
+  };
+}
+
+/**
+ * Main entry point: generate a mots fléchés grid.
+ */
+export function generateFleche(
+  params: FlecheGenerationParams,
+  wordList: WordList,
+  clueDatabase: Map<string, string[]>
+): FlecheGrid {
+  const customClues = (params.customClues ?? [])
+    .map((c) => ({
+      word: c.answer.toUpperCase().replace(/[^A-Z]/g, ""),
+      clue: c.clue,
+    }))
+    .filter((c) => c.word.length >= 3);
+
+  const { width, height } = calculateGridSize(
+    customClues,
+    params.width,
+    params.height
+  );
+
+  // Initialize grids
+  const letterGrid: (string | null)[][] = Array.from({ length: height }, () =>
+    Array.from({ length: width }, () => null)
+  );
+  const typeGrid: CellType[][] = Array.from({ length: height }, () =>
+    Array.from({ length: width }, () => EMPTY)
+  );
+
+  // Place initial clue cells in a scattered pattern.
+  // First column: clue cells (right-pointing) on every other row
+  for (let r = 0; r < height; r += 2) {
+    typeGrid[r][0] = CLUE;
+  }
+  // First row: clue cells (down-pointing) on every other column
+  for (let c = 0; c < width; c += 2) {
+    typeGrid[0][c] = CLUE;
+  }
+  // Corner is always a clue cell
+  typeGrid[0][0] = CLUE;
+
+  // Step 1: Place custom words
+  const customPlaced = placeCustomWords(customClues, letterGrid, typeGrid, height, width);
+  const usedWords = new Set(customPlaced.map((p) => p.word));
+
+  // Step 2: Create slots (adds more clue cells as needed)
+  const slots = createSlots(typeGrid, letterGrid, height, width);
+
+  // Step 3: Fill slots with dictionary words
+  const filledMap = fillSlots(slots, letterGrid, wordList, usedWords);
+
+  // Step 4: Build the output grid
   const cells: FlecheCell[][] = Array.from({ length: height }, (_, r) =>
     Array.from({ length: width }, (_, c) => {
-      if (clueCells.has(`${r},${c}`)) {
+      if (typeGrid[r][c] === CLUE) {
         return { type: "clue" as const, clues: [] as ClueInCell[] };
       }
-      const letter = grid[r][c];
+      const letter = letterGrid[r][c];
       if (letter) {
         return { type: "letter" as const, letter };
       }
@@ -352,33 +489,53 @@ export function generateFleche(
     })
   );
 
-  // Assign clues to clue cells
+  // Assign clues
   const flecheWords: FlecheWord[] = [];
 
-  for (let si = 0; si < slots.length; si++) {
-    const word = placedSlots[si];
-    if (!word) continue;
+  // Custom words
+  for (const pw of customPlaced) {
+    const clueR = pw.direction === "right" ? pw.row : pw.row - 1;
+    const clueC = pw.direction === "right" ? pw.col - 1 : pw.col;
 
-    const slot = slots[si];
-    const cell = cells[slot.clueRow][slot.clueCol];
-
-    // Pick a clue: custom first, then from database, then fallback
-    let clueText: string;
-    const isCustom = customMap.has(word);
-
-    if (isCustom) {
-      clueText = customMap.get(word)!;
-    } else {
-      const dbClues = clueDatabase.get(word);
-      if (dbClues && dbClues.length > 0) {
-        // Pick a random clue for variety
-        clueText = dbClues[Math.floor(Math.random() * dbClues.length)];
-      } else {
-        clueText = word; // Fallback: just show the word
-      }
+    const cell = cells[clueR]?.[clueC];
+    if (cell?.type === "clue" && cell.clues) {
+      cell.clues.push({
+        text: pw.clue!,
+        direction: pw.direction,
+        answerLength: pw.word.length,
+        answer: pw.word,
+      });
     }
 
-    if (cell.type === "clue" && cell.clues) {
+    flecheWords.push({
+      answer: pw.word,
+      clue: pw.clue!,
+      direction: pw.direction,
+      clueRow: clueR,
+      clueCol: clueC,
+      startRow: pw.row,
+      startCol: pw.col,
+      length: pw.word.length,
+      isCustom: true,
+    });
+  }
+
+  // Dictionary-filled words
+  for (const [slotIdx, word] of filledMap) {
+    const slot = slots[slotIdx];
+    const dbClues = clueDatabase.get(word);
+    let clueText = word;
+    if (dbClues && dbClues.length > 0) {
+      // Prefer shorter clues that fit in a cell (under 30 chars)
+      const short = dbClues.filter((c) => c.length <= 30);
+      const pool = short.length > 0 ? short : dbClues;
+      clueText = pool[Math.floor(Math.random() * pool.length)];
+      // Hard cap at 35 chars
+      if (clueText.length > 35) clueText = clueText.slice(0, 32) + "...";
+    }
+
+    const cell = cells[slot.clueRow]?.[slot.clueCol];
+    if (cell?.type === "clue" && cell.clues) {
       cell.clues.push({
         text: clueText,
         direction: slot.direction,
@@ -396,14 +553,9 @@ export function generateFleche(
       startRow: slot.startRow,
       startCol: slot.startCol,
       length: word.length,
-      isCustom,
+      isCustom: false,
     });
   }
 
-  return {
-    width,
-    height,
-    cells,
-    words: flecheWords,
-  };
+  return { width, height, cells, words: flecheWords };
 }
