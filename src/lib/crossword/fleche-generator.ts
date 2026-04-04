@@ -281,7 +281,7 @@ function fillAllSlots(
   // Phase 2: Fill remaining slots with backtracking
   const order = slots.map((_, i) => i).filter((i) => !placed.has(i));
   let backtracks = 0;
-  const MAX_BT = 500_000;
+  const MAX_BT = customWords && customWords.length > 0 ? 100_000 : 500_000;
 
   function getCandidates(si: number): string[] {
     const slot = slots[si];
@@ -484,7 +484,8 @@ export function generateFleche(
   let pattern: string[] = [];
   let slots: Slot[] = [];
 
-  for (let attempt = 0; attempt < 15; attempt++) {
+  const maxAttempts = customWords.length > 0 ? 30 : 10;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     pattern = generatePattern(width, height);
     slots = extractSlots(pattern);
     if (slots.length < 5) continue;

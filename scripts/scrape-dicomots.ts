@@ -56,12 +56,31 @@ async function fetchWithRetry(url: string, retries = 2): Promise<string | null> 
 
 /**
  * Extract clue-answer pairs from a dico-mots word page.
- * Each <h3>ANSWER</h3> followed by <div class="csi_clue"> with clue links.
+ * Two sources:
+ * 1. "Solutions pour X" section: clues FOR the search word itself
+ * 2. <h3>ANSWER</h3> blocks: other words whose definition involves the search word
  */
-function extractPairs(html: string): { answer: string; clue: string }[] {
+function extractPairs(html: string, searchWord?: string): { answer: string; clue: string }[] {
   const pairs: { answer: string; clue: string }[] = [];
 
-  // Find all answer blocks: <h3>ANSWER</h3> ... <div class="csi_clue">...</div>
+  // Source 1: Self-clues (Solutions pour X)
+  if (searchWord) {
+    const normalized = normalize(searchWord);
+    const solMatch = /Solutions pour[\s\S]*?class="csi_clue">([\s\S]*?)<\/div>/.exec(html);
+    if (solMatch) {
+      const titleRegex = /title="([^"]+)"/g;
+      let m;
+      while ((m = titleRegex.exec(solMatch[1])) !== null) {
+        const clue = m[1].trim();
+        // Skip nav links and the word itself as its own clue
+        if (clue.length >= 3 && clue.length <= 300 && normalize(clue) !== normalized) {
+          pairs.push({ answer: normalized, clue });
+        }
+      }
+    }
+  }
+
+  // Source 2: Answer blocks with clues
   const blockRegex = /<h3[^>]*>([A-Z]+)<\/h3>[\s\S]*?<div class="csi_clue">([\s\S]*?)<\/div>/g;
   let blockMatch;
 
@@ -70,7 +89,6 @@ function extractPairs(html: string): { answer: string; clue: string }[] {
     if (answer.length < 2 || answer.length > 15) continue;
 
     const clueBlock = blockMatch[2];
-    // Extract clues from title attributes
     const clueRegex = /title="([^"]+)"/g;
     let clueMatch;
 
@@ -166,7 +184,7 @@ async function main() {
           continue;
         }
 
-        const pairs = extractPairs(html);
+        const pairs = extractPairs(html, word);
         batchPairs.push(...pairs);
       }
     }
