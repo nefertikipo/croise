@@ -46,8 +46,8 @@ function generatePattern(width: number, height: number): string[] {
     Array.from({ length: width }, () => ".")
   );
 
-  // Potence: alternating clue/letter in top row and left column.
-  // Clue cells on even positions, letter cells on odd.
+  // Potence: alternating clue/letter in BOTH top row and left column.
+  // Letter cells in the potence are part of crossing words.
   grid[0][0] = "#";
   for (let c = 1; c < width; c++) {
     grid[0][c] = c % 2 === 0 ? "#" : ".";
@@ -146,15 +146,16 @@ function extractSlots(pattern: string[]): Slot[] {
     }
   }
 
-  // Left column potence: '#' cells also define right words on the NEXT row
+  // Left column potence: '#' cells define right words on the NEXT row
+  // starting at col 0 (the letter cell in the potence is the first letter)
   for (let r = 0; r < h; r++) {
     if (pattern[r][0] !== "#") continue;
-    if (r + 1 >= h) continue;
-    // Right word on row r+1, starting at col 1
-    let end = 1;
+    if (r + 1 >= h || pattern[r + 1][0] !== ".") continue;
+    // Right word on row r+1, starting at col 0
+    let end = 0;
     while (end < w && pattern[r + 1][end] === ".") end++;
-    if (end - 1 >= 3) {
-      slots.push({ row: r + 1, col: 1, direction: "right", length: end - 1, crossings: [] });
+    if (end >= 3) {
+      slots.push({ row: r + 1, col: 0, direction: "right", length: end, crossings: [] });
     }
   }
 
@@ -171,16 +172,16 @@ function extractSlots(pattern: string[]): Slot[] {
     }
   }
 
-  // Top row potence: '#' cells also define down words in the NEXT column
+  // Top row potence: '#' cells define down words in the NEXT column
+  // starting at row 0 (the letter cell in the potence is the first letter)
   for (let c = 0; c < w; c++) {
     if (pattern[0][c] !== "#") continue;
-    if (c + 1 >= w) continue;
-    // Down word in col c+1, starting at row 1 (or row 0 if letter)
-    const startR = pattern[0][c + 1] === "." ? 0 : 1;
-    let end = startR;
+    if (c + 1 >= w || pattern[0][c + 1] !== ".") continue;
+    // Down word in col c+1, starting at row 0
+    let end = 0;
     while (end < h && pattern[end][c + 1] === ".") end++;
-    if (end - startR >= 3) {
-      slots.push({ row: startR, col: c + 1, direction: "down", length: end - startR, crossings: [] });
+    if (end >= 3) {
+      slots.push({ row: 0, col: c + 1, direction: "down", length: end, crossings: [] });
     }
   }
 
