@@ -185,6 +185,43 @@ function findScoredWords(
 }
 
 /**
+ * Check if a partition would create adjacent clue cells with existing grid.
+ * Returns true if the partition is SAFE (no adjacencies).
+ */
+function isPartitionSafe(
+  row: number,
+  startCol: number,
+  partition: number[],
+  grid: CellType[][],
+  height: number,
+  width: number
+): boolean {
+  // Calculate where clue cells would go
+  let col = startCol;
+  for (let seg = 0; seg < partition.length; seg++) {
+    col += partition[seg];
+    if (seg < partition.length - 1) {
+      // Clue cell at (row, col)
+      if (col >= width) return false;
+
+      // Check neighbors (skip potence: row 0, col 0)
+      const neighbors = [
+        [row - 1, col], [row + 1, col],
+        [row, col - 1], [row, col + 1],
+      ];
+      for (const [nr, nc] of neighbors) {
+        if (nr < 0 || nr >= height || nc < 0 || nc >= width) continue;
+        if (nr === 0 || nc === 0) continue; // potence is exempt
+        if (grid[nr][nc] === "#") return false;
+      }
+
+      col++; // move past the clue cell
+    }
+  }
+  return true;
+}
+
+/**
  * Try to fill a single row given a partition.
  * Returns placed words or null if failed.
  */
@@ -309,19 +346,19 @@ export function generateFleche(
     if (wordCol >= width) continue;
     if (grid[0][wordCol] === "#") continue;
 
-    // Vertical word from row 0 downward
-    let endRow = 0;
-    while (endRow < height && grid[endRow][wordCol] !== "#" && grid[endRow][wordCol] !== "#") endRow++;
-    // For now, pick a target length (we don't know where future clue cells will be)
-    const maxLen = endRow;
+    // Vertical word from row 0 downward, but NOT full height.
+    // Pick a random length 3-6 so horizontal rows can place clue cells.
+    const targetLen = 3 + Math.floor(Math.random() * 4); // 3-6
+    const maxLen = Math.min(targetLen, height);
     if (maxLen < 3) continue;
 
-    // No constraints yet (grid is empty below row 0)
     const candidates = wordList.getByLength(maxLen).map((e) => e.word).filter((w) => !usedWords.has(w));
     if (candidates.length === 0) continue;
 
     const word = candidates[Math.floor(Math.random() * Math.min(candidates.length, 20))];
     for (let r = 0; r < maxLen; r++) grid[r][wordCol] = word[r];
+    // Place clue cell at the end of the vertical word
+    if (maxLen < height) grid[maxLen][wordCol] = "#";
     usedWords.add(word);
     placedWords.push({
       word,
@@ -355,6 +392,9 @@ export function generateFleche(
 
     for (let pIdx = 0; pIdx < Math.min(partitions.length, 30); pIdx++) {
       const partition = partitions[pIdx];
+
+      // Check: would this partition's clue cells be adjacent to existing ones?
+      if (!isPartitionSafe(r, startCol, partition, grid, height, width)) continue;
 
       // If custom word, force it into the matching segment
       if (custom) {
