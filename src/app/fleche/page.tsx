@@ -22,6 +22,7 @@ export default function FlechePage() {
   const [loading, setLoading] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
   const [size, setSize] = useState(10);
+  const [gridKey, setGridKey] = useState(0);
 
   async function generate() {
     setLoading(true);
@@ -35,6 +36,7 @@ export default function FlechePage() {
       if (!res.ok) throw new Error("Generation failed");
       const data = await res.json();
       setGrid(data);
+      setGridKey((k) => k + 1);
     } catch (err) {
       console.error(err);
     } finally {
@@ -73,18 +75,27 @@ export default function FlechePage() {
             {loading ? "Generation..." : "Generer"}
           </Button>
           {grid && (
-            <Button
-              variant="outline"
-              onClick={() => setShowSolution(!showSolution)}
-            >
-              {showSolution ? "Cacher solution" : "Voir solution"}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setGridKey((k) => k + 1)}
+              >
+                Effacer
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowSolution(!showSolution)}
+              >
+                {showSolution ? "Cacher solution" : "Voir solution"}
+              </Button>
+            </>
           )}
         </div>
 
         {grid && (
           <div className="overflow-x-auto">
             <FlecheGrid
+              key={gridKey}
               cells={grid.cells}
               width={grid.width}
               height={grid.height}
