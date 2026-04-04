@@ -221,7 +221,7 @@ export function FlecheGrid({
                     >
                       <span
                         className={cn(
-                          "leading-tight flex-1 overflow-hidden",
+                          "leading-tight flex-1 overflow-hidden uppercase",
                           isPlaceholder ? "text-red-400 italic" : "text-black"
                         )}
                         style={{ fontSize: hasTwo ? "7px" : "9px" }}

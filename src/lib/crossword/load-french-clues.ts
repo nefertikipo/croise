@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { WordList } from "@/lib/crossword/word-list";
 
@@ -21,7 +21,10 @@ function load() {
 
   // Load scraped clue-answer pairs (best quality)
   try {
-    const filePath = join(process.cwd(), "data", "french-clues-dicomots.tsv");
+    // Use deduped file if available (much faster to load)
+    const dedupedPath = join(process.cwd(), "data", "french-clues-deduped.tsv");
+    const rawPath = join(process.cwd(), "data", "french-clues-dicomots.tsv");
+    const filePath = existsSync(dedupedPath) ? dedupedPath : rawPath;
     const content = readFileSync(filePath, "utf-8");
     const seen = new Set<string>();
 
@@ -49,26 +52,8 @@ function load() {
     console.log("French clue file not found");
   }
 
-  // Also load full French word list (fills gaps, lower score)
-  try {
-    const filePath = join(process.cwd(), "data", "french-words-full.txt");
-    const content = readFileSync(filePath, "utf-8");
-    let extra = 0;
-
-    for (const line of content.split("\n")) {
-      const word = normalize(line.trim());
-      if (word.length < 3 || word.length > 15) continue;
-      if (!/^[A-Z]+$/.test(word)) continue;
-      if (!wl.has(word)) {
-        wl.addWord(word, 10); // Low score, only used as fallback fill
-        extra++;
-      }
-    }
-
-    console.log(`Extra French words: ${extra}`);
-  } catch {
-    // No extra word list
-  }
+  // Only use words that have real clues. No filler words.
+  // This guarantees 100% clue coverage in generated grids.
 
   console.log(`Total French words: ${wl.size}`);
 
