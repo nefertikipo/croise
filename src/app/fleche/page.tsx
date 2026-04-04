@@ -23,6 +23,8 @@ export default function FlechePage() {
   const [showSolution, setShowSolution] = useState(false);
   const [size, setSize] = useState(10);
   const [gridKey, setGridKey] = useState(0);
+  const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>([]);
+  const [showCustom, setShowCustom] = useState(false);
 
   async function generate() {
     setLoading(true);
@@ -31,7 +33,11 @@ export default function FlechePage() {
       const res = await fetch("/api/fleche/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ width: size, height: size }),
+        body: JSON.stringify({
+          width: size,
+          height: size,
+          customClues: customClues.filter((c) => c.answer.trim().length >= 3 && c.clue.trim().length > 0),
+        }),
       });
       if (!res.ok) throw new Error("Generation failed");
       const data = await res.json();
@@ -89,6 +95,56 @@ export default function FlechePage() {
                 {showSolution ? "Cacher solution" : "Voir solution"}
               </Button>
             </>
+          )}
+        </div>
+
+        <div>
+          <button
+            onClick={() => setShowCustom(!showCustom)}
+            className="text-sm text-muted-foreground underline"
+          >
+            {showCustom ? "Cacher les mots personnalises" : "Ajouter des mots personnalises"}
+          </button>
+
+          {showCustom && (
+            <div className="mt-3 space-y-2">
+              {customClues.map((cc, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    placeholder="Mot (ex: SARAH)"
+                    value={cc.answer}
+                    onChange={(e) => {
+                      const next = [...customClues];
+                      next[i] = { ...next[i], answer: e.target.value };
+                      setCustomClues(next);
+                    }}
+                    className="border rounded px-2 py-1 text-sm w-32 uppercase font-mono"
+                  />
+                  <input
+                    placeholder="Indice (ex: La fille du moment!)"
+                    value={cc.clue}
+                    onChange={(e) => {
+                      const next = [...customClues];
+                      next[i] = { ...next[i], clue: e.target.value };
+                      setCustomClues(next);
+                    }}
+                    className="border rounded px-2 py-1 text-sm flex-1"
+                  />
+                  <button
+                    onClick={() => setCustomClues(customClues.filter((_, j) => j !== i))}
+                    className="text-sm text-muted-foreground hover:text-destructive"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => setCustomClues([...customClues, { answer: "", clue: "" }])}
+                className="text-sm border rounded px-3 py-1 hover:bg-muted"
+              >
+                + Ajouter un mot
+              </button>
+            </div>
           )}
         </div>
 

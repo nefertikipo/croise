@@ -216,12 +216,14 @@ function extractSlots(pattern: string[]): Slot[] {
 
 /**
  * Fill all slots using constraint satisfaction + backtracking.
+ * Custom words are placed first into matching slots before backtracking starts.
  */
 function fillAllSlots(
   slots: Slot[],
   pattern: string[],
-  wordList: WordList
-): Map<number, string> | null {
+  wordList: WordList,
+  customWords?: { word: string; clue: string }[]
+): { placed: Map<number, string>; customSlots: Map<number, string> } | null {
   const h = pattern.length;
   const w = pattern[0].length;
   const grid: (string | null)[][] = Array.from({ length: h }, () =>
@@ -229,7 +231,55 @@ function fillAllSlots(
   );
   const placed = new Map<number, string>();
   const usedWords = new Set<string>();
-  const order = slots.map((_, i) => i);
+  const customSlots = new Map<number, string>(); // slotIdx -> custom clue text
+
+  // Phase 1: Place custom words into matching slots
+  if (customWords && customWords.length > 0) {
+    const sorted = [...customWords].sort((a, b) => b.word.length - a.word.length);
+
+    for (const cw of sorted) {
+      let bestSlot = -1;
+      let bestCrossings = -1;
+
+      for (let si = 0; si < slots.length; si++) {
+        if (placed.has(si)) continue;
+        if (slots[si].length !== cw.word.length) continue;
+
+        // Check compatibility with already-placed letters
+        let ok = true;
+        let crossings = 0;
+        for (let p = 0; p < cw.word.length; p++) {
+          const r = slots[si].direction === "right" ? slots[si].row : slots[si].row + p;
+          const c = slots[si].direction === "right" ? slots[si].col + p : slots[si].col;
+          if (grid[r][c] !== null) {
+            if (grid[r][c] !== cw.word[p]) { ok = false; break; }
+            crossings++;
+          }
+        }
+        if (!ok) continue;
+
+        if (crossings > bestCrossings) {
+          bestCrossings = crossings;
+          bestSlot = si;
+        }
+      }
+
+      if (bestSlot >= 0) {
+        const slot = slots[bestSlot];
+        for (let p = 0; p < cw.word.length; p++) {
+          const r = slot.direction === "right" ? slot.row : slot.row + p;
+          const c = slot.direction === "right" ? slot.col + p : slot.col;
+          grid[r][c] = cw.word[p];
+        }
+        placed.set(bestSlot, cw.word);
+        usedWords.add(cw.word);
+        customSlots.set(bestSlot, cw.clue);
+      }
+    }
+  }
+
+  // Phase 2: Fill remaining slots with backtracking
+  const order = slots.map((_, i) => i).filter((i) => !placed.has(i));
   let backtracks = 0;
   const MAX_BT = 500_000;
 
@@ -319,7 +369,8 @@ function fillAllSlots(
     return false;
   }
 
-  return solve(0) ? placed : null;
+  if (!solve(0)) return null;
+  return { placed, customSlots };
 }
 
 function pickClue(word: string, clueDb: Map<string, string[]>): string {
@@ -420,22 +471,39 @@ export function generateFleche(
 ): FlecheGrid {
   const { width, height } = params;
 
+  // Prepare custom words
+  const customWords = (params.customClues ?? [])
+    .map((c) => ({
+      word: c.answer.toUpperCase().replace(/[^A-Z]/g, ""),
+      clue: c.clue,
+    }))
+    .filter((c) => c.word.length >= 3);
+
   // Try multiple random patterns until one fills successfully
-  let placed: Map<number, string> | null = null;
+  let result: { placed: Map<number, string>; customSlots: Map<number, string> } | null = null;
   let pattern: string[] = [];
   let slots: Slot[] = [];
 
-  for (let attempt = 0; attempt < 10; attempt++) {
+  for (let attempt = 0; attempt < 15; attempt++) {
     pattern = generatePattern(width, height);
     slots = extractSlots(pattern);
     if (slots.length < 5) continue;
 
-    placed = fillAllSlots(slots, pattern, wordList);
-    if (placed && placed.size === slots.length) break;
-    placed = null;
+    const fill = fillAllSlots(slots, pattern, wordList, customWords.length > 0 ? customWords : undefined);
+    if (fill && fill.placed.size === slots.length) {
+      // Check all custom words were placed
+      if (customWords.length === 0 || fill.customSlots.size === customWords.length) {
+        result = fill;
+        break;
+      }
+    }
+    // If custom words didn't all fit, try another pattern
+    if (fill && customWords.length > 0 && fill.customSlots.size < customWords.length) {
+      continue;
+    }
   }
 
-  if (!placed) {
+  if (!result) {
     return {
       width, height,
       cells: Array.from({ length: height }, () =>
@@ -444,6 +512,8 @@ export function generateFleche(
       words: [],
     };
   }
+
+  const { placed, customSlots } = result;
 
   // Build letter map for fast lookup
   const letterMap = new Map<string, string>();
@@ -494,7 +564,8 @@ export function generateFleche(
 
   for (const [si, word] of sortedEntries) {
     const slot = slots[si];
-    const clueText = pickClue(word, clueDatabase);
+    const isCustom = customSlots.has(si);
+    const clueText = isCustom ? customSlots.get(si)! : pickClue(word, clueDatabase);
     const clueCell = findClueCell(slot, pattern, cells, height, width);
 
     if (clueCell) {
@@ -520,7 +591,7 @@ export function generateFleche(
       startRow: slot.row,
       startCol: slot.col,
       length: word.length,
-      isCustom: false,
+      isCustom,
     });
   }
 
