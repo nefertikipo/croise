@@ -21,7 +21,8 @@ export default function FlechePage() {
   const [grid, setGrid] = useState<FlecheData | null>(null);
   const [loading, setLoading] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
-  const [size, setSize] = useState(10);
+  const [gridWidth, setGridWidth] = useState(17);
+  const [gridHeight, setGridHeight] = useState(11);
   const [gridKey, setGridKey] = useState(0);
   const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>([]);
   const [showCustom, setShowCustom] = useState(false);
@@ -34,8 +35,8 @@ export default function FlechePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          width: size,
-          height: size,
+          width: gridWidth,
+          height: gridHeight,
           customClues: customClues.filter((c) => c.answer.trim().length >= 3 && c.clue.trim().length > 0),
         }),
       });
@@ -62,18 +63,22 @@ export default function FlechePage() {
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium">Taille:</label>
-            {[8, 10, 12].map((s) => (
+            <label className="text-sm font-medium">Format:</label>
+            {[
+              { w: 17, h: 11, label: "17x11" },
+              { w: 13, h: 9, label: "13x9" },
+              { w: 10, h: 10, label: "10x10" },
+            ].map((s) => (
               <button
-                key={s}
-                onClick={() => setSize(s)}
+                key={s.label}
+                onClick={() => { setGridWidth(s.w); setGridHeight(s.h); }}
                 className={`px-3 py-1 rounded text-sm ${
-                  size === s
+                  gridWidth === s.w && gridHeight === s.h
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted hover:bg-muted/80"
                 }`}
               >
-                {s}x{s}
+                {s.label}
               </button>
             ))}
           </div>

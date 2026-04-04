@@ -161,12 +161,32 @@ function placeWord(
 
 /**
  * Place a clue cell, marking it in the grid.
+ * Interior clue cells must not be adjacent to other clue cells
+ * (except in the potence: row 0 or col 0).
  */
-function placeClue(grid: GridState, row: number, col: number) {
-  if (row >= 0 && row < grid.height && col >= 0 && col < grid.width) {
-    grid.cells[row][col] = "clue";
-    grid.letters[row][col] = null;
+function placeClue(grid: GridState, row: number, col: number): boolean {
+  if (row < 0 || row >= grid.height || col < 0 || col >= grid.width) return false;
+  if (grid.cells[row][col] === "letter") return false; // don't overwrite letters
+
+  // In the potence (row 0 or col 0), always allow
+  const inPotence = row === 0 || col === 0;
+
+  if (!inPotence) {
+    // Check no adjacent clue cells (up, down, left, right)
+    const neighbors = [
+      [row - 1, col], [row + 1, col], [row, col - 1], [row, col + 1],
+    ];
+    for (const [nr, nc] of neighbors) {
+      if (nr < 0 || nr >= grid.height || nc < 0 || nc >= grid.width) continue;
+      // Allow adjacency with potence cells
+      if (nr === 0 || nc === 0) continue;
+      if (grid.cells[nr][nc] === "clue") return false;
+    }
   }
+
+  grid.cells[row][col] = "clue";
+  grid.letters[row][col] = null;
+  return true;
 }
 
 /**
@@ -299,51 +319,47 @@ export function generateFleche(
   const customQueue = [...customWords];
 
   // Place custom words as horizontal entries from left column clue cells
+  // Clue at row R → word on row R+1 starting at col 0
   for (let r = 0; r < height && customQueue.length > 0; r += 2) {
     if (grid.cells[r][0] !== "clue") continue;
-    const startCol = r === 0 ? 1 : 1; // word starts at col 1 (after clue cell at col 0)
-    // But for row 0, col 1 might be "empty" (odd col in potence)
+    const wordRow = r + 1;
+    if (wordRow >= height) continue;
 
-    const cw = customQueue.find((c) => c.word.length <= width - 1);
+    const cw = customQueue.find((c) => c.word.length <= width);
     if (!cw) continue;
+    if (cw.word.length > width) continue;
 
-    // Check if word fits
-    const maxLen = width - startCol;
-    if (cw.word.length > maxLen) continue;
-
-    if (placeWord(grid, cw.word, cw.clue, r === 0 ? 1 : r, startCol, "right", true)) {
+    if (placeWord(grid, cw.word, cw.clue, wordRow, 0, "right", true)) {
       customQueue.splice(customQueue.indexOf(cw), 1);
-      // Place clue cell after the word
-      const endCol = startCol + cw.word.length;
-      if (endCol < width && grid.cells[r === 0 ? 1 : r][endCol] === "empty") {
-        placeClue(grid, r === 0 ? 1 : r, endCol);
+      const endCol = cw.word.length;
+      if (endCol < width && grid.cells[wordRow][endCol] === "empty") {
+        placeClue(grid, wordRow, endCol);
       }
     }
   }
 
   // Step 3: Fill potence entry words
-  // From each clue cell in col 0, fill a horizontal word on the next row
+  // Left column: each clue cell at row R defines a horizontal word on row R+1
+  // The word starts at col 0 (the letter cell in the potence)
   for (let r = 0; r < height; r += 2) {
     if (grid.cells[r][0] !== "clue") continue;
-    const wordRow = r === 0 ? 1 : r;
-    const startCol = r === 0 ? 0 : 1;
+    const wordRow = r + 1;
+    if (wordRow >= height) continue;
 
     // Skip if already filled (custom word)
-    if (grid.cells[wordRow][startCol] === "letter") continue;
+    if (grid.cells[wordRow][0] === "letter") continue;
 
-    // For row 0 potence, fill words on row 1 starting from col 0
-    // For other potence rows, fill words starting from col 1
-    fillHorizontal(grid, wordRow, startCol, wordList, clueDatabase);
+    fillHorizontal(grid, wordRow, 0, wordList, clueDatabase);
   }
 
-  // From each clue cell in row 0, fill a vertical word in the next column
+  // Top row: each clue cell at col C defines a vertical word in col C+1
+  // The word starts at row 0 (the letter cell in the potence)
   for (let c = 0; c < width; c += 2) {
     if (grid.cells[0][c] !== "clue") continue;
     const wordCol = c + 1;
     if (wordCol >= width) continue;
 
-    // Vertical word starts at row 0 in this column
-    if (grid.cells[0][wordCol] !== "empty" && grid.cells[0][wordCol] !== "letter") continue;
+    if (grid.cells[0][wordCol] === "clue") continue;
 
     fillVertical(grid, 0, wordCol, wordList, clueDatabase);
   }
@@ -425,11 +441,18 @@ export function generateFleche(
     if (!placed) break;
   }
 
-  // Step 5: Convert remaining empty cells to clue cells
+  // Step 5: Convert remaining empty cells
+  // Try to place as clue cells (respecting no-adjacent rule)
+  // If can't, leave as letter with "?" (will need fixing)
   for (let r = 0; r < height; r++) {
     for (let c = 0; c < width; c++) {
       if (grid.cells[r][c] === "empty") {
-        grid.cells[r][c] = "clue";
+        if (!placeClue(grid, r, c)) {
+          // Can't place clue here (would be adjacent to another)
+          // Mark as letter - will show as unfilled
+          grid.cells[r][c] = "letter";
+          grid.letters[r][c] = "?";
+        }
       }
     }
   }
