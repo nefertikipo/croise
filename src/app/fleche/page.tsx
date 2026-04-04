@@ -7,7 +7,7 @@ import { FlecheGrid } from "@/components/fleche/fleche-grid";
 interface FlecheCell {
   type: "letter" | "clue" | "empty";
   letter?: string;
-  clues?: { text: string; direction: "right" | "down"; answerLength: number; answer: string }[];
+  clues?: { text: string; direction: "right" | "down"; answerRow: number; answerCol: number; answerLength: number; answer: string }[];
 }
 
 interface FlecheData {
@@ -89,6 +89,7 @@ export default function FlechePage() {
               width={grid.width}
               height={grid.height}
               showSolution={showSolution}
+              interactive={!showSolution}
             />
           </div>
         )}
