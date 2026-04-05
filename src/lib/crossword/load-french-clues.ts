@@ -52,8 +52,24 @@ function load() {
     console.log("French clue file not found");
   }
 
-  // Only use words that have real clues. No filler words.
-  // This guarantees 100% clue coverage in generated grids.
+  // Also load French dictionary words as fallback fill (low score)
+  // These help the CSP solver find solutions for difficult patterns
+  try {
+    const dictPath = join(process.cwd(), "data", "french-words-full.txt");
+    const dictContent = readFileSync(dictPath, "utf-8");
+    let extra = 0;
+    for (const line of dictContent.split("\n")) {
+      const word = normalize(line.trim());
+      if (word.length < 3 || word.length > 10) continue;
+      if (!/^[A-Z]+$/.test(word)) continue;
+      if (!wl.has(word)) {
+        wl.addWord(word, 5); // Very low score, only used when CSP is desperate
+        extra++;
+      }
+    }
+    console.log(`Dictionary filler: ${extra} extra words`);
+  } catch {}
+
 
   console.log(`Total French words: ${wl.size}`);
 

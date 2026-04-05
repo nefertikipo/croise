@@ -325,8 +325,8 @@ export function generateFleche(
   wordList: WordList,
   clueDatabase: Map<string, string[]>
 ): FlecheGrid {
-  const width = params.width ?? 17;
-  const height = params.height ?? 11;
+  const width = params.width ?? 11;
+  const height = params.height ?? 17;
   const needsTranspose = false;
 
   // Try multiple patterns until CSP solver succeeds
