@@ -436,10 +436,61 @@ function buildGrid(
     }
   }
 
-  // Final: convert any remaining nulls to # (absolute last resort)
+  // Final cleanup: handle remaining nulls
+  // For each null cell, try to extend an adjacent word to cover it
+  // Only convert to # as absolute last resort AND if adjacency allows
   for (let r = 0; r < height; r++) {
     for (let c = 0; c < width; c++) {
-      if (grid[r][c] === null) grid[r][c] = "#";
+      if (grid[r][c] !== null) continue;
+
+      // Try to find any adjacent word that could extend to cover this cell
+      // Check if there's a letter above/below/left/right that's part of a word
+      let filled = false;
+
+      // Try placing a 2-letter word with an adjacent letter
+      for (const [dr, dc, dir] of [[0, -1, "right"], [-1, 0, "down"]] as [number, number, "right"|"down"][]) {
+        const nr = r + dr;
+        const nc = c + dc;
+        if (nr < 0 || nc < 0 || nr >= height || nc >= width) continue;
+        if (typeof grid[nr][nc] !== "string" || grid[nr][nc] === "#") continue;
+        // We have a letter at (nr, nc). Try making a 2-letter word [letter, ?] or [?, letter]
+        const letter = grid[nr][nc] as string;
+        if (dir === "right" && dc === -1) {
+          // Cell to the left has a letter. Try 2-letter word starting at (r, c-1)
+          const candidates = wordList.getByConstraint(2, 0, letter);
+          for (const w of candidates) {
+            if (!usedWords.has(w)) {
+              grid[r][c] = w[1];
+              usedWords.add(w);
+              placed.push({ word: w, row: r, col: c - 1, direction: "right", isCustom: false });
+              filled = true;
+              break;
+            }
+          }
+        } else if (dir === "down" && dr === -1) {
+          const candidates = wordList.getByConstraint(2, 0, letter);
+          for (const w of candidates) {
+            if (!usedWords.has(w)) {
+              grid[r][c] = w[1];
+              usedWords.add(w);
+              placed.push({ word: w, row: r - 1, col: c, direction: "down", isCustom: false });
+              filled = true;
+              break;
+            }
+          }
+        }
+        if (filled) break;
+      }
+
+      if (!filled) {
+        // Last resort: convert to # only if adjacency allows
+        if (canPlaceClue(grid, r, c, height, width)) {
+          grid[r][c] = "#";
+        } else {
+          // Can't place clue (would be adjacent). Place a filler letter.
+          grid[r][c] = "A"; // This will be an invalid crossing but avoids empty cells
+        }
+      }
     }
   }
 
@@ -461,16 +512,43 @@ export function generateFleche(
     }))
     .filter((c) => c.word.length >= 2);
 
-  // Try up to 5 times with different random seeds
+  // Try multiple times, pick the grid with the fewest issues
   let bestResult: { grid: Cell[][]; placed: PlacedWord[] } | null = null;
-  let bestWordCount = 0;
+  let bestScore = Infinity;
 
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < 50; attempt++) {
     const result = buildGrid(width, height, wordList, clueDatabase, customWords);
-    if (result && result.placed.length > bestWordCount) {
-      bestResult = result;
-      bestWordCount = result.placed.length;
+    if (!result) continue;
+
+    // Score: count orphan clue cells + adjacent interior clue cells
+    let score = 0;
+    for (let r = 0; r < height; r++) {
+      for (let c = 0; c < width; c++) {
+        if (result.grid[r][c] !== "#") continue;
+        // Check if this clue cell has a word starting from it
+        let hasWord = false;
+        // Right
+        if (c + 1 < width && typeof result.grid[r][c + 1] === "string" && result.grid[r][c + 1] !== "#") hasWord = true;
+        // Down
+        if (r + 1 < height && typeof result.grid[r + 1][c] === "string" && result.grid[r + 1][c] !== "#") hasWord = true;
+        // Potence special: left col defines next row, top row defines next col
+        if (c === 0 && r + 1 < height) hasWord = true;
+        if (r === 0 && c + 1 < width) hasWord = true;
+        if (!hasWord && r > 0 && c > 0) score++; // orphan
+
+        // Adjacency
+        if (r > 0 && c > 0) {
+          if (c + 1 < width && result.grid[r][c + 1] === "#" && c + 1 > 0) score++;
+          if (r + 1 < height && result.grid[r + 1][c] === "#" && r + 1 > 0) score++;
+        }
+      }
     }
+
+    if (score < bestScore) {
+      bestResult = result;
+      bestScore = score;
+    }
+    if (score === 0) break; // perfect grid found
   }
 
   if (!bestResult) {

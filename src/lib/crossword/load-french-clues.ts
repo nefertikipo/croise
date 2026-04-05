@@ -74,6 +74,31 @@ function load() {
     if (!clueDb.get(word)!.includes(clue)) clueDb.get(word)!.push(clue);
   }
 
+  // Add classic crossword filler words (compass, abbreviations, common short words)
+  const fillerWords: [string, string][] = [
+    // Compass directions
+    ["SSE", "direction du vent"], ["SSO", "point cardinal"], ["NNE", "direction"],
+    ["NNO", "point cardinal"], ["ENE", "direction"], ["ONO", "point cardinal"],
+    ["ESE", "direction du vent"], ["OSO", "point cardinal"],
+    ["EST", "point cardinal"], ["SUD", "point cardinal"],
+    ["NE", "entre nord et est"], ["SE", "direction"], ["NO", "refus"],
+    // Common abbreviations
+    ["ETC", "et caetera"], ["ADN", "molecule de la vie"], ["ONU", "organisation mondiale"],
+    ["USA", "pays d'Amerique"], ["UNI", "rassemble"], ["AGE", "nombre d'annees"],
+    // Common short crossword words
+    ["ANE", "animal tetu"], ["ETE", "saison chaude"], ["ERE", "epoque"],
+    ["ILE", "terre entouree d'eau"], ["OIE", "volatile"], ["RUE", "voie urbaine"],
+    ["AME", "essence de l'etre"], ["AIR", "ce qu'on respire"], ["EAU", "liquide vital"],
+    ["ANI", "oiseau tropical"], ["ARA", "perroquet colore"], ["EMU", "bouleverse"],
+    ["OCA", "plante des Andes"], ["OLE", "cri espagnol"], ["OSE", "audacieux"],
+    ["USE", "fatigue"], ["NEE", "de naissance"], ["IRE", "colere poetique"],
+  ];
+  for (const [word, clue] of fillerWords) {
+    if (!wl.has(word)) wl.addWord(word, 70);
+    if (!clueDb.has(word)) clueDb.set(word, []);
+    if (!clueDb.get(word)!.includes(clue)) clueDb.get(word)!.push(clue);
+  }
+
   // Also load French dictionary words as fallback fill (low score)
   // These help the CSP solver find solutions for difficult patterns
   try {
