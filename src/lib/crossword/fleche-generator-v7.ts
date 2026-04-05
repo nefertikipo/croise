@@ -28,12 +28,15 @@ interface Slot {
 
 function pickClue(word: string, clueDb: Map<string, string[]>): string {
   const dbClues = clueDb.get(word);
-  if (!dbClues || dbClues.length === 0) return word;
-  const short = dbClues.filter((c) => c.length <= 35);
-  const pool = short.length > 0 ? short : dbClues;
-  let clue = pool[Math.floor(Math.random() * pool.length)];
-  if (clue.length > 40) clue = clue.slice(0, 37) + "...";
-  return clue;
+  if (!dbClues || dbClues.length === 0) return "?";
+  // Filter out clues that contain the answer word
+  const filtered = dbClues.filter((c) => {
+    const normalized = c.toUpperCase().replace(/[^A-Z]/g, "");
+    return !normalized.includes(word) && c.length <= 40;
+  });
+  const pool = filtered.length > 0 ? filtered : dbClues.filter((c) => c.length <= 40);
+  if (pool.length === 0) return dbClues[0].slice(0, 37) + "...";
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 // --- PATTERN GENERATION (from v6) ---
@@ -341,6 +344,31 @@ export function generateFleche(
 
     slots = extractSlots(pattern, height, width);
     if (slots.length < 5) continue;
+
+    // Validate: every "." cell must be covered by at least one slot
+    const covered = new Set<string>();
+    for (const slot of slots) {
+      for (let i = 0; i < slot.length; i++) {
+        const r = slot.direction === "right" ? slot.row : slot.row + i;
+        const c = slot.direction === "right" ? slot.col + i : slot.col;
+        covered.add(`${r},${c}`);
+      }
+    }
+    let allCovered = true;
+    for (let r = 0; r < height; r++) {
+      for (let c = 0; c < width; c++) {
+        if (pattern[r][c] === "." && !covered.has(`${r},${c}`)) {
+          allCovered = false;
+          // Convert orphan letter cell to clue cell
+          pattern[r][c] = "#";
+        }
+      }
+    }
+    // Re-extract if we changed the pattern
+    if (!allCovered) {
+      slots = extractSlots(pattern, height, width);
+      if (slots.length < 5) continue;
+    }
 
     placed = fillAllSlots(slots, pattern, height, width, wordList);
     if (placed && placed.size === slots.length) break;
