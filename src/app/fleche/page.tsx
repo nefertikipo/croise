@@ -21,8 +21,8 @@ export default function FlechePage() {
   const [grid, setGrid] = useState<FlecheData | null>(null);
   const [loading, setLoading] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
-  const [gridWidth, setGridWidth] = useState(11);
-  const [gridHeight, setGridHeight] = useState(17);
+  const [gridWidth, setGridWidth] = useState(17);
+  const [gridHeight, setGridHeight] = useState(11);
   const [gridKey, setGridKey] = useState(0);
   const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>([]);
   const [showCustom, setShowCustom] = useState(false);
@@ -65,8 +65,8 @@ export default function FlechePage() {
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium">Format:</label>
             {[
-              { w: 11, h: 17, label: "11x17" },
-              { w: 9, h: 13, label: "9x13" },
+              { w: 17, h: 11, label: "17x11" },
+              { w: 13, h: 9, label: "13x9" },
               { w: 10, h: 10, label: "10x10" },
             ].map((s) => (
               <button

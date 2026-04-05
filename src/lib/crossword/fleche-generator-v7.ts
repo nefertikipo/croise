@@ -67,10 +67,10 @@ function isPartitionSafe(
     col += partition[seg];
     if (seg < partition.length - 1) {
       if (col >= width) return false;
-      // Only block horizontally adjacent clue cells (not vertical)
-      for (const [nr, nc] of [[row,col-1],[row,col+1]]) {
+      // Block all adjacent clue cells (except potence)
+      for (const [nr, nc] of [[row-1,col],[row+1,col],[row,col-1],[row,col+1]]) {
         if (nr < 0 || nr >= height || nc < 0 || nc >= width) continue;
-        if (nc === 0) continue; // potence exempt
+        if (nr === 0 || nc === 0) continue; // potence exempt
         if (pattern[nr][nc] === "#") return false;
       }
       col++;
@@ -103,8 +103,7 @@ function generatePattern(width: number, height: number): CellType[][] | null {
 
     let filled = false;
     for (const p of parts) {
-      // Relaxed: only check horizontal adjacency for narrow grids
-      if (width >= 15 && !isPartitionSafe(r, startCol, p, pattern, height, width)) continue;
+      if (!isPartitionSafe(r, startCol, p, pattern, height, width)) continue;
 
       let col = startCol;
       for (let seg = 0; seg < p.length; seg++) {
@@ -326,12 +325,9 @@ export function generateFleche(
   wordList: WordList,
   clueDatabase: Map<string, string[]>
 ): FlecheGrid {
-  // For portrait grids (height > width), generate landscape internally and transpose
-  const requestedWidth = params.width ?? 11;
-  const requestedHeight = params.height ?? 17;
-  const needsTranspose = requestedHeight > requestedWidth;
-  const width = needsTranspose ? requestedHeight : requestedWidth;
-  const height = needsTranspose ? requestedWidth : requestedHeight;
+  const width = params.width ?? 17;
+  const height = params.height ?? 11;
+  const needsTranspose = false;
 
   // Try multiple patterns until CSP solver succeeds
   let placed: Map<number, string> | null = null;
