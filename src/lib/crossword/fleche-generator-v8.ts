@@ -122,54 +122,104 @@ function buildGrid(
   for (let c = 0; c < width; c++) grid[0][c] = c % 2 === 0 ? "#" : null;
   for (let r = 0; r < height; r++) grid[r][0] = r % 2 === 0 ? "#" : null;
 
-  // Step 2: Vertical seeds from top potence
+  // Step 2: Fill ALL columns with vertical word chains (top to bottom)
+  // Each odd column gets a chain of vertical words separated by clue cells
   const customQueue = [...customWords];
 
   for (let c = 0; c < width; c += 2) {
     const wordCol = c + 1;
     if (wordCol >= width) continue;
 
-    // Pick seed length (3-6, capped by grid height)
-    const seedLen = 3 + Math.floor(Math.random() * 4); // 3-6
-    const maxLen = Math.min(seedLen, height - 1); // leave room for terminator
+    let currentRow = 0;
+
+    while (currentRow < height) {
+      // Skip if already filled
+      if (grid[currentRow][wordCol] === "#") { currentRow++; continue; }
+      if (typeof grid[currentRow][wordCol] === "string") { currentRow++; continue; }
+
+      // Find how far down we can go
+      let maxLen = 0;
+      let rr = currentRow;
+      while (rr < height && grid[rr][wordCol] !== "#") { maxLen++; rr++; }
+      if (maxLen < 3) { currentRow = rr + 1; continue; }
+
+      // Pick word length (3-6)
+      const targetLen = 3 + Math.floor(Math.random() * 4);
+      const wordLen = Math.min(targetLen, maxLen);
+      if (wordLen < 3) { currentRow += maxLen; continue; }
+
+      // Try custom word
+      let word: string | null = null;
+      let isCustom = false;
+      const cwIdx = customQueue.findIndex((cw) => cw.word.length === wordLen);
+      if (cwIdx >= 0) {
+        word = customQueue[cwIdx].word;
+        customQueue.splice(cwIdx, 1);
+        isCustom = true;
+      }
+
+      if (!word) {
+        const constraints = getConstraints(grid, currentRow, wordCol, "down", wordLen);
+        word = findWord(wordList, wordLen, constraints, usedWords);
+      }
+
+      if (word) {
+        for (let i = 0; i < word.length; i++) grid[currentRow + i][wordCol] = word[i];
+        usedWords.add(word);
+        placed.push({ word, row: currentRow, col: wordCol, direction: "down", isCustom });
+
+        currentRow += word.length;
+        // Don't place terminator yet - let horizontal fill decide where clue cells go
+        // Just mark the boundary with a # if we need to separate words
+        if (currentRow < height && maxLen > word.length && grid[currentRow][wordCol] === null) {
+          grid[currentRow][wordCol] = "#";
+        }
+        if (currentRow < height && grid[currentRow][wordCol] === "#") currentRow++;
+
+      } else {
+        // Can't find a word, skip this cell
+        currentRow++;
+      }
+    }
+  }
+
+  // Step 2b: Horizontal seeds from left potence
+  // Each clue cell at col 0, even rows defines a horizontal word on the NEXT row
+  for (let r = 0; r < height; r += 2) {
+    if (grid[r][0] !== "#") continue;
+    const wordRow = r + 1;
+    if (wordRow >= height) continue;
+
+    // Find available length (up to first # in this row)
+    let maxLen = 0;
+    let cc = 0;
+    while (cc < width && grid[wordRow][cc] !== "#") { maxLen++; cc++; }
     if (maxLen < 3) continue;
 
-    // Try custom word first
-    let word: string | null = null;
-    let isCustom = false;
-    const cwIdx = customQueue.findIndex((cw) => cw.word.length === maxLen);
-    if (cwIdx >= 0) {
-      word = customQueue[cwIdx].word;
-      customQueue.splice(cwIdx, 1);
-      isCustom = true;
-    }
-
-    if (!word) {
-      // Pick random word from word list
-      const constraints = getConstraints(grid, 0, wordCol, "down", maxLen);
-      word = findWord(wordList, maxLen, constraints, usedWords);
-    }
-
-    if (!word) continue;
-
-    // Place vertical word
-    for (let i = 0; i < word.length; i++) {
-      grid[i][wordCol] = word[i];
-    }
-    usedWords.add(word);
-    placed.push({ word, row: 0, col: wordCol, direction: "down", isCustom });
-
-    // Place terminator clue cell
-    const termRow = word.length;
-    if (termRow < height) {
-      grid[termRow][wordCol] = "#";
+    // Try different lengths
+    for (let tryLen = Math.min(maxLen, 7); tryLen >= 3; tryLen--) {
+      const constraints = getConstraints(grid, wordRow, 0, "right", tryLen);
+      const word = findWord(wordList, tryLen, constraints, usedWords);
+      if (word) {
+        for (let i = 0; i < word.length; i++) grid[wordRow][i] = word[i];
+        usedWords.add(word);
+        placed.push({ word, row: wordRow, col: 0, direction: "right", isCustom: false });
+        // Terminator
+        const afterCol = word.length;
+        if (afterCol < width && grid[wordRow][afterCol] === null) {
+          if (canPlaceClue(grid, wordRow, afterCol, height, width)) {
+            grid[wordRow][afterCol] = "#";
+          }
+        }
+        break;
+      }
     }
   }
 
   // Steps 3-5: Iterative fill
   let changed = true;
   let iterations = 0;
-  const MAX_ITER = 30;
+  const MAX_ITER = 50;
 
   while (changed && iterations < MAX_ITER) {
     changed = false;
@@ -331,12 +381,65 @@ function buildGrid(
     }
   }
 
-  // Step 5: Convert remaining unknown cells to clue cells
+  // Step 5: Handle remaining unknown cells
+  // First try to fill them with words, then convert stragglers to #
+  for (let r = 1; r < height; r++) {
+    for (let c = 1; c < width; c++) {
+      if (grid[r][c] !== null) continue;
+
+      // Try to start a horizontal word here if there's a # to the left
+      if (c > 0 && grid[r][c - 1] === "#") {
+        let maxLen = 0;
+        let cc = c;
+        while (cc < width && grid[r][cc] !== "#") { maxLen++; cc++; }
+        if (maxLen >= 3) {
+          const constraints = getConstraints(grid, r, c, "right", Math.min(maxLen, 7));
+          for (let tryLen = Math.min(maxLen, 7); tryLen >= 3; tryLen--) {
+            const tc = constraints.filter((x) => x.pos < tryLen);
+            const word = findWord(wordList, tryLen, tc, usedWords);
+            if (word) {
+              for (let i = 0; i < word.length; i++) grid[r][c + i] = word[i];
+              usedWords.add(word);
+              placed.push({ word, row: r, col: c, direction: "right", isCustom: false });
+              const after = c + word.length;
+              if (after < width && grid[r][after] === null && canPlaceClue(grid, r, after, height, width)) {
+                grid[r][after] = "#";
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      // Try vertical if there's a # above
+      if (grid[r][c] === null && r > 0 && grid[r - 1][c] === "#") {
+        let maxLen = 0;
+        let rr = r;
+        while (rr < height && grid[rr][c] !== "#") { maxLen++; rr++; }
+        if (maxLen >= 3) {
+          for (let tryLen = Math.min(maxLen, 7); tryLen >= 3; tryLen--) {
+            const tc = getConstraints(grid, r, c, "down", tryLen).filter((x) => x.pos < tryLen);
+            const word = findWord(wordList, tryLen, tc, usedWords);
+            if (word) {
+              for (let i = 0; i < word.length; i++) grid[r + i][c] = word[i];
+              usedWords.add(word);
+              placed.push({ word, row: r, col: c, direction: "down", isCustom: false });
+              const after = r + word.length;
+              if (after < height && grid[after][c] === null && canPlaceClue(grid, after, c, height, width)) {
+                grid[after][c] = "#";
+              }
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Final: convert any remaining nulls to # (absolute last resort)
   for (let r = 0; r < height; r++) {
     for (let c = 0; c < width; c++) {
-      if (grid[r][c] === null) {
-        grid[r][c] = "#";
-      }
+      if (grid[r][c] === null) grid[r][c] = "#";
     }
   }
 
