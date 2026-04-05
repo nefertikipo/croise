@@ -141,12 +141,12 @@ function buildGrid(
       let maxLen = 0;
       let rr = currentRow;
       while (rr < height && grid[rr][wordCol] !== "#") { maxLen++; rr++; }
-      if (maxLen < 3) { currentRow = rr + 1; continue; }
+      if (maxLen < 2) { currentRow = rr + 1; continue; }
 
       // Pick word length (3-6)
       const targetLen = 3 + Math.floor(Math.random() * 4);
       const wordLen = Math.min(targetLen, maxLen);
-      if (wordLen < 3) { currentRow += maxLen; continue; }
+      if (wordLen < 2) { currentRow += maxLen; continue; }
 
       // Try custom word
       let word: string | null = null;
@@ -194,10 +194,10 @@ function buildGrid(
     let maxLen = 0;
     let cc = 0;
     while (cc < width && grid[wordRow][cc] !== "#") { maxLen++; cc++; }
-    if (maxLen < 3) continue;
+    if (maxLen < 2) continue;
 
     // Try different lengths
-    for (let tryLen = Math.min(maxLen, 7); tryLen >= 3; tryLen--) {
+    for (let tryLen = Math.min(maxLen, 7); tryLen >= 2; tryLen--) {
       const constraints = getConstraints(grid, wordRow, 0, "right", tryLen);
       const word = findWord(wordList, tryLen, constraints, usedWords);
       if (word) {
@@ -240,7 +240,7 @@ function buildGrid(
         if (isEnd && groupStart >= 0) {
           const groupLen = c - groupStart;
 
-          if (groupLen >= 3) {
+          if (groupLen >= 2) {
             // Check if this group already has a word placed
             const alreadyFilled = placed.some(
               (p) => p.direction === "right" && p.row === r &&
@@ -267,7 +267,7 @@ function buildGrid(
               } else {
                 // Try to find a word that fits
                 // Try different lengths (prefer shorter to create more clue cells)
-                for (let tryLen = Math.min(groupLen, 7); tryLen >= 3; tryLen--) {
+                for (let tryLen = Math.min(groupLen, 7); tryLen >= 2; tryLen--) {
                   const constraints = getConstraints(grid, r, groupStart, "right", tryLen);
 
                   // Try custom word
@@ -351,10 +351,10 @@ function buildGrid(
         let maxLen = 0;
         let rr = r + 1;
         while (rr < height && grid[rr][c] !== "#") { maxLen++; rr++; }
-        if (maxLen < 3) continue;
+        if (maxLen < 2) continue;
 
         // Try to place a vertical word
-        for (let tryLen = Math.min(maxLen, 7); tryLen >= 3; tryLen--) {
+        for (let tryLen = Math.min(maxLen, 7); tryLen >= 2; tryLen--) {
           const constraints = getConstraints(grid, r + 1, c, "down", tryLen);
           const word = findWord(wordList, tryLen, constraints, usedWords);
 
@@ -392,9 +392,9 @@ function buildGrid(
         let maxLen = 0;
         let cc = c;
         while (cc < width && grid[r][cc] !== "#") { maxLen++; cc++; }
-        if (maxLen >= 3) {
+        if (maxLen >= 2) {
           const constraints = getConstraints(grid, r, c, "right", Math.min(maxLen, 7));
-          for (let tryLen = Math.min(maxLen, 7); tryLen >= 3; tryLen--) {
+          for (let tryLen = Math.min(maxLen, 7); tryLen >= 2; tryLen--) {
             const tc = constraints.filter((x) => x.pos < tryLen);
             const word = findWord(wordList, tryLen, tc, usedWords);
             if (word) {
@@ -416,8 +416,8 @@ function buildGrid(
         let maxLen = 0;
         let rr = r;
         while (rr < height && grid[rr][c] !== "#") { maxLen++; rr++; }
-        if (maxLen >= 3) {
-          for (let tryLen = Math.min(maxLen, 7); tryLen >= 3; tryLen--) {
+        if (maxLen >= 2) {
+          for (let tryLen = Math.min(maxLen, 7); tryLen >= 2; tryLen--) {
             const tc = getConstraints(grid, r, c, "down", tryLen).filter((x) => x.pos < tryLen);
             const word = findWord(wordList, tryLen, tc, usedWords);
             if (word) {
@@ -459,7 +459,7 @@ export function generateFleche(
       word: c.answer.toUpperCase().replace(/[^A-Z]/g, ""),
       clue: c.clue,
     }))
-    .filter((c) => c.word.length >= 3);
+    .filter((c) => c.word.length >= 2);
 
   // Try up to 5 times with different random seeds
   let bestResult: { grid: Cell[][]; placed: PlacedWord[] } | null = null;

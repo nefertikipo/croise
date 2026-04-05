@@ -36,7 +36,7 @@ function load() {
       if (!rawAnswer || !clue) continue;
 
       const answer = normalize(rawAnswer);
-      if (answer.length < 3 || answer.length > 15) continue;
+      if (answer.length < 2 || answer.length > 15) continue;
 
       const key = answer + "|" + clue;
       if (seen.has(key)) continue;
@@ -50,6 +50,28 @@ function load() {
     console.log(`Scraped clues: ${clueDb.size} words with clues`);
   } catch {
     console.log("French clue file not found");
+  }
+
+  // Add common 2-letter crossword words with clues
+  const twoLetterWords: [string, string][] = [
+    ["OR", "metal precieux"], ["AN", "unite de temps"], ["SI", "note de musique"],
+    ["NU", "sans vetement"], ["EU", "possede"], ["ON", "pronom indefini"],
+    ["IL", "pronom personnel"], ["EN", "preposition"], ["AU", "contraction"],
+    ["LE", "article defini"], ["LA", "article defini feminin"], ["UN", "article indefini"],
+    ["DE", "preposition"], ["DU", "contraction"], ["ET", "conjonction"],
+    ["OU", "conjonction alternative"], ["NI", "conjonction negative"],
+    ["MA", "adjectif possessif"], ["SA", "adjectif possessif"],
+    ["TA", "adjectif possessif"], ["CE", "adjectif demonstratif"],
+    ["ME", "pronom personnel"], ["SE", "pronom reflechi"], ["NE", "negation"],
+    ["PI", "lettre grecque"], ["MU", "lettre grecque"], ["NU", "lettre grecque aussi"],
+    ["RE", "note de musique"], ["DO", "note de musique"], ["FA", "note de musique"],
+    ["MI", "note de musique"], ["UT", "ancienne note"], ["AS", "champion"],
+    ["OS", "partie du squelette"], ["IF", "conifere"], ["US", "coutumes"],
+  ];
+  for (const [word, clue] of twoLetterWords) {
+    if (!wl.has(word)) wl.addWord(word, 80);
+    if (!clueDb.has(word)) clueDb.set(word, []);
+    if (!clueDb.get(word)!.includes(clue)) clueDb.get(word)!.push(clue);
   }
 
   // Also load French dictionary words as fallback fill (low score)

@@ -5,7 +5,7 @@
 - Standard format: 11 columns x 17 rows (portrait)
 - Every cell is either a **clue cell** or a **letter cell**. No empty cells.
 - Every letter cell is part of at least one horizontal word AND at least one vertical word.
-- All words are 3+ letters.
+- Words can be 2+ letters (OR, SI, AN, NU are valid). Most words are 3-7 letters.
 
 ## Potence (L-shaped frame)
 

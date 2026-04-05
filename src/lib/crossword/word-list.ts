@@ -13,7 +13,7 @@ export class WordList {
 
   addWord(word: string, score: number = 50) {
     const upper = word.toUpperCase().trim();
-    if (upper.length < 3 || !/^[A-Z]+$/.test(upper)) return;
+    if (upper.length < 2 || !/^[A-Z]+$/.test(upper)) return;
     if (this.allWords.has(upper)) return;
 
     this.allWords.add(upper);
