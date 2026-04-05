@@ -38,7 +38,7 @@ function pickClue(word: string, clueDb: Map<string, string[]>): string {
 
 // --- PATTERN GENERATION (from v6) ---
 
-function generatePartitions(cols: number, min = 3, max = 7): number[][] {
+function generatePartitions(cols: number, min = 3, max = 10): number[][] {
   const results: number[][] = [];
   function recurse(remaining: number, current: number[]) {
     if (remaining === 0) { results.push([...current]); return; }
@@ -64,9 +64,10 @@ function isPartitionSafe(
     col += partition[seg];
     if (seg < partition.length - 1) {
       if (col >= width) return false;
-      for (const [nr, nc] of [[row-1,col],[row+1,col],[row,col-1],[row,col+1]]) {
+      // Only block horizontally adjacent clue cells (not vertical)
+      for (const [nr, nc] of [[row,col-1],[row,col+1]]) {
         if (nr < 0 || nr >= height || nc < 0 || nc >= width) continue;
-        if (nr === 0 || nc === 0) continue;
+        if (nc === 0) continue; // potence exempt
         if (pattern[nr][nc] === "#") return false;
       }
       col++;
@@ -85,21 +86,26 @@ function generatePattern(width: number, height: number): CellType[][] | null {
   for (let r = 0; r < height; r++) pattern[r][0] = r % 2 === 0 ? "#" : ".";
 
   // Fill each row with a partition
+  // Also allow single-word rows (no interior clue cells) as partition [width]
   const oddParts = generatePartitions(width);
   const evenParts = generatePartitions(width - 1);
 
   for (let r = 1; r < height; r++) {
     const startCol = r % 2 === 0 ? 1 : 0;
-    const parts = [...(r % 2 === 0 ? evenParts : oddParts)].sort(() => Math.random() - 0.5);
+    const availCols = width - startCol;
+    // Add single-word partitions (no clue cells) as fallback
+    const parts = [
+      ...(r % 2 === 0 ? evenParts : oddParts),
+    ].sort(() => Math.random() - 0.5);
 
     let filled = false;
     for (const p of parts) {
-      if (!isPartitionSafe(r, startCol, p, pattern, height, width)) continue;
+      // Relaxed: only check horizontal adjacency for narrow grids
+      if (width >= 15 && !isPartitionSafe(r, startCol, p, pattern, height, width)) continue;
 
-      // Apply partition: place clue cells between words
       let col = startCol;
       for (let seg = 0; seg < p.length; seg++) {
-        col += p[seg]; // skip letter cells
+        col += p[seg];
         if (seg < p.length - 1 && col < width) {
           pattern[r][col] = "#";
           col++;
@@ -110,8 +116,25 @@ function generatePattern(width: number, height: number): CellType[][] | null {
     }
 
     if (!filled) {
-      // Fallback: no clue cells in this row (long single word)
-      // This shouldn't happen with enough partitions
+      // Row stays all "." - one big word
+    }
+  }
+
+  // Vertical pass: break long vertical runs by adding clue cells
+  for (let c = 1; c < width; c++) {
+    let runStart = -1;
+    for (let r = 0; r <= height; r++) {
+      const isEnd = r === height || pattern[r][c] === "#";
+      if (!isEnd && runStart === -1) runStart = r;
+      if (isEnd && runStart >= 0) {
+        const runLen = r - runStart;
+        if (runLen > 8) {
+          // Break this run: place a clue cell roughly in the middle
+          const mid = runStart + 3 + Math.floor(Math.random() * Math.min(3, runLen - 6));
+          pattern[mid][c] = "#";
+        }
+        runStart = -1;
+      }
     }
   }
 
@@ -216,7 +239,7 @@ function fillAllSlots(
   const usedWords = new Set<string>();
   const order = slots.map((_, i) => i);
   let backtracks = 0;
-  const MAX_BT = 300_000;
+  const MAX_BT = 1_000_000;
 
   function getCandidates(si: number): string[] {
     const slot = slots[si];
@@ -300,8 +323,12 @@ export function generateFleche(
   wordList: WordList,
   clueDatabase: Map<string, string[]>
 ): FlecheGrid {
-  const width = params.width ?? 17;
-  const height = params.height ?? 11;
+  // For portrait grids (height > width), generate landscape internally and transpose
+  const requestedWidth = params.width ?? 11;
+  const requestedHeight = params.height ?? 17;
+  const needsTranspose = requestedHeight > requestedWidth;
+  const width = needsTranspose ? requestedHeight : requestedWidth;
+  const height = needsTranspose ? requestedWidth : requestedHeight;
 
   // Try multiple patterns until CSP solver succeeds
   let placed: Map<number, string> | null = null;
@@ -313,7 +340,7 @@ export function generateFleche(
     if (!pattern) continue;
 
     slots = extractSlots(pattern, height, width);
-    if (slots.length < 10) continue;
+    if (slots.length < 5) continue;
 
     placed = fillAllSlots(slots, pattern, height, width, wordList);
     if (placed && placed.size === slots.length) break;
@@ -409,5 +436,38 @@ export function generateFleche(
     });
   }
 
-  return { width, height, cells: outputCells, words: flecheWords };
+  if (!needsTranspose) {
+    return { width, height, cells: outputCells, words: flecheWords };
+  }
+
+  // Transpose: swap rows/cols so landscape becomes portrait
+  const tCells: FlecheCell[][] = Array.from({ length: width }, (_, r) =>
+    Array.from({ length: height }, (_, c) => {
+      const cell = outputCells[c][r];
+      if (cell.type === "clue" && cell.clues) {
+        // Swap arrow directions
+        return {
+          ...cell,
+          clues: cell.clues.map((cl) => ({
+            ...cl,
+            direction: (cl.direction === "right" ? "down" : "right") as "right" | "down",
+            answerRow: cl.answerCol,
+            answerCol: cl.answerRow,
+          })),
+        };
+      }
+      return cell;
+    })
+  );
+
+  const tWords = flecheWords.map((w) => ({
+    ...w,
+    direction: (w.direction === "right" ? "down" : "right") as "right" | "down",
+    startRow: w.startCol,
+    startCol: w.startRow,
+    clueRow: w.clueCol,
+    clueCol: w.clueRow,
+  }));
+
+  return { width: height, height: width, cells: tCells, words: tWords };
 }
