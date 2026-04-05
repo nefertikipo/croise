@@ -494,6 +494,140 @@ function buildGrid(
     }
   }
 
+  // REPAIR: eliminate orphan clue cells
+  // An orphan # has no word starting from it (right or down)
+  // Fix: convert to letter and extend adjacent word
+  let repaired = true;
+  while (repaired) {
+    repaired = false;
+    for (let r = 1; r < height; r++) {
+      for (let c = 1; c < width; c++) {
+        if (grid[r][c] !== "#") continue;
+
+        // Check if orphan: no word starts right or down
+        let hasRight = false, hasDown = false;
+        if (c + 1 < width && typeof grid[r][c + 1] === "string" && grid[r][c + 1] !== "#") {
+          let len = 0;
+          for (let cc = c + 1; cc < width && grid[r][cc] !== "#"; cc++) len++;
+          if (len >= 2) hasRight = true;
+        }
+        if (r + 1 < height && typeof grid[r + 1][c] === "string" && grid[r + 1][c] !== "#") {
+          let len = 0;
+          for (let rr = r + 1; rr < height && grid[rr][c] !== "#"; rr++) len++;
+          if (len >= 2) hasDown = true;
+        }
+
+        if (hasRight || hasDown) continue; // Not orphan
+
+        // This is an orphan. Convert to letter.
+        // Find the word to the LEFT and extend it by 1 letter
+        if (c > 0 && typeof grid[r][c - 1] === "string" && grid[r][c - 1] !== "#") {
+          // Find a letter that works: extend the horizontal word
+          // The word to the left ends at c-1. Adding this cell makes it 1 longer.
+          // Find the start of the horizontal word
+          let wordStart = c - 1;
+          while (wordStart > 0 && typeof grid[r][wordStart - 1] === "string" && grid[r][wordStart - 1] !== "#") wordStart--;
+          const oldLen = c - wordStart;
+          const newLen = oldLen + 1;
+
+          // Gather constraints
+          const constraints: { pos: number; letter: string }[] = [];
+          for (let i = 0; i < oldLen; i++) {
+            constraints.push({ pos: i, letter: grid[r][wordStart + i] as string });
+          }
+
+          // Find a word of newLen that starts with the old word's letters
+          let candidates = wordList.getByConstraint(newLen, constraints[0].pos, constraints[0].letter);
+          for (let i = 1; i < constraints.length; i++) {
+            candidates = candidates.filter((w) => w[constraints[i].pos] === constraints[i].letter);
+          }
+          candidates = candidates.filter((w) => !usedWords.has(w));
+
+          if (candidates.length > 0) {
+            const newWord = candidates[Math.floor(Math.random() * Math.min(candidates.length, 10))];
+            // Remove old word from placed
+            const oldIdx = placed.findIndex((p) => p.direction === "right" && p.row === r && p.col === wordStart);
+            if (oldIdx >= 0) {
+              usedWords.delete(placed[oldIdx].word);
+              placed.splice(oldIdx, 1);
+            }
+            // Place new word
+            for (let i = 0; i < newLen; i++) grid[r][wordStart + i] = newWord[i];
+            usedWords.add(newWord);
+            placed.push({ word: newWord, row: r, col: wordStart, direction: "right", isCustom: false });
+            repaired = true;
+            continue;
+          }
+        }
+
+        // Try extending RIGHT (prepend to word to the right)
+        if (c + 1 < width && typeof grid[r][c + 1] === "string" && grid[r][c + 1] !== "#") {
+          let wordEnd = c + 1;
+          while (wordEnd + 1 < width && typeof grid[r][wordEnd + 1] === "string" && grid[r][wordEnd + 1] !== "#") wordEnd++;
+          const oldLen = wordEnd - c;
+          const newLen = oldLen + 1;
+
+          const constraints: { pos: number; letter: string }[] = [];
+          for (let i = 1; i <= oldLen; i++) {
+            constraints.push({ pos: i, letter: grid[r][c + i] as string });
+          }
+
+          let candidates = constraints.length > 0
+            ? wordList.getByConstraint(newLen, constraints[0].pos, constraints[0].letter)
+            : wordList.getByLength(newLen).map((e) => e.word);
+          for (let i = 1; i < constraints.length; i++) {
+            candidates = candidates.filter((w) => w[constraints[i].pos] === constraints[i].letter);
+          }
+          candidates = candidates.filter((w) => !usedWords.has(w));
+
+          if (candidates.length > 0) {
+            const newWord = candidates[Math.floor(Math.random() * Math.min(candidates.length, 10))];
+            const oldIdx = placed.findIndex((p) => p.direction === "right" && p.row === r && p.col === c + 1);
+            if (oldIdx >= 0) { usedWords.delete(placed[oldIdx].word); placed.splice(oldIdx, 1); }
+            for (let i = 0; i < newLen; i++) grid[r][c + i] = newWord[i];
+            usedWords.add(newWord);
+            placed.push({ word: newWord, row: r, col: c, direction: "right", isCustom: false });
+            repaired = true;
+            continue;
+          }
+        }
+
+        // Try extending UPWARD (vertical word above)
+        if (r > 0 && typeof grid[r - 1][c] === "string" && grid[r - 1][c] !== "#") {
+          let wordStart = r - 1;
+          while (wordStart > 0 && typeof grid[wordStart - 1][c] === "string" && grid[wordStart - 1][c] !== "#") wordStart--;
+          const oldLen = r - wordStart;
+          const newLen = oldLen + 1;
+
+          const constraints: { pos: number; letter: string }[] = [];
+          for (let i = 0; i < oldLen; i++) {
+            constraints.push({ pos: i, letter: grid[wordStart + i][c] as string });
+          }
+
+          let candidates = wordList.getByConstraint(newLen, constraints[0].pos, constraints[0].letter);
+          for (let i = 1; i < constraints.length; i++) {
+            candidates = candidates.filter((w) => w[constraints[i].pos] === constraints[i].letter);
+          }
+          candidates = candidates.filter((w) => !usedWords.has(w));
+
+          if (candidates.length > 0) {
+            const newWord = candidates[Math.floor(Math.random() * Math.min(candidates.length, 10))];
+            const oldIdx = placed.findIndex((p) => p.direction === "down" && p.col === c && p.row === wordStart);
+            if (oldIdx >= 0) {
+              usedWords.delete(placed[oldIdx].word);
+              placed.splice(oldIdx, 1);
+            }
+            for (let i = 0; i < newLen; i++) grid[wordStart + i][c] = newWord[i];
+            usedWords.add(newWord);
+            placed.push({ word: newWord, row: wordStart, col: c, direction: "down", isCustom: false });
+            repaired = true;
+            continue;
+          }
+        }
+      }
+    }
+  }
+
   return { grid, placed };
 }
 
@@ -516,7 +650,7 @@ export function generateFleche(
   let bestResult: { grid: Cell[][]; placed: PlacedWord[] } | null = null;
   let bestScore = Infinity;
 
-  for (let attempt = 0; attempt < 50; attempt++) {
+  for (let attempt = 0; attempt < 200; attempt++) {
     const result = buildGrid(width, height, wordList, clueDatabase, customWords);
     if (!result) continue;
 
