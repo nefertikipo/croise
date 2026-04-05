@@ -256,10 +256,18 @@ function buildGrid(
 
           col += word.length;
 
-          // Place # after word if space allows and adjacency OK
+          // Place # after word if:
+          // 1. Space allows
+          // 2. Adjacency OK
+          // 3. Remaining space after # is >= 2 (room for another word)
+          //    OR this # can define a vertical word (space below >= 2)
           if (col < width && grid[r][col] === null) {
-            let canClue = true;
-            if (r > 0 && col > 0) {
+            const remainingRight = width - col - 1;
+            const remainingDown = height - r - 1;
+            let canClue = remainingRight >= 2 || remainingDown >= 2;
+
+            // Check adjacency
+            if (canClue && r > 0 && col > 0) {
               for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
                 const nr = r + dr, nc = col + dc;
                 if (nr >= 0 && nc >= 0 && nr < height && nc < width && nr > 0 && nc > 0) {
@@ -267,6 +275,10 @@ function buildGrid(
                 }
               }
             }
+
+            // Check: if remaining right is exactly 1, don't place # (would create orphan)
+            if (canClue && remainingRight === 1 && remainingDown < 2) canClue = false;
+
             if (canClue) { grid[r][col] = "#"; col++; }
           }
 
@@ -373,11 +385,113 @@ function buildGrid(
     }
   }
 
-  // Convert remaining nulls to #
-  for (let r = 0; r < height; r++) {
-    for (let c = 0; c < width; c++) {
-      if (grid[r][c] === null) grid[r][c] = "#";
+  // Fill remaining nulls: try to extend adjacent words to cover them
+  // Repeat until no nulls remain
+  for (let pass = 0; pass < 5; pass++) {
+    let hasNull = false;
+    for (let r = 0; r < height; r++) {
+      for (let c = 0; c < width; c++) {
+        if (grid[r][c] !== null) continue;
+        hasNull = true;
+
+        // Try horizontal: is there a # to the left? Fill a word from here
+        if (c > 0 && grid[r][c - 1] === "#") {
+          let maxLen = 0;
+          let cc = c;
+          while (cc < width && grid[r][cc] !== "#") { maxLen++; cc++; }
+          if (maxLen >= 2) {
+            const cons: { pos: number; letter: string }[] = [];
+            for (let i = 0; i < maxLen; i++) {
+              const cell = grid[r][c + i];
+              if (typeof cell === "string" && cell !== "#") cons.push({ pos: i, letter: cell });
+            }
+            for (let len = Math.min(maxLen, 6); len >= 2; len--) {
+              const tc = cons.filter((x) => x.pos < len);
+              let cands: string[];
+              if (tc.length === 0) cands = wordList.getByLength(len).map((e) => e.word);
+              else {
+                cands = wordList.getByConstraint(len, tc[0].pos, tc[0].letter);
+                for (let i = 1; i < tc.length; i++) cands = cands.filter((w) => w[tc[i].pos] === tc[i].letter);
+              }
+              cands = cands.filter((w) => !usedWords.has(w));
+              if (cands.length > 0) {
+                const word = cands[Math.floor(Math.random() * Math.min(cands.length, 10))];
+                for (let i = 0; i < word.length; i++) grid[r][c + i] = word[i];
+                usedWords.add(word);
+                placed.push({ word, row: r, col: c, direction: "right", isCustom: false });
+                break;
+              }
+            }
+          }
+        }
+
+        // Try vertical: is there a # above? Fill a word from here
+        if (grid[r][c] === null && r > 0 && grid[r - 1][c] === "#") {
+          let maxLen = 0;
+          let rr = r;
+          while (rr < height && grid[rr][c] !== "#") { maxLen++; rr++; }
+          if (maxLen >= 2) {
+            const cons: { pos: number; letter: string }[] = [];
+            for (let i = 0; i < maxLen; i++) {
+              const cell = grid[r + i]?.[c];
+              if (typeof cell === "string" && cell !== "#") cons.push({ pos: i, letter: cell });
+            }
+            for (let len = Math.min(maxLen, 6); len >= 2; len--) {
+              const tc = cons.filter((x) => x.pos < len);
+              let cands: string[];
+              if (tc.length === 0) cands = wordList.getByLength(len).map((e) => e.word);
+              else {
+                cands = wordList.getByConstraint(len, tc[0].pos, tc[0].letter);
+                for (let i = 1; i < tc.length; i++) cands = cands.filter((w) => w[tc[i].pos] === tc[i].letter);
+              }
+              cands = cands.filter((w) => !usedWords.has(w));
+              if (cands.length > 0) {
+                const word = cands[Math.floor(Math.random() * Math.min(cands.length, 10))];
+                for (let i = 0; i < word.length; i++) grid[r + i][c] = word[i];
+                usedWords.add(word);
+                placed.push({ word, row: r, col: c, direction: "down", isCustom: false });
+                break;
+              }
+            }
+          }
+        }
+
+        // If still null, convert to # only if it can define a word (not orphan)
+        if (grid[r][c] === null) {
+          let canDefineWord = false;
+          // Check right
+          if (c + 1 < width) {
+            let len = 0;
+            for (let cc = c + 1; cc < width && grid[r][cc] !== "#"; cc++) len++;
+            if (len >= 2) canDefineWord = true;
+          }
+          // Check down
+          if (!canDefineWord && r + 1 < height) {
+            let len = 0;
+            for (let rr = r + 1; rr < height && grid[rr][c] !== "#"; rr++) len++;
+            if (len >= 2) canDefineWord = true;
+          }
+
+          if (canDefineWord) {
+            let canClue = true;
+            if (r > 0 && c > 0) {
+              for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+                const nr = r + dr, nc = c + dc;
+                if (nr >= 0 && nc >= 0 && nr < height && nc < width && nr > 0 && nc > 0) {
+                  if (grid[nr][nc] === "#") { canClue = false; break; }
+                }
+              }
+            }
+            if (canClue) grid[r][c] = "#";
+            else grid[r][c] = "E"; // fallback
+          } else {
+            // Can't be # (orphan) and can't be a word start. Extend adjacent word.
+            grid[r][c] = "E"; // placeholder
+          }
+        }
+      }
     }
+    if (!hasNull) break;
   }
 
   return { grid, placed };

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { generateFleche } from "@/lib/crossword/fleche-generator-v8";
+import { generateFleche } from "@/lib/crossword/fleche-wordfirst";
 import { getFrenchWordList, getFrenchClueDb } from "@/lib/crossword/load-french-clues";
 
 export const maxDuration = 60;
