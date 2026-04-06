@@ -10,6 +10,7 @@ interface ClueInCell {
   answerCol: number;
   answerLength: number;
   answer: string;
+  isCustom?: boolean;
 }
 
 interface FlecheCell {
@@ -25,6 +26,8 @@ interface FlecheGridProps {
   showSolution?: boolean;
   interactive?: boolean;
   className?: string;
+  /** Map of "row,col" -> position number for hidden word highlighting */
+  highlightedCells?: Map<string, number>;
 }
 
 const CELL_SIZE = 70;
@@ -36,6 +39,7 @@ export function FlecheGrid({
   showSolution = false,
   interactive = false,
   className,
+  highlightedCells,
 }: FlecheGridProps) {
   const [userInput, setUserInput] = useState<Map<string, string>>(new Map());
   const [selectedCell, setSelectedCell] = useState<{ r: number; c: number } | null>(null);
@@ -205,31 +209,50 @@ export function FlecheGrid({
 
                 {clueTexts.map((cl, i) => {
                   const isPlaceholder = cl.text === cl.answer;
+                  const isCustomClue = cl.isCustom;
                   // Arrow shows direction FROM clue cell TO answer start
                   const answerIsBelow = cl.answerRow > r;
                   const answerIsRight = cl.answerCol > c;
                   const arrow = answerIsBelow ? "▼" : answerIsRight ? "►" : "►";
 
+                  const fontSize = hasTwo ? 7 : 9;
+                  // Max lines that fit in the available height
+                  const cellHalf = hasTwo ? CELL_SIZE / 2 : CELL_SIZE;
+                  const lineHeight = fontSize * 1.2;
+                  const maxLines = Math.floor((cellHalf - 4) / lineHeight);
+
                   return (
                     <div
                       key={i}
                       className={cn(
-                        "flex items-start gap-0.5 px-1 w-full",
-                        hasTwo ? "flex-1" : "flex-1 py-0.5"
+                        "relative flex items-start gap-0.5 px-1 w-full",
+                        hasTwo ? "flex-1" : "flex-1",
                       )}
-                      style={{ paddingTop: 2, paddingBottom: 1 }}
+                      style={{
+                        paddingTop: 2,
+                        paddingBottom: 1,
+                        backgroundColor: isCustomClue ? "#fef3c7" : undefined,
+                      }}
                     >
                       <span
                         className={cn(
-                          "leading-tight flex-1 overflow-hidden uppercase",
+                          "flex-1 uppercase break-words hyphens-auto",
                           isPlaceholder ? "text-red-400 italic" : "text-black"
                         )}
-                        style={{ fontSize: hasTwo ? "7px" : "9px" }}
+                        style={{
+                          fontSize: `${fontSize}px`,
+                          lineHeight: `${lineHeight}px`,
+                          display: "-webkit-box",
+                          WebkitLineClamp: maxLines,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                          wordBreak: "break-word",
+                        }}
                       >
                         {cl.text}
                       </span>
                       <span
-                        className="font-bold shrink-0 text-black leading-none"
+                        className="font-bold shrink-0 text-black leading-none absolute bottom-0.5 right-0.5"
                         style={{ fontSize: hasTwo ? "9px" : "11px" }}
                       >
                         {arrow}
@@ -247,22 +270,31 @@ export function FlecheGrid({
             const isHighlighted = highlighted.has(key);
             const inputVal = userInput.get(key) ?? "";
             const correct = isCorrect(r, c);
+            const hiddenNum = highlightedCells?.get(key);
+            const isHiddenCell = hiddenNum !== undefined;
 
             if (interactive) {
               return (
                 <div
                   key={key}
                   className={cn(
-                    "relative border border-black/30 flex items-center justify-center cursor-pointer",
+                    "relative border flex items-center justify-center cursor-pointer",
+                    isHiddenCell ? "border-primary border-2" : "border-black/30",
                     isSelected && "ring-2 ring-blue-500 z-10",
-                    isHighlighted && !isSelected && "bg-blue-50",
-                    !isHighlighted && "bg-white",
+                    isHiddenCell && !isSelected && "bg-primary/10",
+                    isHighlighted && !isSelected && !isHiddenCell && "bg-blue-50",
+                    !isHighlighted && !isHiddenCell && "bg-white",
                     correct === true && "bg-green-50",
                     correct === false && inputVal && "bg-red-50"
                   )}
                   style={{ width: CELL_SIZE, height: CELL_SIZE }}
                   onClick={() => handleCellClick(r, c)}
                 >
+                  {isHiddenCell && (
+                    <span className="absolute top-0.5 left-1 text-[9px] font-bold text-primary">
+                      {hiddenNum}
+                    </span>
+                  )}
                   <input
                     ref={(el) => setRef(key, el)}
                     className="absolute inset-0 w-full h-full text-center text-xl font-bold uppercase bg-transparent outline-none caret-transparent cursor-pointer"
@@ -281,9 +313,17 @@ export function FlecheGrid({
             return (
               <div
                 key={key}
-                className="bg-white border border-black/30 flex items-center justify-center"
+                className={cn(
+                  "relative border flex items-center justify-center",
+                  isHiddenCell ? "border-primary border-2 bg-primary/10" : "bg-white border-black/30",
+                )}
                 style={{ width: CELL_SIZE, height: CELL_SIZE }}
               >
+                {isHiddenCell && (
+                  <span className="absolute top-0.5 left-1 text-[9px] font-bold text-primary">
+                    {hiddenNum}
+                  </span>
+                )}
                 {showSolution && cell.letter && (
                   <span className="text-xl font-bold uppercase text-black">
                     {cell.letter}

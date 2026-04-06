@@ -13,46 +13,92 @@ function normalize(word: string): string {
     .replace(/[^A-Z]/g, "");
 }
 
-function load() {
-  if (cachedWl && cachedClueDb) return;
+/**
+ * Load from Neon database (production / when TSV files aren't available).
+ */
+async function loadFromDatabase(): Promise<{
+  wl: WordList;
+  clueDb: Map<string, string[]>;
+}> {
+  const { neon } = await import("@neondatabase/serverless");
+  const sql = neon(process.env.DATABASE_URL!);
 
   const wl = new WordList();
   const clueDb = new Map<string, string[]>();
 
-  // Load scraped clue-answer pairs (best quality)
-  try {
-    // Use deduped file if available (much faster to load)
-    const dedupedPath = join(process.cwd(), "data", "french-clues-deduped.tsv");
-    const rawPath = join(process.cwd(), "data", "french-clues-dicomots.tsv");
-    const filePath = existsSync(dedupedPath) ? dedupedPath : rawPath;
-    const content = readFileSync(filePath, "utf-8");
-    const seen = new Set<string>();
+  // Load all words + clues in one query
+  const rows = await sql`
+    SELECT w.word, c.clue
+    FROM words w
+    JOIN clues c ON c.word_id = w.id
+    WHERE w.language = 'fr'
+    AND w.active = true
+    AND LENGTH(w.word) BETWEEN 2 AND 15
+  `;
 
-    for (const line of content.split("\n").slice(1)) {
-      const tab = line.indexOf("\t");
-      if (tab === -1) continue;
-      const rawAnswer = line.slice(0, tab);
-      const clue = line.slice(tab + 1).trim();
-      if (!rawAnswer || !clue) continue;
-
-      const answer = normalize(rawAnswer);
-      if (answer.length < 2 || answer.length > 15) continue;
-
-      const key = answer + "|" + clue;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      wl.addWord(answer, 90); // Much higher score for words with real clues
-      if (!clueDb.has(answer)) clueDb.set(answer, []);
-      clueDb.get(answer)!.push(clue);
-    }
-
-    console.log(`Scraped clues: ${clueDb.size} words with clues`);
-  } catch {
-    console.log("French clue file not found");
+  for (const row of rows) {
+    const word = row.word as string;
+    const clue = row.clue as string;
+    wl.addWord(word, 85);
+    if (!clueDb.has(word)) clueDb.set(word, []);
+    clueDb.get(word)!.push(clue);
   }
 
-  // Add common 2-letter crossword words with clues
+  console.log(`Database: ${clueDb.size} words, ${rows.length} clue pairs`);
+  return { wl, clueDb };
+}
+
+/**
+ * Load from local TSV files (development).
+ */
+function loadFromFiles(): { wl: WordList; clueDb: Map<string, string[]> } {
+  const wl = new WordList();
+  const clueDb = new Map<string, string[]>();
+  const seen = new Set<string>();
+
+  function loadTsvFile(filePath: string, score: number, label: string) {
+    if (!existsSync(filePath)) return;
+    try {
+      const content = readFileSync(filePath, "utf-8");
+      let count = 0;
+
+      for (const line of content.split("\n").slice(1)) {
+        const tab = line.indexOf("\t");
+        if (tab === -1) continue;
+        const rawAnswer = line.slice(0, tab);
+        const clue = line.slice(tab + 1).trim();
+        if (!rawAnswer || !clue) continue;
+
+        const answer = normalize(rawAnswer);
+        if (answer.length < 2 || answer.length > 15) continue;
+
+        const key = answer + "|" + clue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        wl.addWord(answer, score);
+        if (!clueDb.has(answer)) clueDb.set(answer, []);
+        clueDb.get(answer)!.push(clue);
+        count++;
+      }
+
+      console.log(`${label}: ${count} clue pairs loaded`);
+    } catch {
+      console.log(`${label}: file not found or unreadable`);
+    }
+  }
+
+  const dedupedPath = join(process.cwd(), "data", "french-clues-deduped.tsv");
+  const rawPath = join(process.cwd(), "data", "french-clues-dicomots.tsv");
+  loadTsvFile(existsSync(dedupedPath) ? dedupedPath : rawPath, 90, "dico-mots.fr");
+  loadTsvFile(join(process.cwd(), "data", "french-clues-dicomots-extra.tsv"), 88, "dico-mots.fr (extra)");
+  loadTsvFile(join(process.cwd(), "data", "french-clues-fsolver.tsv"), 85, "fsolver.fr");
+
+  console.log(`TSV files: ${clueDb.size} words with clues`);
+  return { wl, clueDb };
+}
+
+function addBuiltinWords(wl: WordList, clueDb: Map<string, string[]>) {
   const twoLetterWords: [string, string][] = [
     ["OR", "metal precieux"], ["AN", "unite de temps"], ["SI", "note de musique"],
     ["NU", "sans vetement"], ["EU", "possede"], ["ON", "pronom indefini"],
@@ -74,18 +120,14 @@ function load() {
     if (!clueDb.get(word)!.includes(clue)) clueDb.get(word)!.push(clue);
   }
 
-  // Add classic crossword filler words (compass, abbreviations, common short words)
   const fillerWords: [string, string][] = [
-    // Compass directions
     ["SSE", "direction du vent"], ["SSO", "point cardinal"], ["NNE", "direction"],
     ["NNO", "point cardinal"], ["ENE", "direction"], ["ONO", "point cardinal"],
     ["ESE", "direction du vent"], ["OSO", "point cardinal"],
     ["EST", "point cardinal"], ["SUD", "point cardinal"],
     ["NE", "entre nord et est"], ["SE", "direction"], ["NO", "refus"],
-    // Common abbreviations
     ["ETC", "et caetera"], ["ADN", "molecule de la vie"], ["ONU", "organisation mondiale"],
     ["USA", "pays d'Amerique"], ["UNI", "rassemble"], ["AGE", "nombre d'annees"],
-    // Common short crossword words
     ["ANE", "animal tetu"], ["ETE", "saison chaude"], ["ERE", "epoque"],
     ["ILE", "terre entouree d'eau"], ["OIE", "volatile"], ["RUE", "voie urbaine"],
     ["AME", "essence de l'etre"], ["AIR", "ce qu'on respire"], ["EAU", "liquide vital"],
@@ -98,38 +140,63 @@ function load() {
     if (!clueDb.has(word)) clueDb.set(word, []);
     if (!clueDb.get(word)!.includes(clue)) clueDb.get(word)!.push(clue);
   }
+}
 
-  // Also load French dictionary words as fallback fill (low score)
-  // These help the CSP solver find solutions for difficult patterns
-  try {
-    const dictPath = join(process.cwd(), "data", "french-words-full.txt");
-    const dictContent = readFileSync(dictPath, "utf-8");
-    let extra = 0;
-    for (const line of dictContent.split("\n")) {
-      const word = normalize(line.trim());
-      if (word.length < 3 || word.length > 10) continue;
-      if (!/^[A-Z]+$/.test(word)) continue;
-      if (!wl.has(word)) {
-        wl.addWord(word, 5); // Very low score, only used when CSP is desperate
-        extra++;
-      }
-    }
-    console.log(`Dictionary filler: ${extra} extra words`);
-  } catch {}
+async function load() {
+  if (cachedWl && cachedClueDb) return;
 
+  // Check if local TSV files exist (development)
+  const hasLocalFiles = existsSync(join(process.cwd(), "data", "french-clues-deduped.tsv"))
+    || existsSync(join(process.cwd(), "data", "french-clues-dicomots.tsv"));
 
-  console.log(`Total French words: ${wl.size}`);
+  let wl: WordList;
+  let clueDb: Map<string, string[]>;
+
+  if (hasLocalFiles) {
+    ({ wl, clueDb } = loadFromFiles());
+  } else if (process.env.DATABASE_URL) {
+    ({ wl, clueDb } = await loadFromDatabase());
+  } else {
+    console.warn("No clue data source available (no TSV files, no DATABASE_URL)");
+    wl = new WordList();
+    clueDb = new Map();
+  }
+
+  addBuiltinWords(wl, clueDb);
+  console.log(`Total words with clues: ${clueDb.size}`);
 
   cachedWl = wl;
   cachedClueDb = clueDb;
 }
 
 export function getFrenchWordList(): WordList {
-  load();
+  // Force sync load if not cached — the async load is called on first API hit
+  if (!cachedWl) {
+    // In dev, files are available synchronously
+    const hasLocalFiles = existsSync(join(process.cwd(), "data", "french-clues-deduped.tsv"))
+      || existsSync(join(process.cwd(), "data", "french-clues-dicomots.tsv"));
+    if (hasLocalFiles) {
+      const { wl, clueDb } = loadFromFiles();
+      addBuiltinWords(wl, clueDb);
+      cachedWl = wl;
+      cachedClueDb = clueDb;
+    }
+  }
   return cachedWl!;
 }
 
 export function getFrenchClueDb(): Map<string, string[]> {
-  load();
+  if (!cachedClueDb) {
+    getFrenchWordList(); // triggers sync load
+  }
   return cachedClueDb!;
+}
+
+/**
+ * Async initialization for production (database).
+ * Call this once at startup in API routes.
+ */
+export async function ensureLoaded(): Promise<void> {
+  if (cachedWl && cachedClueDb) return;
+  await load();
 }
