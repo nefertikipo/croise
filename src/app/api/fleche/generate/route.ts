@@ -68,9 +68,17 @@ export async function POST(request: Request) {
       const customWords = (params.customClues ?? [])
         .map((c) => c.answer.toUpperCase().replace(/[^A-Z]/g, ""))
         .filter((a) => a.length >= 2);
-      const hint = customWords.length > 3
-        ? "Essayez avec moins de mots personnalises ou des mots plus courts."
-        : "Essayez de regenerer.";
+
+      // Find which words are hardest (all consonants, very long, etc.)
+      const hard = customWords.filter((w) => {
+        const vowels = [...w].filter((c) => "AEIOUY".includes(c)).length;
+        return vowels === 0 || w.length >= 10;
+      });
+      const hint = hard.length > 0
+        ? `Les mots ${hard.join(", ")} sont tres difficiles a placer (peu de voyelles ou tres long). Essayez de les retirer ou modifier.`
+        : customWords.length > 3
+          ? "Essayez avec moins de mots personnalises ou des mots plus courts."
+          : "Essayez de regenerer.";
       return NextResponse.json(
         { error: `Impossible de generer la grille. ${hint}` },
         { status: 500 },

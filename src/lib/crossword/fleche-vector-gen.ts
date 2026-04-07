@@ -992,12 +992,13 @@ export function generateFlecheVector(
 
   const hasCustom = customClues.length > 0;
   const customCount = customClues.length;
-  const TOTAL_TIME_MS = hasCustom ? 55000 : 25000; // total budget
+  const TOTAL_TIME_MS = hasCustom ? 110000 : 25000; // 110s for custom (API maxDuration=120)
   const totalDeadline = Date.now() + TOTAL_TIME_MS;
-  const MAX_LAYOUT_ATTEMPTS = 200; // will be cut short by time
-  const LAYOUT_OPTIMIZE_ITERS = hasCustom ? 5000 : 3000;
-  const MAX_BACKTRACKS = hasCustom ? 200000 : 50000;
-  const SOLVE_TIME_MS = customCount >= 4 ? 15000 : hasCustom ? 8000 : 5000;
+  const MAX_LAYOUT_ATTEMPTS = 500;
+  // With many custom words: fast layout gen, spend time on solver
+  const LAYOUT_OPTIMIZE_ITERS = customCount >= 4 ? 1500 : hasCustom ? 3000 : 3000;
+  const MAX_BACKTRACKS = customCount >= 4 ? 300000 : hasCustom ? 200000 : 50000;
+  const SOLVE_TIME_MS = customCount >= 4 ? 8000 : hasCustom ? 6000 : 5000;
 
   // Required slot lengths for custom words
   const requiredLengths = customClues

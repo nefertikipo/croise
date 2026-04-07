@@ -73,7 +73,10 @@ async function upsertWord(word: string): Promise<number> {
   return id;
 }
 
-async function insertClue(wordId: number, clueText: string, source: string) {
+async function insertClue(wordId: number, word: string, clueText: string, source: string) {
+  // Skip self-referencing clues
+  if (clueText.toUpperCase().includes(word.toUpperCase())) return;
+
   await db
     .insert(clues)
     .values({
@@ -269,7 +272,7 @@ async function main() {
           const wordId = await upsertWord(word);
           if (wordId > 0) {
             for (const clueText of clueTexts) {
-              await insertClue(wordId, clueText, "fsolver");
+              await insertClue(wordId, word, clueText, "fsolver");
             }
           }
         } catch (dbErr) {

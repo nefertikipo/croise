@@ -68,7 +68,9 @@ async function upsertWord(word: string): Promise<number> {
   return id;
 }
 
-async function insertClue(wordId: number, clueText: string) {
+async function insertClue(wordId: number, word: string, clueText: string) {
+  if (clueText.toUpperCase().includes(word.toUpperCase())) return;
+
   await db
     .insert(clues)
     .values({
@@ -238,7 +240,7 @@ async function main() {
         try {
           const wordId = await upsertWord(p.answer);
           if (wordId > 0) {
-            await insertClue(wordId, p.clue);
+            await insertClue(wordId, p.answer, p.clue);
           }
         } catch {
           // Don't fail on DB errors
