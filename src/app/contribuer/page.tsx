@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
 interface SubmittedClue {
   word: string;
   clue: string;
+}
+
+interface Contribution {
+  word: string;
+  clue: string;
+  difficulty: number | null;
+  author: string | null;
 }
 
 export default function ContributePage() {
@@ -21,6 +28,16 @@ export default function ContributePage() {
   const [error, setError] = useState<string | null>(null);
   const [difficulty, setDifficulty] = useState<1 | 2 | 3>(1);
   const [saving, setSaving] = useState(false);
+  const [contributions, setContributions] = useState<Contribution[]>([]);
+
+  async function loadContributions() {
+    try {
+      const res = await fetch("/api/contributions");
+      if (res.ok) setContributions(await res.json());
+    } catch {}
+  }
+
+  useEffect(() => { loadContributions(); }, []);
 
   async function submit() {
     if (!word.trim() || !clue.trim()) return;
@@ -47,6 +64,7 @@ export default function ContributePage() {
       setSubmitted((prev) => [{ word: word.toUpperCase(), clue: clue.trim() }, ...prev]);
       setWord("");
       setClue("");
+      loadContributions();
     } catch {
       setError("Erreur de connexion");
     } finally {
@@ -139,18 +157,26 @@ export default function ContributePage() {
           </Button>
         </div>
 
-        {/* Recently submitted */}
-        {submitted.length > 0 && (
+        {/* Community contributions */}
+        {contributions.length > 0 && (
           <div className="space-y-2">
-            <h2 className="text-sm font-medium text-muted-foreground">
-              Soumis ({submitted.length})
+            <h2 className="text-sm font-medium">
+              Indices de la communaute ({contributions.length})
             </h2>
-            {submitted.map((s, i) => (
-              <div key={i} className="flex gap-3 text-sm border rounded-lg px-3 py-2">
-                <span className="font-mono font-bold uppercase">{s.word}</span>
-                <span className="text-muted-foreground">{s.clue}</span>
-              </div>
-            ))}
+            {contributions.map((c, i) => {
+              const diffLabel = c.difficulty ? ["", "Facile", "Moyen", "Difficile"][c.difficulty] : null;
+              const diffColor = c.difficulty
+                ? { 1: "text-green-600", 2: "text-amber-600", 3: "text-red-600" }[c.difficulty]
+                : "";
+              return (
+                <div key={i} className="flex items-center gap-3 text-sm border rounded-lg px-3 py-2">
+                  <span className="font-mono font-bold uppercase shrink-0 w-24 truncate">{c.word}</span>
+                  <span className="text-muted-foreground flex-1">{c.clue}</span>
+                  {diffLabel && <span className={`text-xs shrink-0 ${diffColor}`}>{diffLabel}</span>}
+                  {c.author && <span className="text-xs text-muted-foreground/50 shrink-0">{c.author}</span>}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
