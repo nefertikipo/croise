@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Patrick_Hand } from "next/font/google";
 import "./globals.css";
+import { Nav } from "@/components/shared/nav";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -28,7 +29,10 @@ export default function RootLayout({
       lang="fr"
       className={`${inter.variable} ${handwritten.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        <Nav />
+        {children}
+      </body>
     </html>
   );
 }
