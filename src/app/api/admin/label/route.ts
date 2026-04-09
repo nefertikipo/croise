@@ -1,27 +1,66 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { words, clues } from "@/db/schema/clue-entries";
-import { eq, isNull, sql } from "drizzle-orm";
+import { eq, and, isNull, sql } from "drizzle-orm";
 
 /**
  * GET: fetch a random unlabeled clue-answer pair
  */
 export async function GET() {
   try {
-    // Fetch a random unlabeled pair, excluding self-referencing clues
-    const [pair] = await db
-      .select({
-        clueId: clues.id,
-        word: words.word,
-        clue: clues.clue,
-        source: clues.source,
-        difficulty: clues.difficulty,
-      })
-      .from(clues)
-      .innerJoin(words, eq(clues.wordId, words.id))
-      .where(isNull(clues.difficulty))
-      .orderBy(sql`RANDOM()`)
-      .limit(1);
+    // Check if there's a calibration test set to prioritize
+    const url = new URL(request.url);
+    const calibration = url.searchParams.get("calibration") === "true";
+
+    let pair;
+
+    if (calibration) {
+      // Load test pair IDs from file (set by batch-score.ts --test)
+      let testIds: number[] = [];
+      try {
+        const { readFileSync } = await import("fs");
+        const testPairs = JSON.parse(readFileSync("data/test-pairs.json", "utf-8"));
+        testIds = testPairs.map((p: { id: number }) => p.id);
+      } catch {}
+
+      if (testIds.length > 0) {
+        [pair] = await db
+          .select({
+            clueId: clues.id,
+            word: words.word,
+            clue: clues.clue,
+            source: clues.source,
+            difficulty: clues.difficulty,
+          })
+          .from(clues)
+          .innerJoin(words, eq(clues.wordId, words.id))
+          .where(
+            and(
+              isNull(clues.difficulty),
+              sql`${clues.id} = ANY(${testIds})`,
+            ),
+          )
+          .orderBy(sql`RANDOM()`)
+          .limit(1);
+      }
+    }
+
+    // Fallback: random unlabeled pair
+    if (!pair) {
+      [pair] = await db
+        .select({
+          clueId: clues.id,
+          word: words.word,
+          clue: clues.clue,
+          source: clues.source,
+          difficulty: clues.difficulty,
+        })
+        .from(clues)
+        .innerJoin(words, eq(clues.wordId, words.id))
+        .where(isNull(clues.difficulty))
+        .orderBy(sql`RANDOM()`)
+        .limit(1);
+    }
 
     if (!pair) {
       return NextResponse.json({ done: true });
