@@ -50,7 +50,7 @@ export default function LabelPage() {
     try {
       const res = await fetch("/api/admin/label?calibration=true");
       const data = await res.json();
-      if (data.done) {
+      if (data.done || !data.pair) {
         setDone(true);
         setPair(null);
       } else {

@@ -11,8 +11,8 @@ import type { Coord } from "@/lib/crossword/fleche-math";
 export const maxDuration = 120;
 
 const requestSchema = z.object({
-  width: z.number().min(8).max(20).default(10),
-  height: z.number().min(8).max(20).default(10),
+  width: z.number().min(5).max(20).default(10),
+  height: z.number().min(5).max(20).default(10),
   customClues: z
     .array(z.object({ answer: z.string(), clue: z.string() }))
     .default([]),

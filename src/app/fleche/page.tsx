@@ -200,6 +200,7 @@ export default function FlechePage() {
                 { w: 11, h: 17, label: "11x17" },
                 { w: 9, h: 13, label: "9x13" },
                 { w: 8, h: 11, label: "8x11" },
+                { w: 5, h: 7, label: "5x7" },
               ].map((s) => (
                 <button
                   key={s.label}

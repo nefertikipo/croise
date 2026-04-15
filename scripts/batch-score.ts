@@ -29,12 +29,15 @@ const MODELS = {
 
 const clueSchema = z.object({
   clueId: z.number(),
+  selfReferencing: z.boolean(),
+  badClue: z.boolean(),
   difficulty: z.number().min(1).max(3),
   wordType: z.enum(["nom-propre", "nom", "verbe", "adjectif", "adverbe", "expression", "abreviation"]),
   domain: z.enum([
     "geographie", "histoire", "litterature", "philosophie", "science",
     "art", "pop-culture", "sport", "cuisine", "nature", "musique",
-    "medecine", "religion", "militaire", "droit", "general",
+    "medecine", "religion", "militaire", "droit", "mythologie",
+    "architecture", "agriculture", "transport", "general",
   ]),
   clueStyle: z.enum(["definition", "synonyme", "jeu-de-mots", "reference", "expression"]),
   audience: z.enum(["universel", "classique", "moderne", "cultive"]),
@@ -64,10 +67,12 @@ function buildPrompt(examples: string, pairs: { id: number; word: string; clue: 
   return `Tu es un expert en mots fleches francais. Tu classifies des paires mot-indice.
 
 Pour chaque paire, donne:
-1. difficulty (1, 2, ou 3):
-   - 1 = facile: mot que la plupart des gens connaissent, indice direct ou reference tres connue (ex: ANE → "animal tetu", ROME → "capitale de l'Italie")
-   - 2 = moyen: culture generale, leger jeu de mots, reference qui demande un peu de reflexion (ex: SADE → "celebre marquis", USURE → "pratique qui ne manque pas d'interet")
-   - 3 = difficile: reference pointue, mot rare, ou jeu de mots complexe (ex: EILAT → "port d'Israel", NATRON → "lac sale d'Afrique")
+0. selfReferencing (true/false): est-ce que l'indice contient le mot reponse ou une forme conjuguee/declinee du mot? Par exemple "LUTTER CONTRE" pour LUTTER = true, "BENEFICIE D'UNE PENSION" pour BENEFICIE = true, "REGAL POUR TOUS" pour REGAL = true, "NANTI" pour NANTIRAI = true. Meme si c'est une forme differente (pluriel, feminin, conjugaison), c'est true.
+0b. badClue (true/false): est-ce que l'indice est factuellement incorrect, absurde, ou ne correspond pas du tout au mot? Par exemple "nid de rapace" pour PERCHIEZ = true (un nid de rapace est une AIRE, pas PERCHIEZ). Si l'indice est simplement difficile ou obscur mais correct, c'est false.
+1. difficulty (1, 2, ou 3) — EN CAS DE DOUTE, SCORE PLUS HAUT (mieux vaut surestimer la difficulte):
+   - 1 = facile: le mot est courant ET l'indice est accessible (definition directe, synonyme evident, OU reference tres populaire que tout le monde connait). La plupart des gens trouvent rapidement. (ex: ANE → "animal tetu", ETE → "saison chaude", PARIS → "capitale de la France", ASTERIX → "resistant gaulois", ETABLE → "il en sort du lait", NAPOLEON → "le petit caporal")
+   - 2 = moyen: necessite un peu de reflexion, un jeu de mots a decoder, ou une connaissance de culture generale. Pas evident immediatement. (ex: ROULOTTE → "home libre", CHANVRE → "matiere textile vegetale", GENESE → "livre de l'Ancien Testament", EPERDUMENT → "de folle facon")
+   - 3 = difficile: jeu de mots complexe, reference specifique, mot technique/rare, ou indice tres detourne. Beaucoup de gens ne trouveraient pas sans aide. (ex: GAMETES → "cellules", BALLAST → "reservoir de plongee", LOUVE → "symbole a Rome", ETNA → "grande et chaude gueule", BUTINES → "prends ici et la", AGIT → "influe en ca")
 
 2. wordType: nom-propre, nom, verbe, adjectif, expression, abreviation
 
@@ -103,17 +108,26 @@ async function scoreBatch(
   return output ?? [];
 }
 
-async function saveScores(scores: z.infer<typeof clueSchema>[]) {
+async function saveScores(scores: z.infer<typeof clueSchema>[]): Promise<{ saved: number; deleted: number }> {
+  let saved = 0;
+  let deleted = 0;
   for (const s of scores) {
-    await sql`
-      UPDATE clues
-      SET
-        difficulty = ${s.difficulty},
-        vibe = ${s.clueStyle},
-        tags = ARRAY[${s.wordType}, ${s.domain}, ${s.audience}]
-      WHERE id = ${s.clueId}
-    `;
+    if (s.selfReferencing || s.badClue) {
+      await sql`DELETE FROM clues WHERE id = ${s.clueId}`;
+      deleted++;
+    } else {
+      await sql`
+        UPDATE clues
+        SET
+          difficulty = ${s.difficulty},
+          vibe = ${s.clueStyle},
+          tags = ARRAY[${s.wordType}, ${s.domain}, ${s.audience}]
+        WHERE id = ${s.clueId}
+      `;
+      saved++;
+    }
   }
+  return { saved, deleted };
 }
 
 // ---- Commands ----
@@ -267,6 +281,7 @@ async function runFull(model: keyof typeof MODELS) {
   console.log(`Unlabeled pairs: ${total[0].count}`);
 
   let scored = done.size;
+  let totalDeleted = 0;
   const FETCH_SIZE = 500;
 
   while (true) {
@@ -292,11 +307,12 @@ async function runFull(model: keyof typeof MODELS) {
 
       try {
         const scores = await scoreBatch(model, examples, batch);
-        await saveScores(scores);
+        const { saved, deleted } = await saveScores(scores);
         for (const s of scores) done.add(s.clueId);
-        scored += scores.length;
+        scored += saved;
+        totalDeleted += deleted;
 
-        process.stdout.write(`\r  ${scored} scored...`);
+        process.stdout.write(`\r  ${scored} scored, ${totalDeleted} deleted...`);
 
         // Save progress every batch
         writeFileSync(PROGRESS_FILE, JSON.stringify({ done: Array.from(done) }));

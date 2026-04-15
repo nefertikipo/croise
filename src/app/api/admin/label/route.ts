@@ -1,52 +1,34 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { words, clues } from "@/db/schema/clue-entries";
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 
-/**
- * GET: fetch a random unlabeled clue-answer pair
- */
-export async function GET() {
+const CALIBRATION_IDS = [90046,31457,194506,221059,354367,39272,195364,286536,351978,81970,102892,206392,252773,190627,192798,187265,116811,193629,58496,275470,389742,53191,320573,346620,326808,264355,324166,246320,250460,88547,170652,45101,185970,135024,47936,117821,46754,96585,100648,108942,248668,216657,379863,336897,179414,243717,94348,263493,376389,257265,37381,245926,376232,118666,324165,274620,308028,89777,141653,73672,296701,53109,63459,359260,31386,149261,178479,332736,188280,200540,72920,161117,88048,228467,93805,350740,381424,142031,287063,272023,105937,348904,34209,292379,167106,230842,239303,53018,87070,202907,358448,189155,374537,315473,89514,57475,236194,123138,81184,276773];
+
+export async function GET(request: Request) {
   try {
-    // Check if there's a calibration test set to prioritize
     const url = new URL(request.url);
     const calibration = url.searchParams.get("calibration") === "true";
 
     let pair;
 
     if (calibration) {
-      // Load test pair IDs from file (set by batch-score.ts --test)
-      let testIds: number[] = [];
-      try {
-        const { readFileSync } = await import("fs");
-        const testPairs = JSON.parse(readFileSync("data/test-pairs.json", "utf-8"));
-        testIds = testPairs.map((p: { id: number }) => p.id);
-      } catch {}
-
-      if (testIds.length > 0) {
-        [pair] = await db
-          .select({
-            clueId: clues.id,
-            word: words.word,
-            clue: clues.clue,
-            source: clues.source,
-            difficulty: clues.difficulty,
-          })
-          .from(clues)
-          .innerJoin(words, eq(clues.wordId, words.id))
-          .where(
-            and(
-              isNull(clues.difficulty),
-              sql`${clues.id} = ANY(${testIds})`,
-            ),
-          )
-          .orderBy(sql`RANDOM()`)
-          .limit(1);
-      }
-    }
-
-    // Fallback: random unlabeled pair
-    if (!pair) {
+      // Only pull from the 100 calibration test pairs
+      [pair] = await db
+        .select({
+          clueId: clues.id,
+          word: words.word,
+          clue: clues.clue,
+          source: clues.source,
+          difficulty: clues.difficulty,
+        })
+        .from(clues)
+        .innerJoin(words, eq(clues.wordId, words.id))
+        .where(and(isNull(clues.difficulty), inArray(clues.id, CALIBRATION_IDS)))
+        .orderBy(sql`RANDOM()`)
+        .limit(1);
+    } else {
+      // Random unlabeled pair
       [pair] = await db
         .select({
           clueId: clues.id,
@@ -66,16 +48,27 @@ export async function GET() {
       return NextResponse.json({ done: true });
     }
 
-    // Also get stats
-    const [stats] = await db
-      .select({
-        total: sql<number>`COUNT(*)`,
-        labeled: sql<number>`COUNT(${clues.difficulty})`,
-        facile: sql<number>`COUNT(*) FILTER (WHERE ${clues.difficulty} = 1)`,
-        moyen: sql<number>`COUNT(*) FILTER (WHERE ${clues.difficulty} = 2)`,
-        difficile: sql<number>`COUNT(*) FILTER (WHERE ${clues.difficulty} = 3)`,
-      })
-      .from(clues);
+    // Stats scoped to calibration set or global
+    const [stats] = calibration
+      ? await db
+          .select({
+            total: sql<number>`COUNT(*)`,
+            labeled: sql<number>`COUNT(${clues.difficulty})`,
+            facile: sql<number>`COUNT(*) FILTER (WHERE ${clues.difficulty} = 1)`,
+            moyen: sql<number>`COUNT(*) FILTER (WHERE ${clues.difficulty} = 2)`,
+            difficile: sql<number>`COUNT(*) FILTER (WHERE ${clues.difficulty} = 3)`,
+          })
+          .from(clues)
+          .where(inArray(clues.id, CALIBRATION_IDS))
+      : await db
+          .select({
+            total: sql<number>`COUNT(*)`,
+            labeled: sql<number>`COUNT(${clues.difficulty})`,
+            facile: sql<number>`COUNT(*) FILTER (WHERE ${clues.difficulty} = 1)`,
+            moyen: sql<number>`COUNT(*) FILTER (WHERE ${clues.difficulty} = 2)`,
+            difficile: sql<number>`COUNT(*) FILTER (WHERE ${clues.difficulty} = 3)`,
+          })
+          .from(clues);
 
     return NextResponse.json({
       pair: {
@@ -94,17 +87,14 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Label GET error:", error);
-    return NextResponse.json({ error: "Failed to fetch pair" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch pair", detail: String(error) }, { status: 500 });
   }
 }
 
-/**
- * POST: save a difficulty label for a clue, or delete it
- */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { clueId, difficulty, action, reason } = body;
+    const { clueId, difficulty, action } = body;
 
     if (!clueId) {
       return NextResponse.json({ error: "Missing clueId" }, { status: 400 });
@@ -135,10 +125,7 @@ export async function POST(request: Request) {
       updates.vibe = "favori";
     }
 
-    await db
-      .update(clues)
-      .set(updates)
-      .where(eq(clues.id, clueId));
+    await db.update(clues).set(updates).where(eq(clues.id, clueId));
 
     return NextResponse.json({ success: true });
   } catch (error) {

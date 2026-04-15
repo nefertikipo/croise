@@ -266,13 +266,29 @@ function scoreLayout(
   // Extract white runs and evaluate
   const runs = extractRuns(layout, w, h);
 
+  // Build a set of cells that are part of any run >= 2 (in either direction)
+  // so we can distinguish truly isolated 1-cells from comb border cells
+  const inLongRun = new Set<string>();
+  for (const run of runs) {
+    if (run.length >= 2) {
+      for (const c of run.cells) inLongRun.add(`${c.x},${c.y}`);
+    }
+  }
+
   for (const run of runs) {
     if (run.length === 1) {
-      // Length-1 run: isolated white cell. Very bad.
-      score -= 500;
+      const key = `${run.cells[0].x},${run.cells[0].y}`;
+      if (inLongRun.has(key)) {
+        // Cell is part of a longer run in the other direction (e.g. comb border cells).
+        // Not a problem — skip penalty.
+      } else {
+        // Truly isolated white cell in this direction and the other.
+        score -= 500;
+      }
     } else if (run.length === 2) {
-      // 2-letter slots are legal but we want fewer of them
-      score -= 30;
+      // 2-letter slots: tolerate more in small grids where they're unavoidable
+      const interiorArea = (w - 1) * (h - 1);
+      score -= interiorArea <= 50 ? 5 : 30;
     } else if (run.length >= 3) {
       const count = dictStats.wordCountByLength.get(run.length) ?? 0;
       if (count === 0) {
@@ -1009,7 +1025,11 @@ export function generateFlecheVector(
     if (Date.now() > totalDeadline) break;
 
     // Phase 1 + 2: Generate and optimize layout
-    const density = 0.11 + Math.random() * 0.04; // 11-15% → targets ~18-24 interior blues for 11x17
+    const interiorArea = (width - 1) * (height - 1);
+    const isSmallGrid = interiorArea <= 50; // 5x7 (24), 7x9 (48) etc.
+    const density = isSmallGrid
+      ? 0.06 + Math.random() * 0.06 // 6-12% for small grids (fewer interior blues)
+      : 0.11 + Math.random() * 0.04; // 11-15% → targets ~18-24 interior blues for 11x17
     const layout = generateRandomLayout(width, height, density);
     const { layout: optimizedLayout, score } = optimizeLayout(
       layout,
