@@ -182,33 +182,35 @@ export default function FlechePage() {
   }
 
   return (
-    <main className="flex-1 px-4 py-8">
+    <main className="flex-1 px-4 py-10">
       <div className="max-w-5xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Mots Fleches</h1>
+        <div className="space-y-1">
+          <h1 className="text-4xl font-black text-ink">
+            Mots <span className="text-brand">Fléchés</span>
+          </h1>
           <p className="text-muted-foreground">
-            Generez une grille de mots fleches personnalisee
+            Générez une grille personnalisée, glissez vos mots, imprimez.
           </p>
         </div>
 
         {/* Before generation: simple start */}
         {!grid && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Format:</label>
+          <div className="space-y-5 rounded-2xl border-2 border-ink bg-card p-6 shadow-[4px_4px_0_0] shadow-ink/80">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-sm font-medium mr-1">Format :</label>
               {[
-                { w: 11, h: 17, label: "11x17" },
-                { w: 9, h: 13, label: "9x13" },
-                { w: 8, h: 11, label: "8x11" },
-                { w: 5, h: 7, label: "5x7" },
+                { w: 11, h: 17, label: "11×17" },
+                { w: 9, h: 13, label: "9×13" },
+                { w: 8, h: 11, label: "8×11" },
+                { w: 5, h: 7, label: "5×7" },
               ].map((s) => (
                 <button
                   key={s.label}
                   onClick={() => { setGridWidth(s.w); setGridHeight(s.h); }}
-                  className={`px-3 py-1 rounded text-sm ${
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
                     gridWidth === s.w && gridHeight === s.h
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted hover:bg-muted/80"
+                      ? "bg-ink text-paper"
+                      : "bg-secondary text-muted-foreground hover:bg-accent"
                   }`}
                 >
                   {s.label}

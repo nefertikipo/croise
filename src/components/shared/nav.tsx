@@ -1,25 +1,42 @@
 import Link from "next/link";
 
+const LINKS = [
+  { href: "/fleche", label: "Créer" },
+  { href: "/contribuer", label: "Contribuer" },
+  { href: "/admin/label", label: "Scorer" },
+];
+
 export function Nav() {
   return (
-    <nav className="border-b px-4 py-3">
-      <div className="max-w-5xl mx-auto flex items-center gap-6">
-        <Link
-          href="/"
-          className="font-bold text-lg"
-          style={{ fontFamily: "var(--font-handwritten)" }}
-        >
-          Les Fleches
+    <nav className="sticky top-0 z-50 border-b-2 border-ink bg-paper/85 backdrop-blur-md">
+      <div className="max-w-5xl mx-auto flex items-center justify-between gap-6 px-4 h-14">
+        <Link href="/" className="group flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-[4px] border-2 border-ink bg-brand text-brand-foreground text-sm font-bold transition-transform group-hover:-rotate-6">
+            ►
+          </span>
+          <span
+            className="text-2xl leading-none text-ink"
+            style={{ fontFamily: "var(--font-handwritten)" }}
+          >
+            Les Flèches
+          </span>
         </Link>
-        <div className="flex items-center gap-4 text-sm">
-          <Link href="/fleche" className="text-muted-foreground hover:text-foreground transition-colors">
-            Creer
-          </Link>
-          <Link href="/contribuer" className="text-muted-foreground hover:text-foreground transition-colors">
-            Contribuer
-          </Link>
-          <Link href="/admin/label" className="text-muted-foreground hover:text-foreground transition-colors">
-            Scorer
+
+        <div className="flex items-center gap-1 text-sm">
+          {LINKS.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="rounded-full px-3 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              {l.label}
+            </Link>
+          ))}
+          <Link
+            href="/fleche"
+            className="ml-2 inline-flex items-center rounded-full border-2 border-ink bg-ink px-4 py-1.5 font-medium text-paper shadow-[2px_2px_0_0] shadow-brand transition-transform hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none"
+          >
+            Commencer
           </Link>
         </div>
       </div>
