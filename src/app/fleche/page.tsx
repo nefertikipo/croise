@@ -198,6 +198,7 @@ export default function FlechePage() {
               <label className="text-sm font-medium">Format:</label>
               {[
                 { w: 11, h: 17, label: "11x17" },
+                { w: 11, h: 15, label: "11x15" },
                 { w: 9, h: 13, label: "9x13" },
                 { w: 8, h: 11, label: "8x11" },
                 { w: 5, h: 7, label: "5x7" },
