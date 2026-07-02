@@ -3,6 +3,7 @@ import {
   serial,
   text,
   integer,
+  real,
   boolean,
   index,
   uniqueIndex,
@@ -25,6 +26,8 @@ export const words = pgTable(
     frequency: integer("frequency").notNull().default(1),
     /** Whether this word is valid for grid generation. */
     active: boolean("active").notNull().default(true),
+    /** Rough familiarity/commonness signal (0-1). */
+    familiarity: real("familiarity"),
   },
   (table) => [
     uniqueIndex("words_word_lang_idx").on(table.word, table.language),

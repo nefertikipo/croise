@@ -208,6 +208,10 @@
   body * {
     visibility: hidden;
   }
+  /* The fixed grain overlay would repeat on every printed sheet. */
+  body::after {
+    display: none;
+  }
   .fleche-print-area {
     display: block !important;
     visibility: visible;
@@ -220,8 +224,30 @@
   .fleche-print-area * {
     visibility: visible;
   }
+  .book-print-area,
+  .book-print-area * {
+    visibility: visible;
+  }
+  .book-print-area {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  /* Each book page fills its own sheet; drop the on-screen paper shadow. */
+  .book-print-area .book-page {
+    box-shadow: none;
+    max-width: 100%;
+    width: 100%;
+    aspect-ratio: auto;
+    min-height: 96vh;
+  }
   .print\:block {
     display: block !important;
+  }
+  .print\:hidden {
+    display: none !important;
   }
   .print\:break-before-page {
     break-before: page;
