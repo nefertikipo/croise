@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Patrick_Hand } from "next/font/google";
+import { Inter, Patrick_Hand, Anton } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/shared/nav";
 
@@ -10,6 +10,12 @@ const inter = Inter({
 
 const handwritten = Patrick_Hand({
   variable: "--font-handwritten",
+  subsets: ["latin"],
+  weight: "400",
+});
+
+const heading = Anton({
+  variable: "--font-anton",
   subsets: ["latin"],
   weight: "400",
 });
@@ -27,7 +33,7 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${inter.variable} ${handwritten.variable} h-full antialiased`}
+      className={`${inter.variable} ${handwritten.variable} ${heading.variable} h-full antialiased bg-background text-foreground`}
     >
       <body className="min-h-full flex flex-col font-sans">
         <Nav />

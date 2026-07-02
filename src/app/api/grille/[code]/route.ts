@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
 import { eq } from "drizzle-orm";
+import { reconstructCells } from "@/lib/crossword/reconstruct-cells";
 
 export async function GET(
   request: Request,
@@ -27,48 +28,7 @@ export async function GET(
       .where(eq(placedWords.crosswordId, grid.id));
 
     // Reconstruct cells from pattern + solution
-    const cells = [];
-    for (let y = 0; y < grid.height; y++) {
-      const row = [];
-      for (let x = 0; x < grid.width; x++) {
-        const idx = y * grid.width + x;
-        const isBlue = grid.gridPattern[idx] === "#";
-        if (isBlue) {
-          // Find words that start from adjacent positions
-          const clueData = words
-            .filter((w) => {
-              // This blue cell is the clue source if the word starts right next to it
-              if (w.direction === "right" && w.startRow === y && w.startCol === x + 1) return true;
-              if (w.direction === "down" && w.startCol === x && w.startRow === y + 1) return true;
-              // Offset patterns
-              if (w.direction === "right" && w.startRow === y + 1 && w.startCol === x + 1) return true;
-              if (w.direction === "down" && w.startRow === y + 1 && w.startCol === x + 1) return true;
-              // Comb offsets
-              if (w.direction === "right" && w.startRow === y + 1 && w.startCol === x) return true;
-              if (w.direction === "down" && w.startRow === y && w.startCol === x + 1) return true;
-              return false;
-            })
-            .slice(0, 2)
-            .map((w) => ({
-              text: w.clueText,
-              direction: w.direction as "right" | "down",
-              answerRow: w.startRow,
-              answerCol: w.startCol,
-              answerLength: w.length,
-              answer: w.answer,
-              isCustom: w.isCustom,
-            }));
-          row.push({ type: "clue" as const, clues: clueData });
-        } else {
-          const letter = grid.gridSolution[idx];
-          row.push({
-            type: "letter" as const,
-            letter: letter !== "#" ? letter : undefined,
-          });
-        }
-      }
-      cells.push(row);
-    }
+    const cells = reconstructCells(grid, words);
 
     return NextResponse.json({
       id: grid.id,
