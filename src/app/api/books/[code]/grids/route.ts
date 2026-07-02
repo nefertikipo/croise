@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { serializePage } from "@/lib/books/serialize";
 import { generateAndSaveGrid } from "@/lib/books/generate-grid";
 import { collectUsedClues } from "@/lib/books/used-clues";
+import { checkCapacity } from "@/lib/crossword/check-capacity";
 import { placedWords } from "@/db/schema/placed-words";
 import type { BookPageData } from "@/types/book";
 
@@ -29,6 +30,15 @@ export async function POST(
   try {
     const { code } = await params;
     const gridParams = requestSchema.parse(await request.json());
+
+    const capacityError = checkCapacity(
+      gridParams.width,
+      gridParams.height,
+      gridParams.customClues,
+    );
+    if (capacityError) {
+      return NextResponse.json({ error: capacityError }, { status: 400 });
+    }
 
     const [book] = await db
       .select({ id: books.id })

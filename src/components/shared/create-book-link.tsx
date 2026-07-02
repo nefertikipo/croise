@@ -30,7 +30,7 @@ export function CreateBookLink() {
     <button
       onClick={createBook}
       disabled={creating}
-      className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+      className="rounded-full px-3 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
     >
       {creating ? "Création…" : "Créer un livre"}
     </button>

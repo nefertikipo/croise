@@ -8,14 +8,14 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-const handwritten = Patrick_Hand({
-  variable: "--font-handwritten",
+const display = Anton({
+  variable: "--font-display",
   subsets: ["latin"],
   weight: "400",
 });
 
-const heading = Anton({
-  variable: "--font-anton",
+const handwritten = Patrick_Hand({
+  variable: "--font-handwritten",
   subsets: ["latin"],
   weight: "400",
 });
@@ -33,7 +33,7 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${inter.variable} ${handwritten.variable} ${heading.variable} h-full antialiased bg-background text-foreground`}
+      className={`${inter.variable} ${display.variable} ${handwritten.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
         <Nav />

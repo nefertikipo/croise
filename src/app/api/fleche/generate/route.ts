@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
 import { generateCrosswordCode } from "@/lib/code";
+import { checkCapacity } from "@/lib/crossword/check-capacity";
 import type { Coord } from "@/lib/crossword/fleche-math";
 
 export const maxDuration = 120;
@@ -31,6 +32,17 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const params = requestSchema.parse(body);
+
+    // Fast capacity guard: reject provably-impossible requests instantly instead
+    // of spinning the full ~110s generation budget before failing.
+    const capacityError = checkCapacity(
+      params.width,
+      params.height,
+      params.customClues,
+    );
+    if (capacityError) {
+      return NextResponse.json({ error: capacityError }, { status: 400 });
+    }
 
     await ensureLoaded();
     const wordList = getFrenchWordList();

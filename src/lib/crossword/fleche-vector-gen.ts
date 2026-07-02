@@ -298,6 +298,13 @@ function scoreLayout(
         // Reward longer slots more: sweet spot is 4-8 letters
         const lengthBonus = run.length >= 4 && run.length <= 8 ? 20 : 5;
         score += Math.floor(Math.log2(count + 1) * 10) + lengthBonus;
+        // Penalize over-long runs: full-width/height slots (10+) are heavily
+        // cross-constrained and almost never fillable, especially once custom
+        // letters are locked in. Allow up to the longest required custom word.
+        const maxUseful = Math.max(9, ...requiredLengths);
+        if (run.length > maxUseful) {
+          score -= 300 * (run.length - maxUseful);
+        }
       }
     }
   }
@@ -786,6 +793,238 @@ function buildCrossings(slots: Slot[]): Crossing[] {
 }
 
 /**
+ * Place custom words into slots using crossing-aware backtracking.
+ *
+ * The naive approach (drop each word into a random matching-length slot, then
+ * reject the whole layout if any two custom words collide at a crossing) throws
+ * away the vast majority of layouts when several custom words share a length and
+ * intersect. Here we instead backtrack: a candidate slot is only accepted if the
+ * word is compatible with every already-placed custom word at their crossings.
+ *
+ * Returns a Map<slotId, word> placing ALL custom words, or null if no compatible
+ * assignment exists for this layout.
+ */
+function placeCustomWords(
+  slots: Slot[],
+  crossings: Crossing[],
+  customWords: string[],
+  wordList: WordList,
+  clueDb: Map<string, string[]>,
+): Map<number, string> | null {
+  // Per-slot crossing adjacency
+  const slotCrossings = new Map<number, Crossing[]>();
+  for (const s of slots) slotCrossings.set(s.id, []);
+  for (const c of crossings) {
+    slotCrossings.get(c.slotA)?.push(c);
+    slotCrossings.get(c.slotB)?.push(c);
+  }
+
+  // Slots grouped by length for quick candidate lookup
+  const slotsByLen = new Map<number, Slot[]>();
+  for (const s of slots) {
+    if (!slotsByLen.has(s.length)) slotsByLen.set(s.length, []);
+    slotsByLen.get(s.length)!.push(s);
+  }
+
+  // Does a length have ANY word with a real clue? (fast no-constraint check)
+  const hasClueWordsByLength = new Map<number, boolean>();
+  function lengthHasClueWords(len: number): boolean {
+    let cached = hasClueWordsByLength.get(len);
+    if (cached === undefined) {
+      cached = wordList
+        .getByLength(len)
+        .some((e) => (clueDb.get(e.word)?.length ?? 0) > 0);
+      hasClueWordsByLength.set(len, cached);
+    }
+    return cached;
+  }
+
+  const assignment = new Map<number, string>();
+  const usedSlots = new Set<number>();
+
+  /** Letters currently forced onto `slotId` by already-placed custom words. */
+  function lockedLettersFor(slotId: number): { pos: number; letter: string }[] {
+    const out: { pos: number; letter: string }[] = [];
+    for (const c of slotCrossings.get(slotId)!) {
+      const isA = c.slotA === slotId;
+      const otherId = isA ? c.slotB : c.slotA;
+      const other = assignment.get(otherId);
+      if (!other) continue;
+      const myPos = isA ? c.posA : c.posB;
+      const otherPos = isA ? c.posB : c.posA;
+      out.push({ pos: myPos, letter: other[otherPos] });
+    }
+    return out;
+  }
+
+  /** Is there at least one real-clue word that fits `slot` given locked letters? */
+  function slotFillable(slotId: number): boolean {
+    const slot = slots[slotId];
+    const cons = lockedLettersFor(slotId);
+    if (cons.length === 0) return lengthHasClueWords(slot.length);
+    let cands = wordList.getByConstraint(slot.length, cons[0].pos, cons[0].letter);
+    for (let i = 1; i < cons.length && cands.length > 0; i++) {
+      cands = cands.filter((w) => w[cons[i].pos] === cons[i].letter);
+    }
+    return cands.some((w) => (clueDb.get(w)?.length ?? 0) > 0);
+  }
+
+  function compatible(slotId: number, word: string): boolean {
+    for (const c of slotCrossings.get(slotId)!) {
+      const isA = c.slotA === slotId;
+      const otherId = isA ? c.slotB : c.slotA;
+      const other = assignment.get(otherId);
+      if (!other) continue; // crossing slot not yet a custom word — fine
+      const myPos = isA ? c.posA : c.posB;
+      const otherPos = isA ? c.posB : c.posA;
+      if (word[myPos] !== other[otherPos]) return false;
+    }
+    return true;
+  }
+
+  function solve(idx: number): boolean {
+    if (idx >= customWords.length) return true;
+    const word = customWords[idx];
+    const candidates = (slotsByLen.get(word.length) ?? []).filter(
+      (s) => !usedSlots.has(s.id),
+    );
+    // Order candidates by fewest crossings first (with random tie-break jitter):
+    // placing a custom word where it forces the fewest perpendicular fill slots
+    // keeps the surrounding grid far more solvable. Rare-letter words like LYNX
+    // benefit most from landing in low-pressure slots.
+    for (const s of candidates) {
+      (s as Slot & { _sortKey?: number })._sortKey =
+        slotCrossings.get(s.id)!.length + Math.random();
+    }
+    candidates.sort(
+      (a, b) =>
+        (a as Slot & { _sortKey: number })._sortKey -
+        (b as Slot & { _sortKey: number })._sortKey,
+    );
+    for (const slot of candidates) {
+      if (!compatible(slot.id, word)) continue;
+      assignment.set(slot.id, word);
+      usedSlots.add(slot.id);
+
+      // Forward check: every non-custom slot this word crosses must still have
+      // at least one real-clue fill word given all locked custom letters.
+      // This rejects dead crossings (e.g. "_X__H") before the CSP solver runs.
+      let viable = true;
+      for (const c of slotCrossings.get(slot.id)!) {
+        const otherId = c.slotA === slot.id ? c.slotB : c.slotA;
+        if (usedSlots.has(otherId)) continue; // crossing is another custom word
+        if (!slotFillable(otherId)) {
+          viable = false;
+          break;
+        }
+      }
+
+      if (viable && solve(idx + 1)) return true;
+      assignment.delete(slot.id);
+      usedSlots.delete(slot.id);
+    }
+    return false;
+  }
+
+  return solve(0) ? assignment : null;
+}
+
+/**
+ * Arc-consistency (AC-3) feasibility pre-check.
+ *
+ * Backtracking search wastes a lot of time "thrashing" on layouts that pass a
+ * single-crossing forward check but are jointly unsolvable — it explores a large
+ * tree before giving up. AC-3 propagates letter constraints across all crossings
+ * to a fixpoint; if any slot's domain empties, the layout is *proven*
+ * unsolvable in polynomial time and we can skip it immediately instead of
+ * burning the solver's time budget.
+ *
+ * Returns null if the layout is provably unsolvable, otherwise the pruned
+ * per-slot domains (values with no support removed). These reduced domains are
+ * fed into the CSP solver so it searches a much smaller space — turning many
+ * would-be timeouts into instant fills. Removing an unsupported value is sound:
+ * it cannot participate in any complete solution.
+ */
+function arcConsistentPrecheck(
+  slots: Slot[],
+  crossings: Crossing[],
+  preAssigned: Map<number, string>,
+  domainByLength: (len: number) => string[],
+  fullSupport: (len: number, pos: number) => Set<string>,
+): Map<number, string[]> | null {
+  const slotCrossings = new Map<number, Crossing[]>();
+  for (const s of slots) slotCrossings.set(s.id, []);
+  for (const c of crossings) {
+    slotCrossings.get(c.slotA)!.push(c);
+    slotCrossings.get(c.slotB)!.push(c);
+  }
+
+  // Working domains: custom slots are singletons; others stay lazily at their
+  // full clued word list until first pruned (tracked in `reduced`). This avoids
+  // materialising/copying thousands of words for slots that never shrink.
+  const dom = new Map<number, string[]>();
+  const reduced = new Set<number>();
+  for (const s of slots) {
+    const pa = preAssigned.get(s.id);
+    if (pa) {
+      dom.set(s.id, [pa]);
+      reduced.add(s.id);
+    } else {
+      if (domainByLength(s.length).length === 0) return null;
+      dom.set(s.id, domainByLength(s.length));
+    }
+  }
+
+  // Support letters that a neighbour offers at a crossing position. For a slot
+  // still at full domain, this is the precomputed dictionary letter set (no
+  // per-word scan); for a pruned slot, scan its (now small) domain.
+  function supportOf(slotId: number, len: number, pos: number): Set<string> {
+    if (!reduced.has(slotId)) return fullSupport(len, pos);
+    const set = new Set<string>();
+    for (const w of dom.get(slotId)!) set.add(w[pos]);
+    return set;
+  }
+
+  const slotLen = new Map<number, number>();
+  for (const s of slots) slotLen.set(s.id, s.length);
+
+  const queue: number[] = slots.map((s) => s.id);
+  const inQueue = new Set<number>(queue);
+
+  while (queue.length > 0) {
+    const a = queue.shift()!;
+    inQueue.delete(a);
+
+    for (const c of slotCrossings.get(a)!) {
+      const isA = c.slotA === a;
+      const other = isA ? c.slotB : c.slotA;
+      const myPos = isA ? c.posA : c.posB;
+      const otherPos = isA ? c.posB : c.posA;
+
+      const support = supportOf(other, slotLen.get(other)!, otherPos);
+
+      const aDom = dom.get(a)!;
+      const after = aDom.filter((w) => support.has(w[myPos]));
+      if (after.length < aDom.length) {
+        if (after.length === 0) return null;
+        dom.set(a, after);
+        reduced.add(a);
+        // a's domain shrank: re-examine its other neighbours
+        for (const c2 of slotCrossings.get(a)!) {
+          const nb = c2.slotA === a ? c2.slotB : c2.slotA;
+          if (nb !== other && !inQueue.has(nb)) {
+            queue.push(nb);
+            inQueue.add(nb);
+          }
+        }
+      }
+    }
+  }
+
+  return dom;
+}
+
+/**
  * CSP Solver with MRV heuristic and constraint propagation.
  */
 function solveFill(
@@ -796,6 +1035,7 @@ function solveFill(
   maxBacktracks: number,
   timeLimitMs: number = 5000,
   preAssigned: Map<number, string> = new Map(),
+  acDomains: Map<number, string[]> | null = null,
 ): Map<number, string> | null {
   const n = slots.length;
   if (n === 0) return new Map();
@@ -811,12 +1051,28 @@ function solveFill(
     slotCrossings.get(c.slotB)!.push(c);
   }
 
-  // Domain: for each slot, only words that have real clues
+  // Domain: for each slot, only words that have real clues. When AC-3 has
+  // already pruned the domains (arc consistency), start from those — the search
+  // space is far smaller. Otherwise compute once per length and reuse (slots of
+  // the same length share an identical initial domain).
+  const domainByLength = new Map<number, string[]>();
   const domains = new Map<number, string[]>();
+  // For fast membership tests when intersecting getByConstraint results.
+  const acSets = acDomains ? new Map<number, Set<string>>() : null;
   for (const slot of slots) {
-    const words = wordList.getByLength(slot.length)
-      .map((e) => e.word)
-      .filter((w) => clueDb.has(w) && clueDb.get(w)!.length > 0);
+    if (acDomains) {
+      const d = acDomains.get(slot.id)!;
+      domains.set(slot.id, d);
+      acSets!.set(slot.id, new Set(d));
+      continue;
+    }
+    let words = domainByLength.get(slot.length);
+    if (!words) {
+      words = wordList.getByLength(slot.length)
+        .map((e) => e.word)
+        .filter((w) => clueDb.has(w) && clueDb.get(w)!.length > 0);
+      domainByLength.set(slot.length, words);
+    }
     domains.set(slot.id, words);
   }
 
@@ -869,6 +1125,11 @@ function solveFill(
         const { pos, letter } = constraints[ci];
         candidates = candidates.filter((w) => w[pos] === letter);
       }
+      // Restrict to the AC-3-pruned domain (sound: pruned values can't solve).
+      if (acSets) {
+        const set = acSets.get(slotId)!;
+        candidates = candidates.filter((w) => set.has(w));
+      }
     }
 
     // Only keep words that have real clues
@@ -908,7 +1169,9 @@ function solveFill(
     const slotId = selectMRV();
     if (slotId === null) return false;
 
-    const candidates = pruneDomain(slotId);
+    // Copy before shuffling: for an unconstrained slot pruneDomain returns the
+    // shared (cached) domain array, which must not be mutated in place.
+    const candidates = pruneDomain(slotId).slice();
     if (candidates.length === 0) return false;
 
     // Shuffle candidates for variety
@@ -1010,16 +1273,51 @@ export function generateFlecheVector(
   const customCount = customClues.length;
   const TOTAL_TIME_MS = hasCustom ? 110000 : 25000; // 110s for custom (API maxDuration=120)
   const totalDeadline = Date.now() + TOTAL_TIME_MS;
-  const MAX_LAYOUT_ATTEMPTS = 500;
-  // With many custom words: fast layout gen, spend time on solver
-  const LAYOUT_OPTIMIZE_ITERS = customCount >= 4 ? 1500 : hasCustom ? 3000 : 3000;
+  // Time is the real limiter (via totalDeadline); keep the attempt cap high so
+  // it never cuts a run short. Each failed attempt is cheap thanks to the AC-3
+  // feasibility gate, so we churn through many layouts per second.
+  const MAX_LAYOUT_ATTEMPTS = 500000;
+  // With many custom words, hard grids are found by trying MANY layouts rather
+  // than optimising any one heavily: fast layout gen + short solve timeout means
+  // solvable layouts (which fill in <700ms) are caught while dead ones are
+  // abandoned quickly. The AC-3 gate rejects provably-unsolvable layouts first.
+  const LAYOUT_OPTIMIZE_ITERS = customCount >= 4 ? 600 : hasCustom ? 3000 : 3000;
   const MAX_BACKTRACKS = customCount >= 4 ? 300000 : hasCustom ? 200000 : 50000;
-  const SOLVE_TIME_MS = customCount >= 4 ? 8000 : hasCustom ? 6000 : 5000;
+  const SOLVE_TIME_MS = customCount >= 4 ? 900 : hasCustom ? 6000 : 5000;
 
   // Required slot lengths for custom words
   const requiredLengths = customClues
     .map((c) => c.answer.toUpperCase().replace(/[^A-Z]/g, "").length)
     .filter((len) => len >= 2);
+
+  // Shared cache of clued words per length, for the AC-3 pre-check.
+  const _domCache = new Map<number, string[]>();
+  const domainByLength = (len: number): string[] => {
+    let words = _domCache.get(len);
+    if (!words) {
+      words = wordList
+        .getByLength(len)
+        .map((e) => e.word)
+        .filter((w) => (clueDb.get(w)?.length ?? 0) > 0);
+      _domCache.set(len, words);
+    }
+    return words;
+  };
+
+  // Precomputed set of letters that clued words of a given length offer at a
+  // given position — the "full-domain support" used to keep AC-3 cheap.
+  const _supportCache = new Map<number, Set<string>[]>();
+  const fullSupport = (len: number, pos: number): Set<string> => {
+    let byPos = _supportCache.get(len);
+    if (!byPos) {
+      byPos = Array.from({ length: len }, () => new Set<string>());
+      for (const w of domainByLength(len)) {
+        for (let i = 0; i < len; i++) byPos[i].add(w[i]);
+      }
+      _supportCache.set(len, byPos);
+    }
+    return byPos[pos];
+  };
 
   for (let attempt = 1; attempt <= MAX_LAYOUT_ATTEMPTS; attempt++) {
     if (Date.now() > totalDeadline) break;
@@ -1054,57 +1352,29 @@ export function generateFlecheVector(
     const slots = extractSlots(grid);
     const crossings = buildCrossings(slots);
 
-    // Pre-seed custom words if any
+    // Pre-seed custom words if any (crossing-aware backtracking placement)
     const customAssignment = new Map<number, string>();
     if (customClues.length > 0) {
-      const usedSlots = new Set<number>();
-      let allPlaced = true;
-
       // Sort custom words by length descending (place longest first, fewer slot options)
       const sorted = [...customClues]
         .map((c) => c.answer.toUpperCase().replace(/[^A-Z]/g, ""))
         .filter((a) => a.length >= 2)
         .sort((a, b) => b.length - a.length);
 
-      for (const answer of sorted) {
-        const matchingSlots = slots.filter(
-          (s) => s.length === answer.length && !usedSlots.has(s.id),
-        );
-        if (matchingSlots.length === 0) {
-          allPlaced = false;
-          break;
-        }
-        // Shuffle matching slots so we try different positions each attempt
-        for (let si = matchingSlots.length - 1; si > 0; si--) {
-          const sj = Math.floor(Math.random() * (si + 1));
-          [matchingSlots[si], matchingSlots[sj]] = [matchingSlots[sj], matchingSlots[si]];
-        }
-        const slot = matchingSlots[0];
-        customAssignment.set(slot.id, answer);
-        usedSlots.add(slot.id);
-      }
-
-      // If we couldn't place all custom words, try a different layout
-      if (!allPlaced) continue;
-
-      // Verify custom words don't conflict at crossings
-      let customConflict = false;
-      for (const crossing of crossings) {
-        const wordA = customAssignment.get(crossing.slotA);
-        const wordB = customAssignment.get(crossing.slotB);
-        if (wordA && wordB) {
-          // Both slots are custom words: check the crossing letter matches
-          if (wordA[crossing.posA] !== wordB[crossing.posB]) {
-            customConflict = true;
-            break;
-          }
-        }
-      }
-      if (customConflict) continue;
+      const placed = placeCustomWords(slots, crossings, sorted, wordList, clueDb);
+      // No compatible placement of all custom words in this layout: try another
+      if (!placed) continue;
+      for (const [slotId, word] of placed) customAssignment.set(slotId, word);
     }
 
-    // Solve with pre-seeded custom words locked in
-    const assignment = solveFill(slots, crossings, wordList, clueDb, MAX_BACKTRACKS, SOLVE_TIME_MS, customAssignment);
+    // Cheap AC-3 feasibility gate: skip provably-unsolvable layouts before
+    // spending the solver's time budget thrashing on them. On success it also
+    // returns pruned domains that shrink the solver's search space.
+    const acDomains = arcConsistentPrecheck(slots, crossings, customAssignment, domainByLength, fullSupport);
+    if (!acDomains) continue;
+
+    // Solve with pre-seeded custom words locked in, seeded with the pruned domains
+    const assignment = solveFill(slots, crossings, wordList, clueDb, MAX_BACKTRACKS, SOLVE_TIME_MS, customAssignment, acDomains);
 
     if (!assignment) continue;
 
@@ -1166,7 +1436,7 @@ export function generateFlecheVector(
     };
   }
 
-  // All attempts failed — return best effort
+  // All attempts failed — best effort
   const grid = createSkeletonGrid(width, height);
   return {
     success: false,

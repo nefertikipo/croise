@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { serializePage } from "@/lib/books/serialize";
 import { generateAndSaveGrid } from "@/lib/books/generate-grid";
 import { collectUsedClues } from "@/lib/books/used-clues";
+import { checkCapacity } from "@/lib/crossword/check-capacity";
 import type { GridPageConfig } from "@/types/book";
 
 export const maxDuration = 120;
@@ -29,6 +30,11 @@ export async function POST(
   try {
     const { code, pageId } = await params;
     const input = requestSchema.parse(await request.json());
+
+    const capacityError = checkCapacity(input.width, input.height, input.customClues);
+    if (capacityError) {
+      return NextResponse.json({ error: capacityError }, { status: 400 });
+    }
 
     const [book] = await db
       .select({ id: books.id })
