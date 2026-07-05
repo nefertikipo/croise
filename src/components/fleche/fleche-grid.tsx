@@ -42,6 +42,117 @@ const EMPTY_BG = "#ece3d3";
 const DEFAULT_ACCENT = "#1f9e94";
 const CUSTOM_BG = "#f3ddd4";
 
+interface ArrowSpec {
+  /** Clue cell row/col */
+  r: number;
+  c: number;
+  /** Offset from the clue cell to the word's first letter (each 0 or 1) */
+  dx: number;
+  dy: number;
+  /** Direction the word reads */
+  flow: "right" | "down";
+  /** 0..1 position along the anchored edge, so two arrows don't collide */
+  band: number;
+}
+
+/**
+ * A mots fléchés arrow, drawn in whole-grid pixel coordinates so it can sit ON
+ * the border between the clue cell and the answer cell and point OUT into the
+ * answer cell — the standard magazine look. The head lands just inside the cell
+ * where the word's first letter is; the shaft bends (elbow) when the word
+ * starts below or diagonally rather than straight ahead.
+ *
+ * The first letter is one of three neighbours of the clue cell:
+ *   - right               (dx=1, dy=0)
+ *   - directly below      (dx=0, dy=1)
+ *   - diagonal down-right (dx=1, dy=1)
+ * and reads "right" or "down" (flow).
+ */
+function GridArrow({
+  r,
+  c,
+  dx,
+  dy,
+  flow,
+  band,
+  size,
+  color,
+}: ArrowSpec & { size: number; color: string }) {
+  const S = size;
+  const cx = c * S; // clue cell top-left in grid pixels
+  const cy = r * S;
+  const HEAD = 10; // arrowhead length
+  const HALF = 6.5; // arrowhead half-width
+  const rightN = dx === 1 && dy === 0;
+  const belowN = dx === 0 && dy === 1;
+
+  let pts: [number, number][];
+  let tip: [number, number];
+  let head: "right" | "down";
+
+  // Every arrow's TAIL sits exactly on the clue-cell border; the body and head
+  // extend OUT into the answer cell — never back into the clue cell.
+  if (rightN && flow === "right") {
+    // Tail on the right border → reads right in the next cell.
+    const y = cy + band * S;
+    const bx = cx + S;
+    pts = [[bx, y], [bx + 18 - HEAD, y]];
+    tip = [bx + 18, y];
+    head = "right";
+  } else if (belowN && flow === "down") {
+    // Tail on the bottom border ↓ reads down in the cell below.
+    const x = cx + band * S;
+    const by = cy + S;
+    pts = [[x, by], [x, by + 18 - HEAD]];
+    tip = [x, by + 18];
+    head = "down";
+  } else if (belowN && flow === "right") {
+    // Tail on the bottom border, drop into the cell below, then read right.
+    const x = cx + S * 0.3;
+    const by = cy + S;
+    pts = [[x, by], [x, by + 13], [x + 16 - HEAD, by + 13]];
+    tip = [x + 16, by + 13];
+    head = "right";
+  } else if (rightN && flow === "down") {
+    // Tail on the right border, step into the next cell, then read down.
+    const y = cy + S * 0.3;
+    const bx = cx + S;
+    pts = [[bx, y], [bx + 13, y], [bx + 13, y + 16 - HEAD]];
+    tip = [bx + 13, y + 16];
+    head = "down";
+  } else if (flow === "right") {
+    // Tail on the corner, diagonal into the down-right cell, then read right.
+    pts = [[cx + S, cy + S], [cx + S + 21 - HEAD, cy + S + 9]];
+    tip = [cx + S + 21, cy + S + 9];
+    head = "right";
+  } else {
+    // Tail on the corner, diagonal into the down-right cell, then read down.
+    pts = [[cx + S, cy + S], [cx + S + 9, cy + S + 21 - HEAD]];
+    tip = [cx + S + 9, cy + S + 21];
+    head = "down";
+  }
+
+  const [tx, ty] = tip;
+  const headPts =
+    head === "right"
+      ? `${tx},${ty} ${tx - HEAD},${ty - HALF} ${tx - HEAD},${ty + HALF}`
+      : `${tx},${ty} ${tx - HALF},${ty - HEAD} ${tx + HALF},${ty - HEAD}`;
+
+  return (
+    <>
+      <polyline
+        points={pts.map((p) => p.join(",")).join(" ")}
+        fill="none"
+        stroke={color}
+        strokeWidth={3}
+        strokeLinecap="butt"
+        strokeLinejoin="miter"
+      />
+      <polygon points={headPts} fill={color} />
+    </>
+  );
+}
+
 export function FlecheGrid({
   cells,
   width,
@@ -180,9 +291,33 @@ export function FlecheGrid({
     }
   }
 
+  // Collect every clue's arrow so they can be drawn in a single overlay that
+  // sits ON TOP of the grid — letting each arrow start on its clue-cell border
+  // and point OUT into the answer cell (the magazine convention).
+  const arrows: ArrowSpec[] = [];
+  for (let ar = 0; ar < cells.length; ar++) {
+    for (let ac = 0; ac < cells[ar].length; ac++) {
+      const acell = cells[ar][ac];
+      if (acell.type !== "clue" || !acell.clues?.length) continue;
+      const sorted = [...acell.clues].sort(
+        (a, b) => (a.answerRow > ar ? 1 : 0) - (b.answerRow > ar ? 1 : 0),
+      );
+      sorted.forEach((cl, i) => {
+        arrows.push({
+          r: ar,
+          c: ac,
+          dx: cl.answerCol - ac,
+          dy: cl.answerRow - ar,
+          flow: cl.direction,
+          band: sorted.length === 1 ? 0.5 : i === 0 ? 0.28 : 0.72,
+        });
+      });
+    }
+  }
+
   return (
     <div
-      className={cn("inline-grid gap-0 border-2", className)}
+      className={cn("relative inline-grid gap-0 border-2", className)}
       style={{
         gridTemplateColumns: `repeat(${width}, ${CELL_SIZE}px)`,
         borderColor: INK,
@@ -227,10 +362,6 @@ export function FlecheGrid({
                 {clueTexts.map((cl, i) => {
                   const isPlaceholder = cl.text === cl.answer;
                   const isCustomClue = cl.isCustom;
-                  // Arrow shows direction FROM clue cell TO answer start
-                  const answerIsBelow = cl.answerRow > r;
-                  const answerIsRight = cl.answerCol > c;
-                  const arrow = answerIsBelow ? "▼" : answerIsRight ? "►" : "►";
 
                   // Shrink the type for long clues so they fit instead of truncating.
                   const longThreshold = hasTwo ? 24 : 42;
@@ -273,16 +404,10 @@ export function FlecheGrid({
                           WebkitBoxOrient: "vertical",
                           overflow: "hidden",
                           wordBreak: "break-word",
-                          paddingRight: 7,
+                          paddingRight: 10,
                         }}
                       >
                         {cl.text}
-                      </span>
-                      <span
-                        className="font-bold shrink-0 leading-none absolute bottom-0.5 right-0.5"
-                        style={{ fontSize: hasTwo ? "9px" : "11px" }}
-                      >
-                        {arrow}
                       </span>
                     </div>
                   );
@@ -389,6 +514,22 @@ export function FlecheGrid({
           );
         })
       )}
+
+      {/* Arrow overlay: an absolutely-positioned child of the grid, so its
+          coordinate origin is the grid's content box (cell 0,0 top-left) with
+          no baseline/border offset. Drawn last → paints on top of the cells.
+          Each arrow starts on its clue-cell border and points out. */}
+      <svg
+        className="absolute pointer-events-none"
+        style={{ top: 0, left: 0, overflow: "visible" }}
+        width={width * CELL_SIZE}
+        height={height * CELL_SIZE}
+        aria-hidden
+      >
+        {arrows.map((a, i) => (
+          <GridArrow key={i} {...a} size={CELL_SIZE} color={INK} />
+        ))}
+      </svg>
     </div>
   );
 }
