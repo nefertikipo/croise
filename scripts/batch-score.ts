@@ -262,8 +262,8 @@ async function runCompare() {
   }
 }
 
-async function runFull(model: keyof typeof MODELS) {
-  console.log(`Full batch with ${model}...`);
+async function runFull(model: keyof typeof MODELS, limit: number) {
+  console.log(`Full batch with ${model}, limit ${limit}, most-used words first...`);
   const examples = await loadFewShotExamples();
 
   // Load progress
@@ -276,53 +276,59 @@ async function runFull(model: keyof typeof MODELS) {
 
   // Get all unlabeled pairs
   const total = await sql`
-    SELECT COUNT(*) as count FROM clues WHERE difficulty IS NULL
+    SELECT COUNT(*) as count FROM clues WHERE difficulty IS NULL AND language = 'fr'
   `;
   console.log(`Unlabeled pairs: ${total[0].count}`);
 
-  let scored = done.size;
+  let scored = 0;
   let totalDeleted = 0;
   const FETCH_SIZE = 500;
+  const CONCURRENCY = 4;
 
-  while (true) {
-    // Fetch a chunk of unlabeled pairs
+  while (scored + totalDeleted < limit) {
+    // Fetch a chunk of unlabeled pairs, most-used words first.
+    // Scored rows get difficulty set (or are deleted), so the refetch advances.
     const pairs = await sql`
       SELECT c.id, w.word, c.clue
       FROM clues c
       JOIN words w ON c.word_id = w.id
-      WHERE c.difficulty IS NULL
-      ORDER BY c.id
+      WHERE c.difficulty IS NULL AND c.language = 'fr'
+      ORDER BY w.frequency DESC, w.familiarity DESC, c.id
       LIMIT ${FETCH_SIZE}
     `;
 
-    if (pairs.length === 0) break;
+    const fresh = pairs.filter((p) => !done.has(p.id as number));
+    if (fresh.length === 0) break;
 
-    // Process in batches
-    for (let i = 0; i < pairs.length; i += BATCH_SIZE) {
-      const batch = pairs.slice(i, i + BATCH_SIZE)
-        .filter((p) => !done.has(p.id as number))
-        .map((p) => ({ id: p.id as number, word: p.word as string, clue: p.clue as string }));
+    // Split into batches, run CONCURRENCY of them at a time
+    const batches: { id: number; word: string; clue: string }[][] = [];
+    for (let i = 0; i < fresh.length; i += BATCH_SIZE) {
+      batches.push(fresh.slice(i, i + BATCH_SIZE)
+        .map((p) => ({ id: p.id as number, word: p.word as string, clue: p.clue as string })));
+    }
 
-      if (batch.length === 0) continue;
+    for (let i = 0; i < batches.length; i += CONCURRENCY) {
+      const group = batches.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(group.map((b) => scoreBatch(model, examples, b)));
 
-      try {
-        const scores = await scoreBatch(model, examples, batch);
-        const { saved, deleted } = await saveScores(scores);
-        for (const s of scores) done.add(s.clueId);
+      for (const r of results) {
+        if (r.status === "rejected") {
+          console.error(`\nBatch error (skipping):`, r.reason);
+          continue;
+        }
+        const { saved, deleted } = await saveScores(r.value);
+        for (const s of r.value) done.add(s.clueId);
         scored += saved;
         totalDeleted += deleted;
-
-        process.stdout.write(`\r  ${scored} scored, ${totalDeleted} deleted...`);
-
-        // Save progress every batch
-        writeFileSync(PROGRESS_FILE, JSON.stringify({ done: Array.from(done) }));
-      } catch (err) {
-        console.error(`\nBatch error (skipping):`, err);
       }
+
+      process.stdout.write(`\r  ${scored} scored, ${totalDeleted} deleted (limit ${limit})...`);
+      writeFileSync(PROGRESS_FILE, JSON.stringify({ done: Array.from(done) }));
+      if (scored + totalDeleted >= limit) break;
     }
   }
 
-  console.log(`\n\nDone! Total scored: ${scored}`);
+  console.log(`\n\nDone! Scored this run: ${scored}, deleted: ${totalDeleted}`);
 }
 
 // ---- Main ----
@@ -336,10 +342,12 @@ if (args[0] === "--test") {
 } else if (args[0] === "--run") {
   const model = args[1] as keyof typeof MODELS;
   if (!model || !MODELS[model]) {
-    console.error("Usage: --run haiku|sonnet");
+    console.error("Usage: --run haiku|sonnet [--limit N]");
     process.exit(1);
   }
-  runFull(model).catch(console.error);
+  const limitIdx = args.indexOf("--limit");
+  const limit = limitIdx !== -1 ? parseInt(args[limitIdx + 1], 10) : 30000;
+  runFull(model, limit).catch(console.error);
 } else {
   console.log("Usage:");
   console.log("  pnpm tsx scripts/batch-score.ts --test       # A/B test on 100 pairs");

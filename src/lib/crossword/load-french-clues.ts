@@ -28,18 +28,23 @@ async function loadFromDatabase(): Promise<{
 
   // Load all words + clues in one query
   const rows = await sql`
-    SELECT w.word, c.clue
+    SELECT w.word, w.familiarity, c.clue
     FROM words w
     JOIN clues c ON c.word_id = w.id
     WHERE w.language = 'fr'
     AND w.active = true
+    AND c.bad_clue = false
     AND LENGTH(w.word) BETWEEN 2 AND 15
   `;
 
   for (const row of rows) {
     const word = row.word as string;
     const clue = row.clue as string;
-    wl.addWord(word, 85);
+    // Use corpus familiarity (0–~7.4) as the word score so generation can
+    // prefer recognizable fill over obscure crosswordese. addWord dedupes, so
+    // the first row's familiarity wins (it is constant per word).
+    const familiarity = (row.familiarity as number | null) ?? 0;
+    wl.addWord(word, familiarity);
     if (!clueDb.has(word)) clueDb.set(word, []);
     clueDb.get(word)!.push(clue);
   }

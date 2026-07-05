@@ -82,6 +82,12 @@ export const clues = pgTable(
     origin: text("origin").notNull().default("scraped"), // "scraped" | "user" | "ai"
     /** Quality flag: has this clue been validated? */
     verified: boolean("verified").notNull().default(false),
+    /**
+     * Flagged as a bad clue (describes a different word, or garbled) by the
+     * scorer. Flag-not-delete: the row is kept but excluded from generation, so
+     * a false-positive flag is reversible. See scripts/score-clues.ts.
+     */
+    badClue: boolean("bad_clue").notNull().default(false),
   },
   (table) => [
     index("clues_word_id_idx").on(table.wordId),

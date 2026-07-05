@@ -1174,10 +1174,25 @@ function solveFill(
     const candidates = pruneDomain(slotId).slice();
     if (candidates.length === 0) return false;
 
-    // Shuffle candidates for variety
-    for (let i = candidates.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    // Order candidates for variety. `bias` (0 = uniform shuffle, higher = stronger
+    // pull toward familiar words) is a DIFFICULTY KNOB, not a maximizer: easy
+    // grids want a strong bias (recognizable vocab), hard grids a gentle/zero one
+    // so some less-familiar words mix in — difficulty also comes from clue choice.
+    // Weighted shuffle uses Efraimidis–Spirakis so rare words stay reachable on
+    // backtrack (keeps grids solvable). A high bias slows generation.
+    const bias = Number(process.env.FAMILIARITY_BIAS ?? 0);
+    if (bias > 0) {
+      const keyed = candidates.map((w) => ({
+        w,
+        k: Math.pow(Math.random(), 1 / (wordList.getScore(w) * bias + 1)),
+      }));
+      keyed.sort((a, b) => b.k - a.k);
+      for (let i = 0; i < candidates.length; i++) candidates[i] = keyed[i].w;
+    } else {
+      for (let i = candidates.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+      }
     }
 
     // Try more candidates when custom words are involved
