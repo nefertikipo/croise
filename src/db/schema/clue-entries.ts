@@ -3,14 +3,30 @@ import {
   serial,
   text,
   integer,
+  real,
   boolean,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 /**
+ * ⚠️ TWO SEPARATE CORPORA LIVE IN THIS FILE — SPLIT BY LANGUAGE, NOT BY "OLD vs NEW".
+ *
+ * `words` + `clues` = the FRENCH pipeline (the /fleche mots fléchés generator).
+ *   Normalized, scored (familiarity + quality), ~83K words / ~476K clues. All `fr`.
+ *
+ * `clue_entries` = the ENGLISH pipeline (the /create mots croisés generator).
+ *   Flat, unscored, ~341K English rows (+ a ~30K leftover French chunk). Mostly `en`.
+ *
+ * These are NOT two copies of the same data. `words` is French; `clue_entries` is
+ * mostly English; they overlap by only ~36K strings, mostly by coincidence. Do NOT
+ * "migrate clue_entries into words/clues and drop it" — that deletes the English corpus.
+ * See docs/db-corpora.md for the full picture.
+ */
+
+/**
  * Words table: one row per unique answer word per language.
- * This is the "dictionary" of crossword-valid words.
+ * The FRENCH "dictionary" of crossword-valid words (currently 100% `fr`).
  */
 export const words = pgTable(
   "words",
@@ -25,6 +41,8 @@ export const words = pgTable(
     frequency: integer("frequency").notNull().default(1),
     /** Whether this word is valid for grid generation. */
     active: boolean("active").notNull().default(true),
+    /** Rough familiarity/commonness signal (0-1). */
+    familiarity: real("familiarity"),
   },
   (table) => [
     uniqueIndex("words_word_lang_idx").on(table.word, table.language),
@@ -98,8 +116,12 @@ export const clues = pgTable(
 );
 
 /**
- * Legacy compatibility: keep the flat view for the current generator.
- * We'll migrate the generator to use the new schema later.
+ * ENGLISH corpus — the live data source for the /create mots croisés generator.
+ *
+ * NOT a legacy version of `words`/`clues` (those are French). This flat table holds
+ * ~341K English clues (+ ~30K leftover French) and is unscored (no difficulty/vibe).
+ * It stays until/unless the English pipeline is normalized into words/clues the way
+ * French already is. Dropping it deletes the entire English corpus. See docs/db-corpora.md.
  */
 export const clueEntries = pgTable(
   "clue_entries",

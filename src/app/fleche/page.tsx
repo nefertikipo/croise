@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
+import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
 
 interface ClueInCell {
   text: string;
@@ -48,69 +49,6 @@ export default function FlechePage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  /**
-   * Find cells in the grid that spell out the hidden word.
-   * Picks one cell per letter, spreading them across the grid.
-   * Returns a map of "row,col" -> position (1-indexed).
-   */
-  function findHiddenWordCells(gridData: FlecheData, word: string): Map<string, number> {
-    const target = word.toUpperCase().replace(/[^A-Z]/g, "");
-    if (!target) return new Map();
-
-    // Build a map of letter -> list of (row, col) positions
-    const letterPositions = new Map<string, { r: number; c: number }[]>();
-    for (let r = 0; r < gridData.height; r++) {
-      for (let c = 0; c < gridData.width; c++) {
-        const cell = gridData.cells[r][c];
-        if (cell.type === "letter" && cell.letter) {
-          const letter = cell.letter.toUpperCase();
-          if (!letterPositions.has(letter)) letterPositions.set(letter, []);
-          letterPositions.get(letter)!.push({ r, c });
-        }
-      }
-    }
-
-    // Greedily pick one cell per letter, trying to spread across the grid
-    const used = new Set<string>();
-    const result = new Map<string, number>();
-
-    for (let i = 0; i < target.length; i++) {
-      const letter = target[i];
-      const positions = letterPositions.get(letter);
-      if (!positions) return new Map(); // letter not in grid, can't form word
-
-      // Pick a position not yet used, preferring spread
-      let best: { r: number; c: number } | null = null;
-      let bestScore = -1;
-
-      for (const pos of positions) {
-        const key = `${pos.r},${pos.c}`;
-        if (used.has(key)) continue;
-
-        // Score: distance from all already-picked cells (prefer spread)
-        let minDist = Infinity;
-        for (const usedKey of used) {
-          const [ur, uc] = usedKey.split(",").map(Number);
-          const dist = Math.abs(pos.r - ur) + Math.abs(pos.c - uc);
-          minDist = Math.min(minDist, dist);
-        }
-        const score = used.size === 0 ? 0 : minDist;
-
-        if (score > bestScore) {
-          bestScore = score;
-          best = pos;
-        }
-      }
-
-      if (!best) return new Map(); // no unused cell with this letter
-      const key = `${best.r},${best.c}`;
-      used.add(key);
-      result.set(key, i + 1);
-    }
-
-    return result;
-  }
-
   async function generate() {
     setLoading(true);
     setShowSolution(false);
@@ -119,7 +57,7 @@ export default function FlechePage() {
       const validCustom = customClues.filter(
         (c) => c.answer.trim().length >= 2 && c.clue.trim().length > 0,
       );
-      const cleanHidden = hiddenWord.toUpperCase().replace(/[^A-Z]/g, "");
+      const cleanHidden = normalizeHiddenWord(hiddenWord);
 
       const res = await fetch("/api/fleche/generate", {
         method: "POST",
@@ -172,10 +110,16 @@ export default function FlechePage() {
 
   async function createBook() {
     try {
+      const cleanHidden = normalizeHiddenWord(hiddenWord);
       const res = await fetch("/api/books", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "Mon livre de mots fleches" }),
+        body: JSON.stringify({
+          title: "Mon livre de mots fleches",
+          // Carry the grid the user is looking at in as the first page.
+          seedCrosswordCode: grid?.code,
+          seedConfig: cleanHidden ? { hiddenWord: cleanHidden } : undefined,
+        }),
       });
       if (!res.ok) throw new Error("Failed to create book");
       const { code } = await res.json();
@@ -346,9 +290,7 @@ export default function FlechePage() {
                     key={i}
                     className="w-8 h-8 border-2 border-primary flex items-center justify-center text-xs text-muted-foreground"
                   >
-                    {showSolution
-                      ? hiddenWord.toUpperCase().replace(/[^A-Z]/g, "")[i]
-                      : i + 1}
+                    {showSolution ? normalizeHiddenWord(hiddenWord)[i] : i + 1}
                   </div>
                 ))}
               </div>

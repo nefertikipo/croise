@@ -16,9 +16,13 @@ A French mots fleches/mots croises generator that creates personalized crossword
 ## Key Architecture
 
 ### Database (Neon Postgres)
-- `words` table: unique crossword-valid words with quality scores
-- `clues` table: multiple clues per word (different difficulties/vibes)
-- `clue_entries` table: legacy flat table (being phased out)
+
+**⚠️ The word/clue tables split by LANGUAGE, not by old-vs-new. See `docs/db-corpora.md`.**
+- `words` + `clues`: the **French** pipeline (`/fleche`). Normalized + scored
+  (familiarity, quality, difficulty/vibe). ~83K words / ~476K clues, all `fr`.
+- `clue_entries`: the **English** pipeline (`/create`). Flat, unscored, ~341K `en`
+  rows (+ ~30K leftover `fr`). NOT a legacy copy of `words`/`clues` — it's a different
+  corpus for a different feature. Dropping it deletes the English data.
 - `crosswords`, `placed_words`, `books`: grid storage + sharing via codes
 
 ### Crossword Generation

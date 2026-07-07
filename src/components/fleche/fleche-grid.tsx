@@ -28,9 +28,130 @@ interface FlecheGridProps {
   className?: string;
   /** Map of "row,col" -> position number for hidden word highlighting */
   highlightedCells?: Map<string, number>;
+  /** Base color for clue cells; tinted toward paper. Defaults to turquoise. */
+  accentColor?: string;
 }
 
 const CELL_SIZE = 70;
+
+/* Vintage editorial grid palette: paper letter cells, tinted clue cells,
+   red-tinted custom clues — matching the cream/black/red/turquoise theme. */
+const INK = "#2f2a26";
+const PAPER = "#fffcf5";
+const EMPTY_BG = "#ece3d3";
+const DEFAULT_ACCENT = "#1f9e94";
+const CUSTOM_BG = "#f3ddd4";
+
+interface ArrowSpec {
+  /** Clue cell row/col */
+  r: number;
+  c: number;
+  /** Offset from the clue cell to the word's first letter (each 0 or 1) */
+  dx: number;
+  dy: number;
+  /** Direction the word reads */
+  flow: "right" | "down";
+  /** 0..1 position along the anchored edge, so two arrows don't collide */
+  band: number;
+}
+
+/**
+ * A mots fléchés arrow, drawn in whole-grid pixel coordinates so it can sit ON
+ * the border between the clue cell and the answer cell and point OUT into the
+ * answer cell — the standard magazine look. The head lands just inside the cell
+ * where the word's first letter is; the shaft bends (elbow) when the word
+ * starts below or diagonally rather than straight ahead.
+ *
+ * The first letter is one of three neighbours of the clue cell:
+ *   - right               (dx=1, dy=0)
+ *   - directly below      (dx=0, dy=1)
+ *   - diagonal down-right (dx=1, dy=1)
+ * and reads "right" or "down" (flow).
+ */
+function GridArrow({
+  r,
+  c,
+  dx,
+  dy,
+  flow,
+  band,
+  size,
+  color,
+}: ArrowSpec & { size: number; color: string }) {
+  const S = size;
+  const cx = c * S; // clue cell top-left in grid pixels
+  const cy = r * S;
+  const HEAD = 10; // arrowhead length
+  const HALF = 6.5; // arrowhead half-width
+  const rightN = dx === 1 && dy === 0;
+  const belowN = dx === 0 && dy === 1;
+
+  let pts: [number, number][];
+  let tip: [number, number];
+  let head: "right" | "down";
+
+  // Every arrow's TAIL sits exactly on the clue-cell border; the body and head
+  // extend OUT into the answer cell — never back into the clue cell.
+  if (rightN && flow === "right") {
+    // Tail on the right border → reads right in the next cell.
+    const y = cy + band * S;
+    const bx = cx + S;
+    pts = [[bx, y], [bx + 18 - HEAD, y]];
+    tip = [bx + 18, y];
+    head = "right";
+  } else if (belowN && flow === "down") {
+    // Tail on the bottom border ↓ reads down in the cell below.
+    const x = cx + band * S;
+    const by = cy + S;
+    pts = [[x, by], [x, by + 18 - HEAD]];
+    tip = [x, by + 18];
+    head = "down";
+  } else if (belowN && flow === "right") {
+    // Tail on the bottom border, drop into the cell below, then read right.
+    const x = cx + S * 0.3;
+    const by = cy + S;
+    pts = [[x, by], [x, by + 13], [x + 16 - HEAD, by + 13]];
+    tip = [x + 16, by + 13];
+    head = "right";
+  } else if (rightN && flow === "down") {
+    // Tail on the right border, step into the next cell, then read down.
+    const y = cy + S * 0.3;
+    const bx = cx + S;
+    pts = [[bx, y], [bx + 13, y], [bx + 13, y + 16 - HEAD]];
+    tip = [bx + 13, y + 16];
+    head = "down";
+  } else if (flow === "right") {
+    // Tail on the corner, diagonal into the down-right cell, then read right.
+    pts = [[cx + S, cy + S], [cx + S + 21 - HEAD, cy + S + 9]];
+    tip = [cx + S + 21, cy + S + 9];
+    head = "right";
+  } else {
+    // Tail on the corner, diagonal into the down-right cell, then read down.
+    pts = [[cx + S, cy + S], [cx + S + 9, cy + S + 21 - HEAD]];
+    tip = [cx + S + 9, cy + S + 21];
+    head = "down";
+  }
+
+  const [tx, ty] = tip;
+  const headPts =
+    head === "right"
+      ? `${tx},${ty} ${tx - HEAD},${ty - HALF} ${tx - HEAD},${ty + HALF}`
+      : `${tx},${ty} ${tx - HALF},${ty - HEAD} ${tx + HALF},${ty - HEAD}`;
+
+  return (
+    <>
+      <polyline
+        points={pts.map((p) => p.join(",")).join(" ")}
+        fill="none"
+        stroke={color}
+        strokeWidth={3}
+        strokeLinecap="butt"
+        strokeLinejoin="miter"
+      />
+      <polygon points={headPts} fill={color} />
+    </>
+  );
+}
 
 export function FlecheGrid({
   cells,
@@ -40,7 +161,12 @@ export function FlecheGrid({
   interactive = false,
   className,
   highlightedCells,
+  accentColor,
 }: FlecheGridProps) {
+  const accent = accentColor || DEFAULT_ACCENT;
+  const clueBg = `color-mix(in oklab, ${accent} 18%, ${PAPER})`;
+  const clueRule = `color-mix(in oklab, ${accent} 45%, ${PAPER})`;
+  const wordHighlightBg = `color-mix(in oklab, ${accent} 14%, ${PAPER})`;
   const [userInput, setUserInput] = useState<Map<string, string>>(new Map());
   const [selectedCell, setSelectedCell] = useState<{ r: number; c: number } | null>(null);
   const [direction, setDirection] = useState<"right" | "down">("right");
@@ -165,12 +291,37 @@ export function FlecheGrid({
     }
   }
 
+  // Collect every clue's arrow so they can be drawn in a single overlay that
+  // sits ON TOP of the grid — letting each arrow start on its clue-cell border
+  // and point OUT into the answer cell (the magazine convention).
+  const arrows: ArrowSpec[] = [];
+  for (let ar = 0; ar < cells.length; ar++) {
+    for (let ac = 0; ac < cells[ar].length; ac++) {
+      const acell = cells[ar][ac];
+      if (acell.type !== "clue" || !acell.clues?.length) continue;
+      const sorted = [...acell.clues].sort(
+        (a, b) => (a.answerRow > ar ? 1 : 0) - (b.answerRow > ar ? 1 : 0),
+      );
+      sorted.forEach((cl, i) => {
+        arrows.push({
+          r: ar,
+          c: ac,
+          dx: cl.answerCol - ac,
+          dy: cl.answerRow - ar,
+          flow: cl.direction,
+          band: sorted.length === 1 ? 0.5 : i === 0 ? 0.28 : 0.72,
+        });
+      });
+    }
+  }
+
   return (
     <div
-      className={cn("inline-grid gap-0 border-2 border-black", className)}
+      className={cn("relative inline-grid gap-0 border-2", className)}
       style={{
         gridTemplateColumns: `repeat(${width}, ${CELL_SIZE}px)`,
-        fontFamily: "system-ui, -apple-system, sans-serif",
+        borderColor: INK,
+        color: INK,
       }}
     >
       {cells.flatMap((row, r) =>
@@ -187,17 +338,18 @@ export function FlecheGrid({
             return (
               <div
                 key={`${r}-${c}`}
-                className="relative border border-sky-300 flex flex-col overflow-hidden"
+                className="relative border flex flex-col overflow-hidden"
                 style={{
                   width: CELL_SIZE,
                   height: CELL_SIZE,
-                  backgroundColor: "#dbeafe",
+                  backgroundColor: clueBg,
+                  borderColor: clueRule,
                 }}
               >
                 {hasTwo && (
                   <div
-                    className="absolute left-0 right-0 border-t border-sky-400"
-                    style={{ top: "50%" }}
+                    className="absolute left-0 right-0 border-t"
+                    style={{ top: "50%", borderColor: clueRule }}
                   />
                 )}
 
@@ -210,15 +362,19 @@ export function FlecheGrid({
                 {clueTexts.map((cl, i) => {
                   const isPlaceholder = cl.text === cl.answer;
                   const isCustomClue = cl.isCustom;
-                  // Arrow shows direction FROM clue cell TO answer start
-                  const answerIsBelow = cl.answerRow > r;
-                  const answerIsRight = cl.answerCol > c;
-                  const arrow = answerIsBelow ? "▼" : answerIsRight ? "►" : "►";
 
-                  const fontSize = hasTwo ? 7 : 9;
+                  // Shrink the type for long clues so they fit instead of truncating.
+                  const longThreshold = hasTwo ? 24 : 42;
+                  const veryLongThreshold = hasTwo ? 34 : 60;
+                  const fontSize =
+                    cl.text.length > veryLongThreshold
+                      ? (hasTwo ? 5.5 : 7)
+                      : cl.text.length > longThreshold
+                        ? (hasTwo ? 6 : 8)
+                        : (hasTwo ? 7 : 9);
                   // Max lines that fit in the available height
                   const cellHalf = hasTwo ? CELL_SIZE / 2 : CELL_SIZE;
-                  const lineHeight = fontSize * 1.2;
+                  const lineHeight = fontSize * 1.15;
                   const maxLines = Math.floor((cellHalf - 4) / lineHeight);
 
                   return (
@@ -231,13 +387,14 @@ export function FlecheGrid({
                       style={{
                         paddingTop: 2,
                         paddingBottom: 1,
-                        backgroundColor: isCustomClue ? "#fef3c7" : undefined,
+                        backgroundColor: isCustomClue ? CUSTOM_BG : undefined,
                       }}
+                      title={cl.text}
                     >
                       <span
                         className={cn(
                           "flex-1 uppercase break-words hyphens-auto",
-                          isPlaceholder ? "text-red-400 italic" : "text-black"
+                          isPlaceholder ? "italic opacity-40" : "",
                         )}
                         style={{
                           fontSize: `${fontSize}px`,
@@ -247,15 +404,10 @@ export function FlecheGrid({
                           WebkitBoxOrient: "vertical",
                           overflow: "hidden",
                           wordBreak: "break-word",
+                          paddingRight: 10,
                         }}
                       >
                         {cl.text}
-                      </span>
-                      <span
-                        className="font-bold shrink-0 text-black leading-none absolute bottom-0.5 right-0.5"
-                        style={{ fontSize: hasTwo ? "9px" : "11px" }}
-                      >
-                        {arrow}
                       </span>
                     </div>
                   );
@@ -274,20 +426,30 @@ export function FlecheGrid({
             const isHiddenCell = hiddenNum !== undefined;
 
             if (interactive) {
+              const bg =
+                correct === true
+                  ? "#e4efdb"
+                  : correct === false && inputVal
+                    ? "#f7ded5"
+                    : isHiddenCell && !isSelected
+                      ? "#f3ddd4"
+                      : isHighlighted && !isSelected
+                        ? wordHighlightBg
+                        : PAPER;
               return (
                 <div
                   key={key}
                   className={cn(
                     "relative border flex items-center justify-center cursor-pointer",
-                    isHiddenCell ? "border-primary border-2" : "border-black/30",
-                    isSelected && "ring-2 ring-blue-500 z-10",
-                    isHiddenCell && !isSelected && "bg-primary/10",
-                    isHighlighted && !isSelected && !isHiddenCell && "bg-blue-50",
-                    !isHighlighted && !isHiddenCell && "bg-white",
-                    correct === true && "bg-green-50",
-                    correct === false && inputVal && "bg-red-50"
+                    isHiddenCell && "border-primary border-2",
+                    isSelected && "ring-2 ring-primary z-10",
                   )}
-                  style={{ width: CELL_SIZE, height: CELL_SIZE }}
+                  style={{
+                    width: CELL_SIZE,
+                    height: CELL_SIZE,
+                    backgroundColor: bg,
+                    ...(isHiddenCell ? {} : { borderColor: "rgba(47,42,38,0.3)" }),
+                  }}
                   onClick={() => handleCellClick(r, c)}
                 >
                   {isHiddenCell && (
@@ -315,9 +477,14 @@ export function FlecheGrid({
                 key={key}
                 className={cn(
                   "relative border flex items-center justify-center",
-                  isHiddenCell ? "border-primary border-2 bg-primary/10" : "bg-white border-black/30",
+                  isHiddenCell && "border-primary border-2",
                 )}
-                style={{ width: CELL_SIZE, height: CELL_SIZE }}
+                style={{
+                  width: CELL_SIZE,
+                  height: CELL_SIZE,
+                  backgroundColor: isHiddenCell ? "#f3ddd4" : PAPER,
+                  ...(isHiddenCell ? {} : { borderColor: "rgba(47,42,38,0.3)" }),
+                }}
               >
                 {isHiddenCell && (
                   <span className="absolute top-0.5 left-1 text-[9px] font-bold text-primary">
@@ -325,7 +492,7 @@ export function FlecheGrid({
                   </span>
                 )}
                 {showSolution && cell.letter && (
-                  <span className="text-xl font-bold uppercase text-black">
+                  <span className="text-xl font-bold uppercase">
                     {cell.letter}
                   </span>
                 )}
@@ -336,16 +503,33 @@ export function FlecheGrid({
           return (
             <div
               key={`${r}-${c}`}
-              className="border border-black/10"
+              className="border"
               style={{
                 width: CELL_SIZE,
                 height: CELL_SIZE,
-                backgroundColor: "#f1f5f9",
+                backgroundColor: EMPTY_BG,
+                borderColor: "rgba(47,42,38,0.1)",
               }}
             />
           );
         })
       )}
+
+      {/* Arrow overlay: an absolutely-positioned child of the grid, so its
+          coordinate origin is the grid's content box (cell 0,0 top-left) with
+          no baseline/border offset. Drawn last → paints on top of the cells.
+          Each arrow starts on its clue-cell border and points out. */}
+      <svg
+        className="absolute pointer-events-none"
+        style={{ top: 0, left: 0, overflow: "visible" }}
+        width={width * CELL_SIZE}
+        height={height * CELL_SIZE}
+        aria-hidden
+      >
+        {arrows.map((a, i) => (
+          <GridArrow key={i} {...a} size={CELL_SIZE} color={INK} />
+        ))}
+      </svg>
     </div>
   );
 }

@@ -1504,6 +1504,28 @@ export function generateFlecheVector(
     }
     if (!valid) continue; // crossing conflict, try another layout
 
+    // Reject grids with empty clue cells ("black squares"). Every blue cell must
+    // end up with at least one clue that received a word during solving — a blue
+    // cell whose clues all have empty answers renders as an empty box in the
+    // middle of the grid. This can happen when a blue box holds a placeholder
+    // clue (layoutToGrid) or an offset clue whose run was sourced by a
+    // neighbouring blue cell instead. Such layouts are rare, so retrying is far
+    // cheaper than shipping a grid with holes.
+    let allBluesFilled = true;
+    for (let y = 0; y < grid.height && allBluesFilled; y++) {
+      for (let x = 0; x < grid.width; x++) {
+        const cell = grid.cells[y][x];
+        if (
+          cell.kind === "blue" &&
+          !cell.clues.some((c) => c.answer.length > 0)
+        ) {
+          allBluesFilled = false;
+          break;
+        }
+      }
+    }
+    if (!allBluesFilled) continue; // empty clue box, try another layout
+
     return {
       success: true,
       grid,
