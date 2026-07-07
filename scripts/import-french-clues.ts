@@ -15,16 +15,13 @@ import { drizzle } from "drizzle-orm/neon-http";
 import { words, clues } from "../src/db/schema/clue-entries";
 import { eq, and, sql } from "drizzle-orm";
 import "dotenv/config";
+import { normalizeAnswer } from "../src/lib/crossword/normalize";
 
 const BATCH_SIZE = 500;
 const INPUT = join(process.cwd(), "data", "french-clues.tsv");
 
 function normalize(word: string): string {
-  return word
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z]/g, "");
+  return normalizeAnswer(word);
 }
 
 async function main() {

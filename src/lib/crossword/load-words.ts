@@ -1,19 +1,16 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { WordList } from "@/lib/crossword/word-list";
+import { normalizeAnswer } from "@/lib/crossword/normalize";
 import type { Language } from "@/types";
 
 const cache = new Map<string, WordList>();
 
 /**
- * Normalize a word for crossword use: uppercase, strip diacritics, keep only A-Z.
+ * Normalize a word for crossword use: uppercase, fold diacritics/ligatures, keep only A-Z.
  */
 function normalize(word: string): string {
-  return word
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z]/g, "");
+  return normalizeAnswer(word);
 }
 
 /**

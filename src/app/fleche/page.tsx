@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
 import { GenerationProgress } from "@/components/fleche/generation-progress";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
+import { normalizeAnswer } from "@/lib/crossword/normalize";
 import {
   findHiddenWordCells,
   missingHiddenLetters,
@@ -66,7 +67,7 @@ export default function FlechePage() {
   const maxDim = Math.max(gridWidth, gridHeight);
   const capacity = analyzeCapacity(gridWidth, gridHeight, customClues);
   const isWordTooLong = (answer: string) => {
-    const w = answer.toUpperCase().replace(/[^A-Z]/g, "");
+    const w = normalizeAnswer(answer);
     return w.length >= 2 && w.length > maxDim;
   };
 
@@ -123,7 +124,7 @@ export default function FlechePage() {
         }
         // Remove custom word answers from exclusion (they should always be available)
         for (const cc of customClues) {
-          next.delete(cc.answer.toUpperCase().replace(/[^A-Z]/g, ""));
+          next.delete(normalizeAnswer(cc.answer));
         }
         return next;
       });

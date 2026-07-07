@@ -2,6 +2,7 @@ import clg from "crossword-layout-generator";
 import type { WordList } from "@/lib/crossword/word-list";
 import type { CustomClue } from "@/types";
 import { getPatterns } from "@/lib/crossword/patterns";
+import { normalizeAnswer } from "@/lib/crossword/normalize";
 
 export interface GeneratorResult {
   success: boolean;
@@ -125,7 +126,7 @@ function generateDense(
 
   // Place custom words first
   const customs = customClues
-    .map((c) => ({ answer: c.answer.toUpperCase().replace(/[^A-Z]/g, ""), clue: c.clue }))
+    .map((c) => ({ answer: normalizeAnswer(c.answer), clue: c.clue }))
     .filter((c) => c.answer.length >= 3);
 
   const customSlotIdx = new Set<number>();
@@ -314,7 +315,7 @@ function generateFreeform(
   customClues: CustomClue[]
 ): GeneratorResult {
   const customWords = customClues
-    .map((c) => ({ answer: c.answer.toUpperCase().replace(/[^A-Z]/g, ""), clue: c.clue }))
+    .map((c) => ({ answer: normalizeAnswer(c.answer), clue: c.clue }))
     .filter((c) => c.answer.length >= 3);
 
   const usedAnswers = new Set(customWords.map((w) => w.answer));

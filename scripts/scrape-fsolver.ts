@@ -16,6 +16,7 @@ import { drizzle } from "drizzle-orm/neon-http";
 import { words, clues } from "../src/db/schema/clue-entries";
 import { eq, and } from "drizzle-orm";
 import { config } from "dotenv";
+import { normalizeAnswer } from "../src/lib/crossword/normalize";
 config({ path: ".env.local" });
 
 const OUTPUT = join(process.cwd(), "data", "french-clues-fsolver.tsv");
@@ -117,11 +118,7 @@ async function insertClue(wordId: number, word: string, clueText: string, source
 }
 
 function normalize(word: string): string {
-  return word
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z]/g, "");
+  return normalizeAnswer(word);
 }
 
 function sleep(ms: number): Promise<void> {

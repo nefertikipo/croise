@@ -34,6 +34,7 @@ import {
   LEFT_COMB_OFFSET,
 } from "./fleche-math";
 import type { WordList } from "./word-list";
+import { normalizeAnswer } from "@/lib/crossword/normalize";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1335,7 +1336,7 @@ function pickClue(
 /** Multiset of A-Z letters needed to spell out the hidden word. */
 function hiddenLetterCounts(word: string): Map<string, number> {
   const counts = new Map<string, number>();
-  for (const ch of word.toUpperCase().replace(/[^A-Z]/g, "")) {
+  for (const ch of normalizeAnswer(word)) {
     counts.set(ch, (counts.get(ch) ?? 0) + 1);
   }
   return counts;
@@ -1381,7 +1382,7 @@ export function generateFlecheVector(
 
   // Add custom words to clueDb and wordList so they're valid during solving
   for (const custom of customClues) {
-    const answer = custom.answer.toUpperCase().replace(/[^A-Z]/g, "");
+    const answer = normalizeAnswer(custom.answer);
     if (answer.length < 2) continue;
     wordList.addWord(answer, 100);
     if (!clueDb.has(answer)) {
@@ -1442,7 +1443,7 @@ export function generateFlecheVector(
 
   // Required slot lengths for custom words
   const requiredLengths = customClues
-    .map((c) => c.answer.toUpperCase().replace(/[^A-Z]/g, "").length)
+    .map((c) => normalizeAnswer(c.answer).length)
     .filter((len) => len >= 2);
 
   // Shared cache of clued words per length, for the AC-3 pre-check.
@@ -1512,7 +1513,7 @@ export function generateFlecheVector(
     if (customClues.length > 0) {
       // Sort custom words by length descending (place longest first, fewer slot options)
       const sorted = [...customClues]
-        .map((c) => c.answer.toUpperCase().replace(/[^A-Z]/g, ""))
+        .map((c) => normalizeAnswer(c.answer))
         .filter((a) => a.length >= 2)
         .sort((a, b) => b.length - a.length);
 
@@ -1553,7 +1554,7 @@ export function generateFlecheVector(
       const isCustom = customAssignment.has(slot.id);
       const clueText = isCustom
         ? customClues.find(
-            (c) => c.answer.toUpperCase().replace(/[^A-Z]/g, "") === word,
+            (c) => normalizeAnswer(c.answer) === word,
           )?.clue ?? pickClue(word, clueDb, clueDifficulty, params.difficulty)
         : pickClue(word, clueDb, clueDifficulty, params.difficulty);
 

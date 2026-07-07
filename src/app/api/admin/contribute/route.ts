@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { words, clues } from "@/db/schema/clue-entries";
 import { eq, and } from "drizzle-orm";
+import { normalizeAnswer } from "@/lib/crossword/normalize";
 
 /**
  * POST: submit a user-written clue for a word
@@ -15,11 +16,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Mot et indice requis" }, { status: 400 });
     }
 
-    const word = rawWord
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toUpperCase()
-      .replace(/[^A-Z]/g, "");
+    const word = normalizeAnswer(rawWord);
 
     if (word.length < 2 || word.length > 15) {
       return NextResponse.json({ error: "Le mot doit faire entre 2 et 15 lettres" }, { status: 400 });

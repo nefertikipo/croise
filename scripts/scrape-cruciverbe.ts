@@ -14,6 +14,7 @@
 
 import { writeFileSync, appendFileSync, existsSync } from "fs";
 import { join } from "path";
+import { normalizeAnswer } from "../src/lib/crossword/normalize";
 
 const BASE = "https://cruciverbe.fr";
 const OUTPUT = join(process.cwd(), "data", "french-clues.tsv");
@@ -24,11 +25,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 function normalize(word: string): string {
-  return word
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z]/g, "");
+  return normalizeAnswer(word);
 }
 
 async function fetchPage(url: string): Promise<string> {
