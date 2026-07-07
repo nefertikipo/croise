@@ -1,11 +1,19 @@
 import type { Metadata } from "next";
-import { Inter, Patrick_Hand, Anton } from "next/font/google";
+import { Inter, Patrick_Hand, Anton, Oswald } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/shared/nav";
 
 const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
+});
+
+// Condensed face for clue text: fits far more of a long French definition per
+// line than Inter, and matches the mots fléchés magazine look.
+const condensed = Oswald({
+  variable: "--font-condensed",
+  subsets: ["latin"],
+  weight: ["400", "500"],
 });
 
 const display = Anton({
@@ -33,7 +41,7 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${inter.variable} ${display.variable} ${handwritten.variable} h-full antialiased`}
+      className={`${inter.variable} ${display.variable} ${handwritten.variable} ${condensed.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
         <Nav />
