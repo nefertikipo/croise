@@ -1,3 +1,4 @@
+import { normalizeAnswer } from "@/lib/crossword/normalize";
 import type { FlecheCell } from "@/types/book";
 
 interface GridShape {
@@ -6,9 +7,9 @@ interface GridShape {
   cells: FlecheCell[][];
 }
 
-/** Normalize a word to bare uppercase A-Z letters. */
+/** Normalize a word to bare uppercase A-Z letters (accents folded, not dropped). */
 export function normalizeHiddenWord(word: string): string {
-  return word.toUpperCase().replace(/[^A-Z]/g, "");
+  return normalizeAnswer(word);
 }
 
 /**

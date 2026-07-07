@@ -4,6 +4,7 @@ import { placedWords } from "@/db/schema/placed-words";
 import { generateFlecheVector, type DifficultyMode } from "@/lib/crossword/fleche-vector-gen";
 import { getFrenchWordList, getFrenchClueDb, getFrenchClueDifficulty, ensureLoaded } from "@/lib/crossword/load-french-clues";
 import { generateCrosswordCode } from "@/lib/code";
+import { normalizeAnswer } from "@/lib/crossword/normalize";
 
 interface CustomClue {
   answer: string;
@@ -88,7 +89,7 @@ export async function generateAndSaveGrid(
     .returning({ id: crosswords.id });
 
   const customAnswers = new Set(
-    input.customClues.map((c) => c.answer.toUpperCase().replace(/[^A-Z]/g, "")),
+    input.customClues.map((c) => normalizeAnswer(c.answer)),
   );
 
   const wordRows = words.map((w, i) => ({

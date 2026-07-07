@@ -14,17 +14,14 @@
 
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from "fs";
 import { join } from "path";
+import { normalizeAnswer } from "../src/lib/crossword/normalize";
 
 const OUTPUT = join(process.cwd(), "data", "french-clues-dicomots.tsv");
 const PROGRESS_FILE = join(process.cwd(), "data", "dicomots-progress.json");
 const DELAY_MS = 150;
 
 function normalize(word: string): string {
-  return word
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z]/g, "");
+  return normalizeAnswer(word);
 }
 
 function sleep(ms: number): Promise<void> {

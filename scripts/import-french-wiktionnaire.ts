@@ -17,15 +17,12 @@ import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { clueEntries } from "../src/db/schema/clue-entries";
 import "dotenv/config";
+import { normalizeAnswer } from "../src/lib/crossword/normalize";
 
 const BATCH_SIZE = 1000;
 
 function normalize(word: string): string {
-  return word
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z]/g, "");
+  return normalizeAnswer(word);
 }
 
 async function main() {

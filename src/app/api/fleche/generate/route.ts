@@ -7,6 +7,7 @@ import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
 import { generateCrosswordCode } from "@/lib/code";
 import { checkCapacity } from "@/lib/crossword/check-capacity";
+import { normalizeAnswer } from "@/lib/crossword/normalize";
 import type { Coord } from "@/lib/crossword/fleche-math";
 
 export const maxDuration = 120;
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
 
     if (!result.success) {
       const customWords = (params.customClues ?? [])
-        .map((c) => c.answer.toUpperCase().replace(/[^A-Z]/g, ""))
+        .map((c) => normalizeAnswer(c.answer))
         .filter((a) => a.length >= 2);
 
       // Find which words are hardest (all consonants, very long, etc.)
@@ -125,9 +126,7 @@ export async function POST(request: Request) {
         if (cell.kind === "blue") {
           // Only include clues that actually have a word assigned
           const customAnswers = new Set(
-            (params.customClues ?? []).map((c) =>
-              c.answer.toUpperCase().replace(/[^A-Z]/g, ""),
-            ),
+            (params.customClues ?? []).map((c) => normalizeAnswer(c.answer)),
           );
           const clueData = cell.clues
             .filter((clue) => clue.answer.length > 0)

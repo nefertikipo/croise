@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { WordList } from "@/lib/crossword/word-list";
+import { normalizeAnswer } from "@/lib/crossword/normalize";
 
 let cachedWl: WordList | null = null;
 let cachedClueDb: Map<string, string[]> | null = null;
@@ -14,11 +15,7 @@ export function clueDiffKey(word: string, clue: string): string {
 }
 
 function normalize(word: string): string {
-  return word
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z]/g, "");
+  return normalizeAnswer(word);
 }
 
 /**

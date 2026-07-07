@@ -11,6 +11,8 @@
  *     those that never do (e.g. 8×11 with the same 7 words ≈ 0.49).
  */
 
+import { normalizeAnswer } from "@/lib/crossword/normalize";
+
 /** Share of the grid above which generation reliably fails. */
 const HARD_FILL_RATIO = 0.43;
 /** Share above which generation still works but gets slow / flaky — worth a heads-up. */
@@ -35,7 +37,7 @@ export function analyzeCapacity(
   customClues: { answer: string; clue: string }[],
 ): CapacityAnalysis {
   const words = customClues
-    .map((c) => c.answer.toUpperCase().replace(/[^A-Z]/g, ""))
+    .map((c) => normalizeAnswer(c.answer))
     .filter((w) => w.length >= 2);
 
   const maxDim = Math.max(width, height);
