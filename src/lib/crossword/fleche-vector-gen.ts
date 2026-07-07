@@ -73,6 +73,12 @@ export interface VectorGenParams {
   width: number;
   height: number;
   customClues?: { answer: string; clue: string }[];
+  /**
+   * Optional hidden word ("mot caché"): the generator tries to produce a grid
+   * whose letters can spell it out (one cell per letter). Best-effort — see
+   * `hiddenWordSatisfied` on the result.
+   */
+  hiddenWord?: string;
   /** Which clue to pick per word when multiple exist. Default "balanced". */
   difficulty?: DifficultyMode;
 }
@@ -84,6 +90,12 @@ export interface VectorGenResult {
   slots: Slot[];
   words: { slot: Slot; word: string; clueText: string; isCustom: boolean }[];
   attempts: number;
+  /**
+   * Whether the returned grid's letters cover the requested hidden word. `true`
+   * when no hidden word was requested. `false` means we fell back to a valid
+   * grid that can't spell the whole word (rare — pathological letter demands).
+   */
+  hiddenWordSatisfied?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -1041,11 +1053,20 @@ function solveFill(
   timeLimitMs: number = 5000,
   preAssigned: Map<number, string> = new Map(),
   acDomains: Map<number, string[]> | null = null,
+  biasLetters?: Set<string>,
   preferWords?: Set<string>,
 ): Map<number, string> | null {
   const n = slots.length;
   if (n === 0) return new Map();
   const deadline = Date.now() + timeLimitMs;
+
+  // Hidden-word support: prefer candidate words that supply a hard-to-get letter
+  // the hidden word needs, so those letters actually land somewhere in the grid.
+  const biasArr = biasLetters ? [...biasLetters] : [];
+  const hasBiasLetter = (w: string): boolean => {
+    for (const ch of biasArr) if (w.includes(ch)) return true;
+    return false;
+  };
 
   // Build adjacency: for each slot, which crossings involve it?
   const slotCrossings = new Map<number, Crossing[]>();
@@ -1177,7 +1198,7 @@ function solveFill(
 
     // Copy before shuffling: for an unconstrained slot pruneDomain returns the
     // shared (cached) domain array, which must not be mutated in place.
-    const candidates = pruneDomain(slotId).slice();
+    let candidates = pruneDomain(slotId).slice();
     if (candidates.length === 0) return false;
 
     // Order candidates for variety. `bias` (0 = uniform shuffle, higher = stronger
@@ -1212,6 +1233,15 @@ function solveFill(
         for (let i = 0; i < pref.length; i++) candidates[i] = pref[i];
         for (let i = 0; i < rest.length; i++) candidates[pref.length + i] = rest[i];
       }
+    }
+
+    // Float words that carry a needed hidden-word letter to the front so they
+    // fall within the tried window below (order within each group stays random).
+    if (biasArr.length > 0) {
+      const front: string[] = [];
+      const back: string[] = [];
+      for (const w of candidates) (hasBiasLetter(w) ? front : back).push(w);
+      if (front.length > 0) candidates = front.concat(back);
     }
 
     // Try more candidates when custom words are involved
@@ -1299,6 +1329,42 @@ function pickClue(
 }
 
 // ---------------------------------------------------------------------------
+// Hidden word ("mot caché") support
+// ---------------------------------------------------------------------------
+
+/** Multiset of A-Z letters needed to spell out the hidden word. */
+function hiddenLetterCounts(word: string): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const ch of word.toUpperCase().replace(/[^A-Z]/g, "")) {
+    counts.set(ch, (counts.get(ch) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * Do the grid's filled letters cover the required multiset — i.e. can the
+ * hidden word be spelled with one distinct cell per letter? This is exactly the
+ * precondition `findHiddenWordCells` (client-side highlighter) needs to succeed.
+ */
+function gridCoversLetters(grid: Grid, required: Map<string, number>): boolean {
+  if (required.size === 0) return true;
+  const have = new Map<string, number>();
+  for (let y = 0; y < grid.height; y++) {
+    for (let x = 0; x < grid.width; x++) {
+      const cell = grid.cells[y][x];
+      if (cell.kind === "white" && cell.letter) {
+        const ch = cell.letter.toUpperCase();
+        have.set(ch, (have.get(ch) ?? 0) + 1);
+      }
+    }
+  }
+  for (const [ch, n] of required) {
+    if ((have.get(ch) ?? 0) < n) return false;
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Main generator
 // ---------------------------------------------------------------------------
 
@@ -1345,6 +1411,18 @@ export function generateFlecheVector(
   }
 
   const dictStats = buildDictStats(wordList);
+
+  // Hidden word: try to guarantee the grid can spell it out. Common letters
+  // show up on their own, so we only steer the fill toward the *hard* letters
+  // it needs; the rest is handled by rejecting grids that don't cover the word.
+  const hiddenCounts = hiddenLetterCounts(params.hiddenWord ?? "");
+  const hasHidden = hiddenCounts.size > 0;
+  const HARD_LETTERS = new Set("JKQWXYZ".split(""));
+  const biasLetters = hasHidden
+    ? new Set([...hiddenCounts.keys()].filter((c) => HARD_LETTERS.has(c)))
+    : new Set<string>();
+  // First valid-but-non-covering grid, returned only if we never find a covering one.
+  let hiddenFallback: VectorGenResult | null = null;
 
   const hasCustom = customClues.length > 0;
   const customCount = customClues.length;
@@ -1451,7 +1529,7 @@ export function generateFlecheVector(
     if (!acDomains) continue;
 
     // Solve with pre-seeded custom words locked in, seeded with the pruned domains
-    const assignment = solveFill(slots, crossings, wordList, clueDb, MAX_BACKTRACKS, SOLVE_TIME_MS, customAssignment, acDomains, preferWords);
+    const assignment = solveFill(slots, crossings, wordList, clueDb, MAX_BACKTRACKS, SOLVE_TIME_MS, customAssignment, acDomains, biasLetters.size > 0 ? biasLetters : undefined, preferWords);
 
     if (!assignment) continue;
 
@@ -1526,14 +1604,26 @@ export function generateFlecheVector(
     }
     if (!allBluesFilled) continue; // empty clue box, try another layout
 
-    return {
+    const coversHidden = !hasHidden || gridCoversLetters(grid, hiddenCounts);
+    const result: VectorGenResult = {
       success: true,
       grid,
       slots,
       words,
       attempts: attempt,
+      hiddenWordSatisfied: coversHidden,
     };
+    if (coversHidden) return result;
+
+    // Valid grid, but its letters can't spell the hidden word. Keep the first
+    // such grid as a fallback and keep hunting (within the time budget) for one
+    // that covers it — better a grid that misses the mot caché than no grid.
+    if (!hiddenFallback) hiddenFallback = result;
   }
+
+  // Budget exhausted with a hidden word we couldn't fully satisfy: ship the best
+  // valid grid we found rather than failing outright.
+  if (hiddenFallback) return hiddenFallback;
 
   // All attempts failed — best effort
   const grid = createSkeletonGrid(width, height);

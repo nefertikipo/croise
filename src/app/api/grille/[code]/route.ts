@@ -36,6 +36,7 @@ export async function GET(
       title: grid.title,
       width: grid.width,
       height: grid.height,
+      hiddenWord: grid.hiddenWord ?? undefined,
       cells,
       words: words.map((w) => ({
         answer: w.answer,

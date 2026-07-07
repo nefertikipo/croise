@@ -9,6 +9,7 @@ export const crosswords = pgTable("crosswords", {
   height: integer("height").notNull(),
   gridPattern: text("grid_pattern").notNull(),
   gridSolution: text("grid_solution").notNull(),
+  hiddenWord: text("hidden_word"),
   status: text("status").notNull().default("generating"),
   difficulty: integer("difficulty"),
   theme: text("theme"),

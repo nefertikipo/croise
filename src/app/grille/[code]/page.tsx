@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
+import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
 
 interface ClueInCell {
   text: string;
@@ -27,6 +28,7 @@ interface GridData {
   title: string | null;
   width: number;
   height: number;
+  hiddenWord?: string;
   cells: FlecheCell[][];
   words: { answer: string; clue: string; direction: string; isCustom: boolean; startRow: number; startCol: number; length: number }[];
 }
@@ -62,6 +64,12 @@ export default function GrillePage() {
   useEffect(() => {
     loadGrid();
   }, [loadGrid]);
+
+  const cleanHidden = normalizeHiddenWord(grid?.hiddenWord ?? "");
+  const hiddenCells = useMemo(() => {
+    if (!grid || cleanHidden.length < 2) return new Map<string, number>();
+    return findHiddenWordCells(grid, cleanHidden);
+  }, [grid, cleanHidden]);
 
   async function updateTitle() {
     if (!grid || title === (grid.title || "")) return;
@@ -136,6 +144,7 @@ export default function GrillePage() {
               height={grid.height}
               showSolution={showSolution}
               interactive={!showSolution}
+              highlightedCells={hiddenCells}
             />
           </div>
           <div className="hidden print:block print:break-before-page">
@@ -149,6 +158,20 @@ export default function GrillePage() {
             </div>
           </div>
         </div>
+
+        {hiddenCells.size > 0 && (
+          <div className="flex items-center gap-1">
+            <span className="mr-2 text-sm font-medium">Mot caché :</span>
+            {Array.from({ length: hiddenCells.size }, (_, i) => (
+              <div
+                key={i}
+                className="flex h-8 w-8 items-center justify-center border-2 border-primary text-xs text-muted-foreground"
+              >
+                {showSolution ? cleanHidden[i] : i + 1}
+              </div>
+            ))}
+          </div>
+        )}
 
         <p className="text-sm text-muted-foreground">
           {grid.words.length} mots

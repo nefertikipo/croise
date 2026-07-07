@@ -12,6 +12,25 @@ export function normalizeHiddenWord(word: string): string {
 }
 
 /**
+ * Which of the hidden word's distinct letters don't appear anywhere in the
+ * grid. If this is empty the word can (at least letter-wise) be spelled out.
+ * Used to give the user a concrete reason when a hidden word can't be placed.
+ */
+export function missingHiddenLetters(grid: GridShape, word: string): string[] {
+  const target = normalizeHiddenWord(word);
+  if (!target) return [];
+  const present = new Set<string>();
+  for (const row of grid.cells) {
+    for (const cell of row) {
+      if (cell.type === "letter" && cell.letter) {
+        present.add(cell.letter.toUpperCase());
+      }
+    }
+  }
+  return [...new Set([...target])].filter((ch) => !present.has(ch));
+}
+
+/**
  * Find letter cells that spell out a hidden word, one cell per letter, spread
  * across the grid. Returns a map of "row,col" -> 1-indexed position, or an empty
  * map if the word cannot be formed. Deterministic (greedy max-spread), so it can
