@@ -1041,6 +1041,7 @@ function solveFill(
   timeLimitMs: number = 5000,
   preAssigned: Map<number, string> = new Map(),
   acDomains: Map<number, string[]> | null = null,
+  preferWords?: Set<string>,
 ): Map<number, string> | null {
   const n = slots.length;
   if (n === 0) return new Map();
@@ -1200,6 +1201,19 @@ function solveFill(
       }
     }
 
+    // Float words that have a clue at the grid's target difficulty to the front
+    // (stable over the shuffle), so the fill picks them first and pickClue rarely
+    // has to fall back to the wrong level. Rest stay reachable on backtrack.
+    if (preferWords && preferWords.size > 0) {
+      const pref: string[] = [];
+      const rest: string[] = [];
+      for (const w of candidates) (preferWords.has(w) ? pref : rest).push(w);
+      if (pref.length > 0 && rest.length > 0) {
+        for (let i = 0; i < pref.length; i++) candidates[i] = pref[i];
+        for (let i = 0; i < rest.length; i++) candidates[pref.length + i] = rest[i];
+      }
+    }
+
     // Try more candidates when custom words are involved
     const limit = Math.min(candidates.length, preAssigned.size > 0 ? 80 : 40);
 
@@ -1263,11 +1277,18 @@ function pickClue(
   const short = pool.filter((c) => c.length <= 40);
   let pick = short.length > 0 ? short : pool;
 
-  // Difficulty targeting. facile/moyen/difficile → aim for that level and keep
-  // the clues closest to it; "balanced" leaves the natural mix. Key must match
+  // Difficulty targeting: keep the clues closest to a target level.
+  // facile/moyen/difficile use a fixed target; "balanced" draws a per-clue
+  // target from a lean-easy 50/35/15 facile/moyen/difficile mix. Key must match
   // clueDiffKey() in load-french-clues.ts.
-  if (clueDifficulty && mode !== "balanced") {
-    const target = mode === "facile" ? 1 : mode === "difficile" ? 3 : 2;
+  if (clueDifficulty) {
+    let target: number;
+    if (mode === "facile") target = 1;
+    else if (mode === "difficile") target = 3;
+    else if (mode === "moyen") target = 2;
+    // Over-weighted toward facile to offset words that lack an easy clue and
+    // fall back to moyen; realizes ~50/35/15 facile/moyen/difficile in grids.
+    else { const r = Math.random(); target = r < 0.66 ? 1 : r < 0.85 ? 2 : 3; }
     const dist = (c: string) =>
       Math.abs((clueDifficulty.get(word.toUpperCase() + "\u0001" + c) ?? 2) - target);
     const best = Math.min(...pick.map(dist));
@@ -1299,6 +1320,27 @@ export function generateFlecheVector(
     wordList.addWord(answer, 100);
     if (!clueDb.has(answer)) {
       clueDb.set(answer, [custom.clue]);
+    }
+  }
+
+  // For a fixed-difficulty grid, precompute which words actually HAVE a clue at
+  // the target level, so the fill prefers them and pickClue rarely falls back to
+  // the wrong level. Purer difficulty at the cost of some generation speed.
+  // Balanced grids (mixed target) skip this.
+  const gridTarget =
+    params.difficulty === "facile" ? 1 :
+    params.difficulty === "moyen" ? 2 :
+    params.difficulty === "difficile" ? 3 : 0;
+  let preferWords: Set<string> | undefined;
+  if (gridTarget && clueDifficulty && clueDifficulty.size > 0) {
+    preferWords = new Set<string>();
+    for (const [w, clues] of clueDb) {
+      for (const c of clues) {
+        if (clueDifficulty.get(w.toUpperCase() + "\u0001" + c) === gridTarget) {
+          preferWords.add(w);
+          break;
+        }
+      }
     }
   }
 
@@ -1409,7 +1451,7 @@ export function generateFlecheVector(
     if (!acDomains) continue;
 
     // Solve with pre-seeded custom words locked in, seeded with the pruned domains
-    const assignment = solveFill(slots, crossings, wordList, clueDb, MAX_BACKTRACKS, SOLVE_TIME_MS, customAssignment, acDomains);
+    const assignment = solveFill(slots, crossings, wordList, clueDb, MAX_BACKTRACKS, SOLVE_TIME_MS, customAssignment, acDomains, preferWords);
 
     if (!assignment) continue;
 
