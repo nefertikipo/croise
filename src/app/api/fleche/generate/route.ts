@@ -19,6 +19,7 @@ const requestSchema = z.object({
     .default([]),
   excludeClues: z.array(z.string()).default([]),
   excludeAnswers: z.array(z.string()).default([]),
+  hiddenWord: z.string().optional(),
 });
 
 /**
@@ -71,6 +72,7 @@ export async function POST(request: Request) {
         width: params.width,
         height: params.height,
         customClues: params.customClues,
+        hiddenWord: params.hiddenWord,
       },
       wordList,
       clueDb,
@@ -182,6 +184,7 @@ export async function POST(request: Request) {
           height: grid.height,
           gridPattern: pattern,
           gridSolution: solution,
+          hiddenWord: params.hiddenWord?.trim() || null,
           status: "ready",
         })
         .returning({ id: crosswords.id });
@@ -210,6 +213,8 @@ export async function POST(request: Request) {
       code: gridCode,
       width: grid.width,
       height: grid.height,
+      hiddenWord: params.hiddenWord?.trim() || undefined,
+      hiddenWordSatisfied: result.hiddenWordSatisfied,
       cells,
       words: wordList2,
     });

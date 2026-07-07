@@ -1,10 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
-import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
+import { GenerationProgress } from "@/components/fleche/generation-progress";
+import { analyzeCapacity } from "@/lib/crossword/check-capacity";
+import {
+  findHiddenWordCells,
+  missingHiddenLetters,
+  normalizeHiddenWord,
+} from "@/lib/crossword/hidden-word";
 
 interface ClueInCell {
   text: string;
@@ -27,6 +33,7 @@ interface FlecheData {
   code?: string;
   width: number;
   height: number;
+  hiddenWordSatisfied?: boolean;
   cells: FlecheCell[][];
   words: { answer: string; clue: string; direction: string; isCustom: boolean }[];
 }
@@ -42,9 +49,35 @@ export default function FlechePage() {
   const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>([]);
   const [usedAnswers, setUsedAnswers] = useState<Set<string>>(new Set());
   const [hiddenWord, setHiddenWord] = useState("");
-  const [hiddenCells, setHiddenCells] = useState<Map<string, number>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Valid custom words drive both the generation estimate and the button state.
+  const validCustomCount = customClues.filter(
+    (c) => c.answer.trim().length >= 2 && c.clue.trim().length > 0,
+  ).length;
+  const estimatedMs = validCustomCount > 0 ? 45000 : 12000;
+
+  // Live feasibility flagging: warn before the user hits generate when the
+  // custom words can't fit (too long / too many) rather than after a long wait.
+  const maxDim = Math.max(gridWidth, gridHeight);
+  const capacity = analyzeCapacity(gridWidth, gridHeight, customClues);
+  const isWordTooLong = (answer: string) => {
+    const w = answer.toUpperCase().replace(/[^A-Z]/g, "");
+    return w.length >= 2 && w.length > maxDim;
+  };
+
+  // Hidden word is a post-hoc highlight over the generated grid, recomputed live
+  // as the user edits it so the strip + feedback stay in sync without a regen.
+  const cleanHiddenWord = normalizeHiddenWord(hiddenWord);
+  const hiddenCells = useMemo(() => {
+    if (!grid || cleanHiddenWord.length < 2) return new Map<string, number>();
+    return findHiddenWordCells(grid, cleanHiddenWord);
+  }, [grid, cleanHiddenWord]);
+  const hiddenMissing = useMemo(() => {
+    if (!grid || cleanHiddenWord.length < 2 || hiddenCells.size > 0) return [];
+    return missingHiddenLetters(grid, cleanHiddenWord);
+  }, [grid, cleanHiddenWord, hiddenCells]);
 
   async function generate() {
     setLoading(true);
@@ -64,6 +97,7 @@ export default function FlechePage() {
           height: gridHeight,
           customClues: validCustom,
           excludeAnswers: Array.from(usedAnswers),
+          hiddenWord: cleanHidden || undefined,
         }),
       });
       if (!res.ok) {
@@ -75,14 +109,6 @@ export default function FlechePage() {
       const data: FlecheData = await res.json();
       setGrid(data);
       setGridKey((k) => k + 1);
-
-      // Find scattered cells for hidden word
-      if (cleanHidden.length >= 2) {
-        const found = findHiddenWordCells(data, cleanHidden);
-        setHiddenCells(found);
-      } else {
-        setHiddenCells(new Map());
-      }
 
       // Track used answers so next regeneration avoids them
       // Custom words are never excluded (user wants them in every grid)
@@ -137,9 +163,9 @@ export default function FlechePage() {
           </p>
         </div>
 
-        {/* Before generation: simple start */}
-        {!grid && (
-          <div className="space-y-5 rounded-2xl border-2 border-ink bg-card p-6 shadow-[4px_4px_0_0] shadow-ink/80">
+        {/* Before generation: pick a format, add your words, generate */}
+        {!grid && !loading && (
+          <div className="space-y-6 rounded-2xl border-2 border-ink bg-card p-6 shadow-[4px_4px_0_0] shadow-ink/80">
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-sm font-medium mr-1">Format :</label>
               {[
@@ -163,69 +189,103 @@ export default function FlechePage() {
               ))}
             </div>
 
-            {/* Custom words (optional, before first generation) */}
-            {customClues.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Mots personnalises:</p>
-                {customClues.map((cc, i) => (
-                  <div key={i} className="flex items-center gap-2">
+            {/* Custom words — the headline feature, front and center */}
+            <div className="space-y-3 rounded-xl border-2 border-ink/15 bg-muted/30 p-4">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-[0.12em]">
+                  Vos mots personnalisés
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Prénoms, dates, clins d&apos;œil — ils seront placés dans la grille.
+                </p>
+              </div>
+
+              {customClues.map((cc, i) => (
+                <div key={i} className="space-y-1">
+                  <div className="flex items-center gap-2">
                     <input
-                      placeholder="Mot"
+                      placeholder="Mot (ex: SARAH)"
                       value={cc.answer}
                       onChange={(e) => {
                         const next = [...customClues];
                         next[i] = { ...next[i], answer: e.target.value };
                         setCustomClues(next);
                       }}
-                      className="border rounded px-2 py-1 text-sm w-32 uppercase font-mono"
+                      className={`w-36 rounded border-2 bg-white px-2 py-1 text-sm uppercase font-mono ${
+                        isWordTooLong(cc.answer) ? "border-destructive" : "border-ink/20"
+                      }`}
                     />
                     <input
-                      placeholder="Indice"
+                      placeholder="Indice (ex: La fille du moment!)"
                       value={cc.clue}
                       onChange={(e) => {
                         const next = [...customClues];
                         next[i] = { ...next[i], clue: e.target.value };
                         setCustomClues(next);
                       }}
-                      className="border rounded px-2 py-1 text-sm flex-1"
+                      className="flex-1 rounded border-2 border-ink/20 bg-white px-2 py-1 text-sm"
                     />
                     <button
                       onClick={() => setCustomClues(customClues.filter((_, j) => j !== i))}
                       className="text-sm text-muted-foreground hover:text-destructive"
                     >
-                      x
+                      ✕
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
+                  {isWordTooLong(cc.answer) && (
+                    <p className="text-xs text-destructive">
+                      Trop long pour une grille {gridWidth}×{gridHeight} (max {maxDim} lettres).
+                    </p>
+                  )}
+                </div>
+              ))}
 
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium whitespace-nowrap">Mot cache:</label>
+              <button
+                onClick={() => setCustomClues([...customClues, { answer: "", clue: "" }])}
+                className="rounded-lg border-2 border-ink bg-white px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0] shadow-ink/60 transition-transform hover:-translate-y-0.5"
+              >
+                + Ajouter un mot personnalisé
+              </button>
+
+              {capacity.message && (
+                <p className="text-sm font-medium text-destructive">⚠ {capacity.message}</p>
+              )}
+              {!capacity.message && capacity.tight && (
+                <p className="text-sm text-amber-600">
+                  Grille bien remplie — la génération peut être plus longue, voire
+                  échouer. Si c&apos;est le cas, agrandissez la grille ou retirez un mot.
+                </p>
+              )}
+            </div>
+
+            {/* Hidden word — a secondary, optional touch */}
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-sm font-medium whitespace-nowrap text-muted-foreground">
+                Mot caché (optionnel) :
+              </label>
               <input
                 placeholder="ex: ANNIVERSAIRE"
                 value={hiddenWord}
                 onChange={(e) => setHiddenWord(e.target.value)}
-                className="border rounded px-2 py-1 text-sm w-48 uppercase font-mono"
+                className="w-48 rounded border px-2 py-1 text-sm uppercase font-mono"
               />
             </div>
 
             <div className="flex items-center gap-3">
-              <Button onClick={generate} disabled={loading} size="lg">
-                {loading ? "Generation..." : "Generer une grille"}
-              </Button>
-              {error && (
-                <p className="text-sm text-destructive">{error}</p>
-              )}
-              <button
-                onClick={() => setCustomClues([...customClues, { answer: "", clue: "" }])}
-                className="text-sm text-muted-foreground underline"
+              <Button
+                onClick={generate}
+                disabled={loading || capacity.message !== null}
+                size="lg"
               >
-                + Ajouter un mot personnalise
-              </button>
+                Générer une grille
+              </Button>
+              {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
           </div>
         )}
+
+        {/* Generation in progress (first grid) */}
+        {!grid && loading && <GenerationProgress estimatedMs={estimatedMs} />}
 
         {/* After generation: grid + actions below */}
         {grid && (
@@ -258,16 +318,28 @@ export default function FlechePage() {
             {/* Hidden word answer boxes */}
             {hiddenCells.size > 0 && (
               <div className="flex items-center gap-1 mt-4">
-                <span className="text-sm font-medium mr-2">Mot cache:</span>
+                <span className="text-sm font-medium mr-2">Mot caché :</span>
                 {Array.from({ length: hiddenCells.size }, (_, i) => (
                   <div
                     key={i}
                     className="w-8 h-8 border-2 border-primary flex items-center justify-center text-xs text-muted-foreground"
                   >
-                    {showSolution ? normalizeHiddenWord(hiddenWord)[i] : i + 1}
+                    {showSolution ? cleanHiddenWord[i] : i + 1}
                   </div>
                 ))}
               </div>
+            )}
+            {cleanHiddenWord.length >= 2 && hiddenCells.size > 0 && (
+              <p className="mt-2 text-sm text-green-600">
+                ✓ Mot caché « {cleanHiddenWord} » intégré à la grille.
+              </p>
+            )}
+            {hiddenMissing.length > 0 && (
+              <p className="mt-2 text-sm text-destructive">
+                ⚠ Le mot caché « {cleanHiddenWord} » n&apos;a pas pu être entièrement
+                intégré — lettres absentes : {hiddenMissing.join(", ")}. Régénérez ou
+                changez de mot.
+              </p>
             )}
 
             <p className="text-sm text-muted-foreground">
@@ -310,40 +382,58 @@ export default function FlechePage() {
               <p className="text-sm font-medium">Ajouter des mots et regenerer</p>
               <div className="space-y-2">
                 {customClues.map((cc, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <input
-                      placeholder="Mot (ex: SARAH)"
-                      value={cc.answer}
-                      onChange={(e) => {
-                        const next = [...customClues];
-                        next[i] = { ...next[i], answer: e.target.value };
-                        setCustomClues(next);
-                      }}
-                      className="border rounded px-2 py-1 text-sm w-32 uppercase font-mono bg-white"
-                    />
-                    <input
-                      placeholder="Indice (ex: La fille du moment!)"
-                      value={cc.clue}
-                      onChange={(e) => {
-                        const next = [...customClues];
-                        next[i] = { ...next[i], clue: e.target.value };
-                        setCustomClues(next);
-                      }}
-                      className="border rounded px-2 py-1 text-sm flex-1 bg-white"
-                    />
-                    <button
-                      onClick={() => setCustomClues(customClues.filter((_, j) => j !== i))}
-                      className="text-sm text-muted-foreground hover:text-destructive"
-                    >
-                      x
-                    </button>
+                  <div key={i} className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <input
+                        placeholder="Mot (ex: SARAH)"
+                        value={cc.answer}
+                        onChange={(e) => {
+                          const next = [...customClues];
+                          next[i] = { ...next[i], answer: e.target.value };
+                          setCustomClues(next);
+                        }}
+                        className={`border-2 rounded px-2 py-1 text-sm w-32 uppercase font-mono bg-white ${
+                          isWordTooLong(cc.answer) ? "border-destructive" : "border-transparent"
+                        }`}
+                      />
+                      <input
+                        placeholder="Indice (ex: La fille du moment!)"
+                        value={cc.clue}
+                        onChange={(e) => {
+                          const next = [...customClues];
+                          next[i] = { ...next[i], clue: e.target.value };
+                          setCustomClues(next);
+                        }}
+                        className="border rounded px-2 py-1 text-sm flex-1 bg-white"
+                      />
+                      <button
+                        onClick={() => setCustomClues(customClues.filter((_, j) => j !== i))}
+                        className="text-sm text-muted-foreground hover:text-destructive"
+                      >
+                        x
+                      </button>
+                    </div>
+                    {isWordTooLong(cc.answer) && (
+                      <p className="text-xs text-destructive">
+                        Trop long pour une grille {gridWidth}×{gridHeight} (max {maxDim} lettres).
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
 
+              {capacity.message && (
+                <p className="text-sm font-medium text-destructive">⚠ {capacity.message}</p>
+              )}
+              {!capacity.message && capacity.tight && (
+                <p className="text-sm text-amber-600">
+                  Grille bien remplie — la génération peut être plus longue, voire échouer.
+                </p>
+              )}
+
               {/* Hidden word */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium whitespace-nowrap">Mot cache:</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="text-sm font-medium whitespace-nowrap">Mot caché :</label>
                 <input
                   placeholder="ex: ANNIVERSAIRE"
                   value={hiddenWord}
@@ -352,12 +442,14 @@ export default function FlechePage() {
                 />
                 {hiddenCells.size > 0 && (
                   <span className="text-xs text-green-600">
-                    {hiddenCells.size} lettres dans la grille
+                    ✓ {hiddenCells.size} lettres réparties dans la grille
                   </span>
                 )}
-                <span className="text-xs text-muted-foreground">
-                  (integre a la prochaine generation)
-                </span>
+                {hiddenMissing.length > 0 && (
+                  <span className="text-xs text-destructive">
+                    ⚠ lettres absentes : {hiddenMissing.join(", ")} — régénérez
+                  </span>
+                )}
               </div>
 
               {/* Reset excluded answers */}
@@ -380,10 +472,14 @@ export default function FlechePage() {
                 >
                   + Ajouter un mot
                 </button>
-                <Button onClick={generate} disabled={loading}>
-                  {loading ? "Generation..." : "Regenerer"}
+                <Button onClick={generate} disabled={loading || capacity.message !== null}>
+                  Régénérer
                 </Button>
               </div>
+
+              {loading && <GenerationProgress estimatedMs={estimatedMs} />}
+
+              {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
           </>
         )}
