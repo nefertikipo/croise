@@ -363,19 +363,22 @@ export function FlecheGrid({
                   const isPlaceholder = cl.text === cl.answer;
                   const isCustomClue = cl.isCustom;
 
-                  // Shrink the type for long clues so they fit instead of truncating.
-                  const longThreshold = hasTwo ? 24 : 42;
-                  const veryLongThreshold = hasTwo ? 34 : 60;
+                  // Shrink the type for long clues so they fit instead of
+                  // truncating. Thresholds/sizes are tuned for the condensed
+                  // clue font (Oswald), which packs ~30% more per line than a
+                  // regular sans, so we can run larger than with Inter.
+                  const longThreshold = hasTwo ? 30 : 52;
+                  const veryLongThreshold = hasTwo ? 44 : 74;
                   const fontSize =
                     cl.text.length > veryLongThreshold
-                      ? (hasTwo ? 5.5 : 7)
+                      ? (hasTwo ? 7 : 8.5)
                       : cl.text.length > longThreshold
-                        ? (hasTwo ? 6 : 8)
-                        : (hasTwo ? 7 : 9);
+                        ? (hasTwo ? 8 : 10)
+                        : (hasTwo ? 9.5 : 12);
                   // Max lines that fit in the available height
                   const cellHalf = hasTwo ? CELL_SIZE / 2 : CELL_SIZE;
-                  const lineHeight = fontSize * 1.15;
-                  const maxLines = Math.floor((cellHalf - 4) / lineHeight);
+                  const lineHeight = fontSize * 1.05;
+                  const maxLines = Math.floor((cellHalf - 3) / lineHeight);
 
                   return (
                     <div
@@ -397,6 +400,7 @@ export function FlecheGrid({
                           isPlaceholder ? "italic opacity-40" : "",
                         )}
                         style={{
+                          fontFamily: "var(--font-condensed), var(--font-sans), sans-serif",
                           fontSize: `${fontSize}px`,
                           lineHeight: `${lineHeight}px`,
                           display: "-webkit-box",
@@ -404,7 +408,9 @@ export function FlecheGrid({
                           WebkitBoxOrient: "vertical",
                           overflow: "hidden",
                           wordBreak: "break-word",
-                          paddingRight: 10,
+                          // Arrows now live outside the cell, so only a hair of
+                          // right padding is needed to keep text off the border.
+                          paddingRight: 3,
                         }}
                       >
                         {cl.text}
