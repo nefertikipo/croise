@@ -65,6 +65,9 @@ interface Crossing {
   posB: number; // position in slot B's word
 }
 
+/** Target difficulty for clue selection. "balanced" keeps the natural mix. */
+export type DifficultyMode = "facile" | "moyen" | "difficile" | "balanced";
+
 /** Generation parameters */
 export interface VectorGenParams {
   width: number;
@@ -76,6 +79,8 @@ export interface VectorGenParams {
    * `hiddenWordSatisfied` on the result.
    */
   hiddenWord?: string;
+  /** Which clue to pick per word when multiple exist. Default "balanced". */
+  difficulty?: DifficultyMode;
 }
 
 /** Generation result */
@@ -1049,6 +1054,7 @@ function solveFill(
   preAssigned: Map<number, string> = new Map(),
   acDomains: Map<number, string[]> | null = null,
   biasLetters?: Set<string>,
+  preferWords?: Set<string>,
 ): Map<number, string> | null {
   const n = slots.length;
   if (n === 0) return new Map();
@@ -1195,10 +1201,38 @@ function solveFill(
     let candidates = pruneDomain(slotId).slice();
     if (candidates.length === 0) return false;
 
-    // Shuffle candidates for variety
-    for (let i = candidates.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    // Order candidates for variety. `bias` (0 = uniform shuffle, higher = stronger
+    // pull toward familiar words) is a DIFFICULTY KNOB, not a maximizer: easy
+    // grids want a strong bias (recognizable vocab), hard grids a gentle/zero one
+    // so some less-familiar words mix in — difficulty also comes from clue choice.
+    // Weighted shuffle uses Efraimidis–Spirakis so rare words stay reachable on
+    // backtrack (keeps grids solvable). A high bias slows generation.
+    const bias = Number(process.env.FAMILIARITY_BIAS ?? 0);
+    if (bias > 0) {
+      const keyed = candidates.map((w) => ({
+        w,
+        k: Math.pow(Math.random(), 1 / (wordList.getScore(w) * bias + 1)),
+      }));
+      keyed.sort((a, b) => b.k - a.k);
+      for (let i = 0; i < candidates.length; i++) candidates[i] = keyed[i].w;
+    } else {
+      for (let i = candidates.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+      }
+    }
+
+    // Float words that have a clue at the grid's target difficulty to the front
+    // (stable over the shuffle), so the fill picks them first and pickClue rarely
+    // has to fall back to the wrong level. Rest stay reachable on backtrack.
+    if (preferWords && preferWords.size > 0) {
+      const pref: string[] = [];
+      const rest: string[] = [];
+      for (const w of candidates) (preferWords.has(w) ? pref : rest).push(w);
+      if (pref.length > 0 && rest.length > 0) {
+        for (let i = 0; i < pref.length; i++) candidates[i] = pref[i];
+        for (let i = 0; i < rest.length; i++) candidates[pref.length + i] = rest[i];
+      }
     }
 
     // Float words that carry a needed hidden-word letter to the front so they
@@ -1257,6 +1291,8 @@ function solveFill(
 function pickClue(
   word: string,
   clueDb: Map<string, string[]>,
+  clueDifficulty?: Map<string, number>,
+  mode: DifficultyMode = "balanced",
 ): string {
   const clues = clueDb.get(word.toUpperCase());
   if (!clues || clues.length === 0) return "?";
@@ -1267,9 +1303,28 @@ function pickClue(
   );
   const pool = filtered.length > 0 ? filtered : clues;
 
-  // Prefer short clues
+  // Prefer short clues (fit the potence clue frame)
   const short = pool.filter((c) => c.length <= 40);
-  const pick = short.length > 0 ? short : pool;
+  let pick = short.length > 0 ? short : pool;
+
+  // Difficulty targeting: keep the clues closest to a target level.
+  // facile/moyen/difficile use a fixed target; "balanced" draws a per-clue
+  // target from a lean-easy 50/35/15 facile/moyen/difficile mix. Key must match
+  // clueDiffKey() in load-french-clues.ts.
+  if (clueDifficulty) {
+    let target: number;
+    if (mode === "facile") target = 1;
+    else if (mode === "difficile") target = 3;
+    else if (mode === "moyen") target = 2;
+    // Over-weighted toward facile to offset words that lack an easy clue and
+    // fall back to moyen; realizes ~50/35/15 facile/moyen/difficile in grids.
+    else { const r = Math.random(); target = r < 0.66 ? 1 : r < 0.85 ? 2 : 3; }
+    const dist = (c: string) =>
+      Math.abs((clueDifficulty.get(word.toUpperCase() + "\u0001" + c) ?? 2) - target);
+    const best = Math.min(...pick.map(dist));
+    const atTarget = pick.filter((c) => dist(c) === best);
+    if (atTarget.length > 0) pick = atTarget;
+  }
   return pick[Math.floor(Math.random() * pick.length)];
 }
 
@@ -1317,6 +1372,7 @@ export function generateFlecheVector(
   params: VectorGenParams,
   wordList: WordList,
   clueDb: Map<string, string[]>,
+  clueDifficulty?: Map<string, number>,
 ): VectorGenResult {
   const { width, height } = params;
   const customClues = (params.customClues ?? []).filter(
@@ -1330,6 +1386,27 @@ export function generateFlecheVector(
     wordList.addWord(answer, 100);
     if (!clueDb.has(answer)) {
       clueDb.set(answer, [custom.clue]);
+    }
+  }
+
+  // For a fixed-difficulty grid, precompute which words actually HAVE a clue at
+  // the target level, so the fill prefers them and pickClue rarely falls back to
+  // the wrong level. Purer difficulty at the cost of some generation speed.
+  // Balanced grids (mixed target) skip this.
+  const gridTarget =
+    params.difficulty === "facile" ? 1 :
+    params.difficulty === "moyen" ? 2 :
+    params.difficulty === "difficile" ? 3 : 0;
+  let preferWords: Set<string> | undefined;
+  if (gridTarget && clueDifficulty && clueDifficulty.size > 0) {
+    preferWords = new Set<string>();
+    for (const [w, clues] of clueDb) {
+      for (const c of clues) {
+        if (clueDifficulty.get(w.toUpperCase() + "\u0001" + c) === gridTarget) {
+          preferWords.add(w);
+          break;
+        }
+      }
     }
   }
 
@@ -1452,7 +1529,7 @@ export function generateFlecheVector(
     if (!acDomains) continue;
 
     // Solve with pre-seeded custom words locked in, seeded with the pruned domains
-    const assignment = solveFill(slots, crossings, wordList, clueDb, MAX_BACKTRACKS, SOLVE_TIME_MS, customAssignment, acDomains, biasLetters.size > 0 ? biasLetters : undefined);
+    const assignment = solveFill(slots, crossings, wordList, clueDb, MAX_BACKTRACKS, SOLVE_TIME_MS, customAssignment, acDomains, biasLetters.size > 0 ? biasLetters : undefined, preferWords);
 
     if (!assignment) continue;
 
@@ -1477,8 +1554,8 @@ export function generateFlecheVector(
       const clueText = isCustom
         ? customClues.find(
             (c) => c.answer.toUpperCase().replace(/[^A-Z]/g, "") === word,
-          )?.clue ?? pickClue(word, clueDb)
-        : pickClue(word, clueDb);
+          )?.clue ?? pickClue(word, clueDb, clueDifficulty, params.difficulty)
+        : pickClue(word, clueDb, clueDifficulty, params.difficulty);
 
       // Write clue text into the blue cell
       const blueCell = grid.cells[slot.clueOrigin.y][slot.clueOrigin.x];

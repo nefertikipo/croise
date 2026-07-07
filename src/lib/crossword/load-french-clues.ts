@@ -4,6 +4,14 @@ import { WordList } from "@/lib/crossword/word-list";
 
 let cachedWl: WordList | null = null;
 let cachedClueDb: Map<string, string[]> | null = null;
+// Difficulty (1/2/3) per clue, keyed by `WORDclueText`. Parallel to
+// clueDb so the constraint/existence logic keeps working on plain string[].
+let cachedClueDifficulty: Map<string, number> | null = null;
+
+/** Key for the clue-difficulty map. */
+export function clueDiffKey(word: string, clue: string): string {
+  return word.toUpperCase() + "\u0001" + clue;
+}
 
 function normalize(word: string): string {
   return word
@@ -19,41 +27,55 @@ function normalize(word: string): string {
 async function loadFromDatabase(): Promise<{
   wl: WordList;
   clueDb: Map<string, string[]>;
+  clueDifficulty: Map<string, number>;
 }> {
   const { neon } = await import("@neondatabase/serverless");
   const sql = neon(process.env.DATABASE_URL!);
 
   const wl = new WordList();
   const clueDb = new Map<string, string[]>();
+  const clueDifficulty = new Map<string, number>();
 
   // Load all words + clues in one query
   const rows = await sql`
-    SELECT w.word, c.clue
+    SELECT w.word, w.familiarity, c.clue, c.difficulty
     FROM words w
     JOIN clues c ON c.word_id = w.id
     WHERE w.language = 'fr'
     AND w.active = true
+    AND c.bad_clue = false
     AND LENGTH(w.word) BETWEEN 2 AND 15
   `;
 
   for (const row of rows) {
     const word = row.word as string;
     const clue = row.clue as string;
-    wl.addWord(word, 85);
+    // Use corpus familiarity (0–~7.4) as the word score so generation can
+    // prefer recognizable fill over obscure crosswordese. addWord dedupes, so
+    // the first row's familiarity wins (it is constant per word).
+    const familiarity = (row.familiarity as number | null) ?? 0;
+    wl.addWord(word, familiarity);
     if (!clueDb.has(word)) clueDb.set(word, []);
     clueDb.get(word)!.push(clue);
+    // Difficulty per clue (unlabeled → medium). Parallel to clueDb.
+    clueDifficulty.set(clueDiffKey(word, clue), (row.difficulty as number | null) ?? 2);
   }
 
   console.log(`Database: ${clueDb.size} words, ${rows.length} clue pairs`);
-  return { wl, clueDb };
+  return { wl, clueDb, clueDifficulty };
 }
 
 /**
  * Load from local TSV files (development).
  */
-function loadFromFiles(): { wl: WordList; clueDb: Map<string, string[]> } {
+function loadFromFiles(): {
+  wl: WordList;
+  clueDb: Map<string, string[]>;
+  clueDifficulty: Map<string, number>;
+} {
   const wl = new WordList();
   const clueDb = new Map<string, string[]>();
+  const clueDifficulty = new Map<string, number>(); // TSVs carry no difficulty
   const seen = new Set<string>();
 
   function loadTsvFile(filePath: string, score: number, label: string) {
@@ -95,7 +117,7 @@ function loadFromFiles(): { wl: WordList; clueDb: Map<string, string[]> } {
   loadTsvFile(join(process.cwd(), "data", "french-clues-fsolver.tsv"), 85, "fsolver.fr");
 
   console.log(`TSV files: ${clueDb.size} words with clues`);
-  return { wl, clueDb };
+  return { wl, clueDb, clueDifficulty };
 }
 
 function addBuiltinWords(wl: WordList, clueDb: Map<string, string[]>) {
@@ -151,15 +173,17 @@ async function load() {
 
   let wl: WordList;
   let clueDb: Map<string, string[]>;
+  let clueDifficulty: Map<string, number>;
 
   if (hasLocalFiles) {
-    ({ wl, clueDb } = loadFromFiles());
+    ({ wl, clueDb, clueDifficulty } = loadFromFiles());
   } else if (process.env.DATABASE_URL) {
-    ({ wl, clueDb } = await loadFromDatabase());
+    ({ wl, clueDb, clueDifficulty } = await loadFromDatabase());
   } else {
     console.warn("No clue data source available (no TSV files, no DATABASE_URL)");
     wl = new WordList();
     clueDb = new Map();
+    clueDifficulty = new Map();
   }
 
   addBuiltinWords(wl, clueDb);
@@ -167,6 +191,7 @@ async function load() {
 
   cachedWl = wl;
   cachedClueDb = clueDb;
+  cachedClueDifficulty = clueDifficulty;
 }
 
 export function getFrenchWordList(): WordList {
@@ -176,10 +201,11 @@ export function getFrenchWordList(): WordList {
     const hasLocalFiles = existsSync(join(process.cwd(), "data", "french-clues-deduped.tsv"))
       || existsSync(join(process.cwd(), "data", "french-clues-dicomots.tsv"));
     if (hasLocalFiles) {
-      const { wl, clueDb } = loadFromFiles();
+      const { wl, clueDb, clueDifficulty } = loadFromFiles();
       addBuiltinWords(wl, clueDb);
       cachedWl = wl;
       cachedClueDb = clueDb;
+      cachedClueDifficulty = clueDifficulty;
     }
   }
   return cachedWl!;
@@ -190,6 +216,14 @@ export function getFrenchClueDb(): Map<string, string[]> {
     getFrenchWordList(); // triggers sync load
   }
   return cachedClueDb!;
+}
+
+/** Difficulty (1/2/3) per clue, keyed by clueDiffKey(word, clue). */
+export function getFrenchClueDifficulty(): Map<string, number> {
+  if (!cachedClueDifficulty) {
+    getFrenchWordList(); // triggers sync load
+  }
+  return cachedClueDifficulty ?? new Map();
 }
 
 /**

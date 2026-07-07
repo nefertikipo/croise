@@ -1,8 +1,8 @@
 import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
-import { generateFlecheVector } from "@/lib/crossword/fleche-vector-gen";
-import { getFrenchWordList, getFrenchClueDb, ensureLoaded } from "@/lib/crossword/load-french-clues";
+import { generateFlecheVector, type DifficultyMode } from "@/lib/crossword/fleche-vector-gen";
+import { getFrenchWordList, getFrenchClueDb, getFrenchClueDifficulty, ensureLoaded } from "@/lib/crossword/load-french-clues";
 import { generateCrosswordCode } from "@/lib/code";
 
 interface CustomClue {
@@ -17,6 +17,8 @@ interface GenerateGridInput {
   customClues: CustomClue[];
   /** Clue texts already used elsewhere in the book, to avoid repeats. */
   usedClues: Set<string>;
+  /** Target clue difficulty. Default "balanced". */
+  difficulty?: DifficultyMode;
 }
 
 interface GenerateGridResult {
@@ -35,6 +37,7 @@ export async function generateAndSaveGrid(
   await ensureLoaded();
   const wordList = getFrenchWordList();
   const rawClueDb = getFrenchClueDb();
+  const clueDifficulty = getFrenchClueDifficulty();
 
   let clueDb = rawClueDb;
   if (input.usedClues.size > 0) {
@@ -46,9 +49,15 @@ export async function generateAndSaveGrid(
   }
 
   const result = generateFlecheVector(
-    { width: input.width, height: input.height, customClues: input.customClues },
+    {
+      width: input.width,
+      height: input.height,
+      customClues: input.customClues,
+      difficulty: input.difficulty,
+    },
     wordList,
     clueDb,
+    clueDifficulty,
   );
   if (!result.success) return null;
 
