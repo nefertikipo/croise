@@ -1,7 +1,120 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import { cn } from "@/lib/utils";
+
+// useLayoutEffect warns during SSR; fall back to useEffect on the server.
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+/**
+ * Renders `text` at the largest font size (between `min` and `max`) that fits
+ * its box without overflowing — measure-and-shrink, so a long clue is never
+ * truncated, it just uses smaller type. Falls back to `min` (with the box
+ * clipping) only when even the smallest size overflows.
+ */
+function FitText({
+  text,
+  max,
+  min,
+  lineRatio,
+  italic,
+}: {
+  text: string;
+  max: number;
+  min: number;
+  lineRatio: number;
+  italic?: boolean;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const spanRef = useRef<HTMLSpanElement>(null);
+  const [size, setSize] = useState(max);
+
+  useIsomorphicLayoutEffect(() => {
+    const box = boxRef.current;
+    const span = spanRef.current;
+    if (!box || !span) return;
+    let cancelled = false;
+
+    const measure = () => {
+      if (cancelled) return;
+      const maxH = box.clientHeight;
+      const maxW = box.clientWidth;
+      if (maxH <= 0 || maxW <= 0) return;
+
+      const fits = (f: number) => {
+        span.style.fontSize = `${f}px`;
+        span.style.lineHeight = `${f * lineRatio}px`;
+        return span.scrollHeight <= maxH + 0.5 && span.scrollWidth <= maxW + 0.5;
+      };
+
+      let best = min;
+      if (fits(max)) {
+        best = max; // common case: short clue, no shrinking needed
+      } else {
+        let lo = min;
+        let hi = max;
+        for (let i = 0; i < 18 && hi - lo > 0.25; i++) {
+          const mid = (lo + hi) / 2;
+          if (fits(mid)) {
+            best = mid;
+            lo = mid;
+          } else {
+            hi = mid;
+          }
+        }
+      }
+      // Apply directly (so it's correct even when `best` equals the current
+      // state and setSize would otherwise bail) and sync React state.
+      span.style.fontSize = `${best}px`;
+      span.style.lineHeight = `${best * lineRatio}px`;
+      setSize(best);
+    };
+
+    measure();
+    // The condensed webfont loads asynchronously; the first measure may use a
+    // fallback that wraps differently. Re-measure once fonts are ready.
+    const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+    if (fonts?.ready) fonts.ready.then(() => measure());
+
+    return () => {
+      cancelled = true;
+    };
+  }, [text, max, min, lineRatio]);
+
+  return (
+    // Absolute-fill the (relatively-positioned) band with explicit insets so the
+    // box has a definite height to measure against — a percentage height would
+    // collapse to one line and clip the text.
+    <div
+      ref={boxRef}
+      className="absolute overflow-hidden"
+      style={{ top: 2, left: 4, right: 3, bottom: 2 }}
+    >
+      <span
+        ref={spanRef}
+        className={cn(
+          "block uppercase break-words hyphens-auto",
+          italic && "italic opacity-40",
+        )}
+        style={{
+          fontFamily: "var(--font-condensed), var(--font-sans), sans-serif",
+          fontSize: `${size}px`,
+          lineHeight: `${size * lineRatio}px`,
+          wordBreak: "break-word",
+        }}
+      >
+        {text}
+      </span>
+    </div>
+  );
+}
 
 interface ClueInCell {
   text: string;
@@ -359,65 +472,24 @@ export function FlecheGrid({
                   </div>
                 )}
 
-                {clueTexts.map((cl, i) => {
-                  const isPlaceholder = cl.text === cl.answer;
-                  const isCustomClue = cl.isCustom;
-
-                  // Shrink the type for long clues so they fit instead of
-                  // truncating. Thresholds/sizes are tuned for the condensed
-                  // clue font (Oswald), which packs ~30% more per line than a
-                  // regular sans, so we can run larger than with Inter.
-                  const longThreshold = hasTwo ? 30 : 52;
-                  const veryLongThreshold = hasTwo ? 44 : 74;
-                  const fontSize =
-                    cl.text.length > veryLongThreshold
-                      ? (hasTwo ? 7 : 8.5)
-                      : cl.text.length > longThreshold
-                        ? (hasTwo ? 8 : 10)
-                        : (hasTwo ? 9.5 : 12);
-                  // Max lines that fit in the available height
-                  const cellHalf = hasTwo ? CELL_SIZE / 2 : CELL_SIZE;
-                  const lineHeight = fontSize * 1.05;
-                  const maxLines = Math.floor((cellHalf - 3) / lineHeight);
-
-                  return (
-                    <div
-                      key={i}
-                      className={cn(
-                        "relative flex items-start gap-0.5 px-1 w-full",
-                        hasTwo ? "flex-1" : "flex-1",
-                      )}
-                      style={{
-                        paddingTop: 2,
-                        paddingBottom: 1,
-                        backgroundColor: isCustomClue ? CUSTOM_BG : undefined,
-                      }}
-                      title={cl.text}
-                    >
-                      <span
-                        className={cn(
-                          "flex-1 uppercase break-words hyphens-auto",
-                          isPlaceholder ? "italic opacity-40" : "",
-                        )}
-                        style={{
-                          fontFamily: "var(--font-condensed), var(--font-sans), sans-serif",
-                          fontSize: `${fontSize}px`,
-                          lineHeight: `${lineHeight}px`,
-                          display: "-webkit-box",
-                          WebkitLineClamp: maxLines,
-                          WebkitBoxOrient: "vertical",
-                          overflow: "hidden",
-                          wordBreak: "break-word",
-                          // Arrows now live outside the cell, so only a hair of
-                          // right padding is needed to keep text off the border.
-                          paddingRight: 3,
-                        }}
-                      >
-                        {cl.text}
-                      </span>
-                    </div>
-                  );
-                })}
+                {clueTexts.map((cl, i) => (
+                  <div
+                    key={i}
+                    className="relative flex-1 overflow-hidden"
+                    style={{
+                      backgroundColor: cl.isCustom ? CUSTOM_BG : undefined,
+                    }}
+                    title={cl.text}
+                  >
+                    <FitText
+                      text={cl.text}
+                      max={hasTwo ? 10 : 13}
+                      min={5}
+                      lineRatio={1.05}
+                      italic={cl.text === cl.answer}
+                    />
+                  </div>
+                ))}
               </div>
             );
           }
