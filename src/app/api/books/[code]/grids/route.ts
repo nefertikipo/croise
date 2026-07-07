@@ -6,7 +6,7 @@ import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
 import { eq, asc } from "drizzle-orm";
 import { generateFlecheVector } from "@/lib/crossword/fleche-vector-gen";
-import { getFrenchWordList, getFrenchClueDb, ensureLoaded } from "@/lib/crossword/load-french-clues";
+import { getFrenchWordList, getFrenchClueDb, getFrenchClueDifficulty, ensureLoaded } from "@/lib/crossword/load-french-clues";
 import { generateCrosswordCode } from "@/lib/code";
 import type { Coord } from "@/lib/crossword/fleche-math";
 
@@ -18,6 +18,7 @@ const requestSchema = z.object({
   customClues: z
     .array(z.object({ answer: z.string(), clue: z.string() }))
     .default([]),
+  difficulty: z.enum(["facile", "moyen", "difficile", "balanced"]).optional(),
 });
 
 function flowToDirection(flow: Coord): "right" | "down" {
@@ -65,6 +66,7 @@ export async function POST(
     await ensureLoaded();
     const wordList = getFrenchWordList();
     const rawClueDb = getFrenchClueDb();
+    const clueDifficulty = getFrenchClueDifficulty();
 
     let clueDb = rawClueDb;
     if (usedClues.size > 0) {
@@ -83,9 +85,11 @@ export async function POST(
         width: gridParams.width,
         height: gridParams.height,
         customClues: gridParams.customClues,
+        difficulty: gridParams.difficulty,
       },
       wordList,
       clueDb,
+      clueDifficulty,
     );
 
     if (!result.success) {

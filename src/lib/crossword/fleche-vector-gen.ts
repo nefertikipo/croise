@@ -65,11 +65,16 @@ interface Crossing {
   posB: number; // position in slot B's word
 }
 
+/** Target difficulty for clue selection. "balanced" keeps the natural mix. */
+export type DifficultyMode = "facile" | "moyen" | "difficile" | "balanced";
+
 /** Generation parameters */
 export interface VectorGenParams {
   width: number;
   height: number;
   customClues?: { answer: string; clue: string }[];
+  /** Which clue to pick per word when multiple exist. Default "balanced". */
+  difficulty?: DifficultyMode;
 }
 
 /** Generation result */
@@ -1242,6 +1247,8 @@ function solveFill(
 function pickClue(
   word: string,
   clueDb: Map<string, string[]>,
+  clueDifficulty?: Map<string, number>,
+  mode: DifficultyMode = "balanced",
 ): string {
   const clues = clueDb.get(word.toUpperCase());
   if (!clues || clues.length === 0) return "?";
@@ -1252,9 +1259,21 @@ function pickClue(
   );
   const pool = filtered.length > 0 ? filtered : clues;
 
-  // Prefer short clues
+  // Prefer short clues (fit the potence clue frame)
   const short = pool.filter((c) => c.length <= 40);
-  const pick = short.length > 0 ? short : pool;
+  let pick = short.length > 0 ? short : pool;
+
+  // Difficulty targeting. facile/moyen/difficile → aim for that level and keep
+  // the clues closest to it; "balanced" leaves the natural mix. Key must match
+  // clueDiffKey() in load-french-clues.ts.
+  if (clueDifficulty && mode !== "balanced") {
+    const target = mode === "facile" ? 1 : mode === "difficile" ? 3 : 2;
+    const dist = (c: string) =>
+      Math.abs((clueDifficulty.get(word.toUpperCase() + "\u0001" + c) ?? 2) - target);
+    const best = Math.min(...pick.map(dist));
+    const atTarget = pick.filter((c) => dist(c) === best);
+    if (atTarget.length > 0) pick = atTarget;
+  }
   return pick[Math.floor(Math.random() * pick.length)];
 }
 
@@ -1266,6 +1285,7 @@ export function generateFlecheVector(
   params: VectorGenParams,
   wordList: WordList,
   clueDb: Map<string, string[]>,
+  clueDifficulty?: Map<string, number>,
 ): VectorGenResult {
   const { width, height } = params;
   const customClues = (params.customClues ?? []).filter(
@@ -1414,8 +1434,8 @@ export function generateFlecheVector(
       const clueText = isCustom
         ? customClues.find(
             (c) => c.answer.toUpperCase().replace(/[^A-Z]/g, "") === word,
-          )?.clue ?? pickClue(word, clueDb)
-        : pickClue(word, clueDb);
+          )?.clue ?? pickClue(word, clueDb, clueDifficulty, params.difficulty)
+        : pickClue(word, clueDb, clueDifficulty, params.difficulty);
 
       // Write clue text into the blue cell
       const blueCell = grid.cells[slot.clueOrigin.y][slot.clueOrigin.x];
