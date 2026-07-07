@@ -38,6 +38,9 @@ export default function FlechePage() {
   const [showSolution, setShowSolution] = useState(false);
   const [gridWidth, setGridWidth] = useState(11);
   const [gridHeight, setGridHeight] = useState(17);
+  const [difficulty, setDifficulty] = useState<
+    "facile" | "moyen" | "difficile" | "balanced"
+  >("balanced");
   const [gridKey, setGridKey] = useState(0);
   const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>([]);
   const [usedAnswers, setUsedAnswers] = useState<Set<string>>(new Set());
@@ -64,6 +67,7 @@ export default function FlechePage() {
           height: gridHeight,
           customClues: validCustom,
           excludeAnswers: Array.from(usedAnswers),
+          difficulty,
         }),
       });
       if (!res.ok) {
@@ -159,6 +163,28 @@ export default function FlechePage() {
                   }`}
                 >
                   {s.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-sm font-medium mr-1">Difficulté :</label>
+              {[
+                { v: "facile", label: "Facile" },
+                { v: "balanced", label: "Équilibré" },
+                { v: "moyen", label: "Moyen" },
+                { v: "difficile", label: "Difficile" },
+              ].map((d) => (
+                <button
+                  key={d.v}
+                  onClick={() => setDifficulty(d.v as typeof difficulty)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    difficulty === d.v
+                      ? "bg-ink text-paper"
+                      : "bg-secondary text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  {d.label}
                 </button>
               ))}
             </div>

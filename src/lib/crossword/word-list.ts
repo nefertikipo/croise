@@ -10,6 +10,7 @@ export class WordList {
   private words: Map<number, WordEntry[]> = new Map();
   private index: Map<string, string[]> = new Map();
   private allWords: Set<string> = new Set();
+  private scoreByWord: Map<string, number> = new Map();
 
   addWord(word: string, score: number = 50) {
     const upper = word.toUpperCase().trim();
@@ -17,6 +18,7 @@ export class WordList {
     if (this.allWords.has(upper)) return;
 
     this.allWords.add(upper);
+    this.scoreByWord.set(upper, score);
     const entry: WordEntry = { word: upper, score };
     const len = upper.length;
 
@@ -44,6 +46,11 @@ export class WordList {
 
   has(word: string): boolean {
     return this.allWords.has(word.toUpperCase());
+  }
+
+  /** Word quality score (e.g. corpus familiarity). Defaults to 0 if unknown. */
+  getScore(word: string): number {
+    return this.scoreByWord.get(word.toUpperCase()) ?? 0;
   }
 
   get size(): number {

@@ -73,9 +73,35 @@ async function upsertWord(word: string): Promise<number> {
   return id;
 }
 
+/**
+ * Self-reference guard. Deletes/skips a clue if any of its words is (a form of)
+ * the answer — catches inflections the plain `includes` check misses, e.g.
+ * "précèdent" for PRECEDE or "arrêts" for ARRET. See the DB contamination
+ * diagnosis: the old greedy `li.ml-n4` selector pulled fsolver's `ul.ul-def`
+ * block (expressions containing the word), most of which are self-referential.
+ */
+function isSelfReferencing(word: string, clueText: string): boolean {
+  const norm = (s: string) =>
+    s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z]/g, "");
+  const w = norm(word);
+  if (w.length < 4) return false;
+  for (const tokRaw of clueText.split(/[\s'’-]+/)) {
+    const t = norm(tokRaw);
+    if (t.length < 4) continue;
+    // Inflection only: prefix-relationship AND within 3 letters of the answer.
+    // Excludes cognates that merely share a prefix (SOLDE/SOLDAT) and
+    // derivations (GENE/GENERATION) — those are legitimate clues.
+    if (Math.abs(t.length - w.length) > 3) continue;
+    const short = t.length < w.length ? t : w;
+    const long = t.length < w.length ? w : t;
+    if (long.startsWith(short) && short.length >= Math.max(4, w.length - 2)) return true;
+  }
+  return false;
+}
+
 async function insertClue(wordId: number, word: string, clueText: string, source: string) {
-  // Skip self-referencing clues
-  if (clueText.toUpperCase().includes(word.toUpperCase())) return;
+  // Skip self-referencing clues (including inflected forms)
+  if (isSelfReferencing(word, clueText)) return;
 
   await db
     .insert(clues)
@@ -181,9 +207,10 @@ async function extractClues(page: Page, word: string): Promise<string[]> {
     });
     await page.waitForTimeout(1500);
 
-    // Extract clues from "Les définitions du mot X" section
-    // These are in <li class="ml-n4"> elements
-    const clues = await page.$$eval("li.ml-n4", (els) =>
+    // Extract clues from the "Les définitions du mot X" section ONLY.
+    // The page has a second li.ml-n4 block (ul.ul-def) holding definitions of
+    // OTHER proposed answers — scraping it misattributes clues to this word.
+    const clues = await page.$$eval("#definitions li.ml-n4", (els) =>
       els
         .map((el) => el.textContent?.trim() ?? "")
         .filter((t) => t.length >= 3 && t.length <= 150),

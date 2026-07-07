@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { generateFlecheVector } from "@/lib/crossword/fleche-vector-gen";
-import { getFrenchWordList, getFrenchClueDb, ensureLoaded } from "@/lib/crossword/load-french-clues";
+import { getFrenchWordList, getFrenchClueDb, getFrenchClueDifficulty, ensureLoaded } from "@/lib/crossword/load-french-clues";
 import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
@@ -19,6 +19,7 @@ const requestSchema = z.object({
     .default([]),
   excludeClues: z.array(z.string()).default([]),
   excludeAnswers: z.array(z.string()).default([]),
+  difficulty: z.enum(["facile", "moyen", "difficile", "balanced"]).optional(),
 });
 
 /**
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
     await ensureLoaded();
     const wordList = getFrenchWordList();
     const rawClueDb = getFrenchClueDb();
+    const clueDifficulty = getFrenchClueDifficulty();
 
     // Filter out excluded clues and answers
     let clueDb = rawClueDb;
@@ -71,9 +73,11 @@ export async function POST(request: Request) {
         width: params.width,
         height: params.height,
         customClues: params.customClues,
+        difficulty: params.difficulty,
       },
       wordList,
       clueDb,
+      clueDifficulty,
     );
 
     if (!result.success) {

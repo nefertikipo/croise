@@ -21,6 +21,7 @@ const requestSchema = z.object({
   customClues: z
     .array(z.object({ answer: z.string(), clue: z.string() }))
     .default([]),
+  difficulty: z.enum(["facile", "moyen", "difficile", "balanced"]).optional(),
 });
 
 export async function POST(
@@ -72,6 +73,7 @@ export async function POST(
         height: gridParams.height,
         title: `Grille ${nextPosition + 1}`,
         customClues: gridParams.customClues,
+        difficulty: gridParams.difficulty,
         usedClues,
       });
 
