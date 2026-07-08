@@ -213,13 +213,21 @@
     display: none;
   }
   .fleche-print-area {
-    display: block !important;
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
     visibility: visible;
     position: absolute;
     top: 0;
     left: 0;
-    transform: scale(0.85);
-    transform-origin: top left;
+    width: 100%;
+    /* Per-grid scale set inline via --print-scale (see fleche-print-chrome.tsx);
+       falls back to the old flat scale if a page forgets to set it. */
+    transform: scale(var(--print-scale, 0.85));
+    transform-origin: top center;
+    /* Print the brand red, clue tints, and grid ink faithfully. */
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
   .fleche-print-area * {
     visibility: visible;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
@@ -12,6 +12,11 @@ import {
   missingHiddenLetters,
   normalizeHiddenWord,
 } from "@/lib/crossword/hidden-word";
+import {
+  FlechePrintHeader,
+  FlechePrintMotCache,
+  computeFlechePrintScale,
+} from "@/components/fleche/fleche-print-chrome";
 
 interface ClueInCell {
   text: string;
@@ -319,7 +324,19 @@ export default function FlechePage() {
         {grid && (
           <>
             {/* Grid display */}
-            <div className="fleche-print-area">
+            <div
+              className="fleche-print-area"
+              style={
+                {
+                  "--print-scale": computeFlechePrintScale(
+                    grid.width,
+                    grid.height,
+                    hiddenCells.size > 0,
+                  ),
+                } as CSSProperties
+              }
+            >
+              <FlechePrintHeader title="Mots Fléchés" />
               <div className="overflow-x-auto">
                 <FlecheGrid
                   key={gridKey}
@@ -331,6 +348,7 @@ export default function FlechePage() {
                   highlightedCells={hiddenCells}
                 />
               </div>
+              <FlechePrintMotCache count={hiddenCells.size} />
               <div className="hidden print:block print:break-before-page">
                 <div className="rotate-180">
                   <FlecheGrid
