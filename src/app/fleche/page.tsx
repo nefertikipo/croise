@@ -50,7 +50,7 @@ export default function FlechePage() {
   const [loading, setLoading] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
   const [gridWidth, setGridWidth] = useState(11);
-  const [gridHeight, setGridHeight] = useState(17);
+  const [gridHeight, setGridHeight] = useState(15);
   const [difficulty, setDifficulty] = useState<
     "facile" | "moyen" | "difficile" | "balanced"
   >("balanced");
