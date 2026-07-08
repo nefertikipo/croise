@@ -143,6 +143,12 @@ interface FlecheGridProps {
   highlightedCells?: Map<string, number>;
   /** Base color for clue cells; tinted toward paper. Defaults to turquoise. */
   accentColor?: string;
+  /**
+   * Black-and-white answer key: drops clue text and arrows, renders clue cells
+   * as plain grey blocks and letters in black on white. Used for the printed
+   * solution page (no color, no clues needed to check answers).
+   */
+  plain?: boolean;
 }
 
 const CELL_SIZE = 70;
@@ -275,9 +281,10 @@ export function FlecheGrid({
   className,
   highlightedCells,
   accentColor,
+  plain = false,
 }: FlecheGridProps) {
   const accent = accentColor || DEFAULT_ACCENT;
-  const clueBg = `color-mix(in oklab, ${accent} 18%, ${PAPER})`;
+  const clueBg = plain ? "#e9e6e0" : `color-mix(in oklab, ${accent} 18%, ${PAPER})`;
   const clueRule = `color-mix(in oklab, ${accent} 45%, ${PAPER})`;
   const wordHighlightBg = `color-mix(in oklab, ${accent} 14%, ${PAPER})`;
   const [userInput, setUserInput] = useState<Map<string, string>>(new Map());
@@ -440,6 +447,22 @@ export function FlecheGrid({
       {cells.flatMap((row, r) =>
         row.map((cell, c) => {
           if (cell.type === "clue") {
+            // Answer key: clue cells carry no information, so render a plain
+            // grey block (no clue text, no arrows) in black-and-white mode.
+            if (plain) {
+              return (
+                <div
+                  key={`${r}-${c}`}
+                  className="border"
+                  style={{
+                    width: CELL_SIZE,
+                    height: CELL_SIZE,
+                    backgroundColor: clueBg,
+                    borderColor: "rgba(47,42,38,0.3)",
+                  }}
+                />
+              );
+            }
             // Sort clues: ► (right/same row) on top, ▼ (below) on bottom
             const clueTexts = [...(cell.clues ?? [])].sort((a, b) => {
               const aBelow = a.answerRow > r ? 1 : 0;
@@ -555,17 +578,30 @@ export function FlecheGrid({
                 key={key}
                 className={cn(
                   "relative border flex items-center justify-center",
-                  isHiddenCell && "border-primary border-2",
+                  isHiddenCell && (plain ? "border-2" : "border-primary border-2"),
                 )}
                 style={{
                   width: CELL_SIZE,
                   height: CELL_SIZE,
-                  backgroundColor: isHiddenCell ? "#f3ddd4" : PAPER,
-                  ...(isHiddenCell ? {} : { borderColor: "rgba(47,42,38,0.3)" }),
+                  backgroundColor: plain
+                    ? "#ffffff"
+                    : isHiddenCell
+                      ? "#f3ddd4"
+                      : PAPER,
+                  borderColor: isHiddenCell
+                    ? plain
+                      ? "#2f2a26"
+                      : undefined
+                    : "rgba(47,42,38,0.3)",
                 }}
               >
                 {isHiddenCell && (
-                  <span className="absolute top-0.5 left-1 text-[9px] font-bold text-primary">
+                  <span
+                    className={cn(
+                      "absolute top-0.5 left-1 text-[9px] font-bold",
+                      plain ? "text-black" : "text-primary",
+                    )}
+                  >
                     {hiddenNum}
                   </span>
                 )}
@@ -597,17 +633,19 @@ export function FlecheGrid({
           coordinate origin is the grid's content box (cell 0,0 top-left) with
           no baseline/border offset. Drawn last → paints on top of the cells.
           Each arrow starts on its clue-cell border and points out. */}
-      <svg
-        className="absolute pointer-events-none"
-        style={{ top: 0, left: 0, overflow: "visible" }}
-        width={width * CELL_SIZE}
-        height={height * CELL_SIZE}
-        aria-hidden
-      >
-        {arrows.map((a, i) => (
-          <GridArrow key={i} {...a} size={CELL_SIZE} color={INK} />
-        ))}
-      </svg>
+      {!plain && (
+        <svg
+          className="absolute pointer-events-none"
+          style={{ top: 0, left: 0, overflow: "visible" }}
+          width={width * CELL_SIZE}
+          height={height * CELL_SIZE}
+          aria-hidden
+        >
+          {arrows.map((a, i) => (
+            <GridArrow key={i} {...a} size={CELL_SIZE} color={INK} />
+          ))}
+        </svg>
+      )}
     </div>
   );
 }

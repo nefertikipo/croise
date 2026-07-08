@@ -336,27 +336,34 @@ export default function FlechePage() {
                 } as CSSProperties
               }
             >
-              <FlechePrintHeader title="Mots Fléchés" />
-              <div className="overflow-x-auto">
-                <FlecheGrid
-                  key={gridKey}
-                  cells={grid.cells}
-                  width={grid.width}
-                  height={grid.height}
-                  showSolution={showSolution}
-                  interactive={!showSolution}
-                  highlightedCells={hiddenCells}
-                />
+              <div className="fleche-print-page">
+                <div className="fleche-print-scale">
+                  <FlechePrintHeader />
+                  <div className="overflow-x-auto">
+                    <FlecheGrid
+                      key={gridKey}
+                      cells={grid.cells}
+                      width={grid.width}
+                      height={grid.height}
+                      showSolution={showSolution}
+                      interactive={!showSolution}
+                      highlightedCells={hiddenCells}
+                    />
+                  </div>
+                  <FlechePrintMotCache count={hiddenCells.size} />
+                </div>
               </div>
-              <FlechePrintMotCache count={hiddenCells.size} />
-              <div className="hidden print:block print:break-before-page">
-                <div className="rotate-180">
-                  <FlecheGrid
-                    cells={grid.cells}
-                    width={grid.width}
-                    height={grid.height}
-                    showSolution
-                  />
+              <div className="fleche-print-solution hidden print:block">
+                <div className="fleche-print-scale">
+                  <div className="rotate-180">
+                    <FlecheGrid
+                      cells={grid.cells}
+                      width={grid.width}
+                      height={grid.height}
+                      showSolution
+                      plain
+                    />
+                  </div>
                 </div>
               </div>
             </div>
