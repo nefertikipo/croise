@@ -41,14 +41,9 @@ export function computeFlechePrintScale(
 
 export function FlechePrintHeader() {
   return (
-    <header className="hidden print:flex items-center justify-center gap-3 pt-1 pb-6">
-      <span className="flex h-12 w-12 items-center justify-center rounded-[6px] border-[3px] border-ink bg-brand text-brand-foreground text-2xl font-bold">
-        ►
-      </span>
-      <span
-        className="text-5xl leading-none text-ink"
-        style={{ fontFamily: "var(--font-handwritten)" }}
-      >
+    <header className="hidden print:flex items-baseline justify-center gap-2 pt-1 pb-6">
+      <span className="font-display text-4xl leading-none text-brand">►</span>
+      <span className="font-display text-5xl uppercase leading-none tracking-wide text-brand">
         Les Flèches
       </span>
     </header>

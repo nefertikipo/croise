@@ -287,20 +287,14 @@
     display: inline-block;
     text-align: left;
     zoom: var(--print-scale, 0.85);
-    position: relative;
-    padding: 20px;
+    padding: 18px;
     background: #fff;
-    /* Decorative "stamp" frame — a solid outer rule + a thin inset inner rule,
-       matching the framed cards in the brand (Lapo's-style). Uses borders (not
-       box-shadow) so it prints reliably. */
-    border: 2px solid var(--ink);
-  }
-  .fleche-print-scale::before {
-    content: "";
-    position: absolute;
-    inset: 7px;
-    border: 1px solid var(--ink);
-    pointer-events: none;
+    /* Decorative "stamp" frame (Lapo's-style). A real `double` border renders
+       two parallel rules in one property — prints reliably in every browser
+       (no ::before, which Safari can drop when printing). */
+    border: 7px double #1a1a1a;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
   .fleche-print-area * {
     visibility: visible;
