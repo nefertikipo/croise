@@ -230,7 +230,8 @@
   /* Chunky vintage button: solid fill, black border, hard offset shadow that
      collapses on press — the treatment on every Lapo's CTA. */
   .btn-lapos {
-    @apply inline-flex items-center justify-center gap-2 border-2 border-ink font-display uppercase tracking-wide leading-none transition-transform;
+    /* Inter (font-sans), not the deco display face — buttons must stay legible. */
+    @apply inline-flex items-center justify-center gap-2 border-2 border-ink font-sans font-semibold uppercase tracking-wide leading-none transition-transform;
     box-shadow: 4px 4px 0 0 var(--ink);
   }
   .btn-lapos:hover {

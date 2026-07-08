@@ -18,6 +18,18 @@ import {
   computeFlechePrintScale,
 } from "@/components/fleche/fleche-print-chrome";
 
+// What each difficulty level actually means, shown under the selector.
+const DIFFICULTY_HELP: Record<string, string> = {
+  facile:
+    "Mots courants et définitions directes — parfait pour débuter ou pour offrir aux plus jeunes.",
+  balanced:
+    "Un mélange de mots familiers et de quelques défis : le bon équilibre pour une grille à offrir.",
+  moyen:
+    "Vocabulaire plus riche et définitions moins évidentes — pour les amateurs réguliers.",
+  difficile:
+    "Mots rares et définitions retorses — réservé aux cruciverbistes aguerris.",
+};
+
 interface ClueInCell {
   text: string;
   direction: "right" | "down";
@@ -175,7 +187,7 @@ export default function FlechePage() {
 
         {/* Before generation: pick a format, add your words, generate */}
         {!grid && !loading && (
-          <div className="space-y-6 rounded-2xl border-2 border-ink bg-card p-6 shadow-[4px_4px_0_0] shadow-ink/80">
+          <div className="space-y-6 rounded-none border-2 border-ink bg-card p-6 shadow-[4px_4px_0_0] shadow-ink/80">
             <div className="flex flex-wrap items-center gap-2">
               <label className="mr-2 font-display text-sm uppercase tracking-wide text-ink">Format</label>
               {[
@@ -188,7 +200,7 @@ export default function FlechePage() {
                 <button
                   key={s.label}
                   onClick={() => { setGridWidth(s.w); setGridHeight(s.h); }}
-                  className={`rounded-md border-2 border-ink px-4 py-1.5 font-display text-sm uppercase tracking-wide transition-colors ${
+                  className={`rounded-none border-2 border-ink px-4 py-1.5 font-sans text-sm font-semibold uppercase tracking-wide transition-colors ${
                     gridWidth === s.w && gridHeight === s.h
                       ? "bg-ink text-paper"
                       : "bg-paper text-ink hover:bg-accent"
@@ -211,7 +223,7 @@ export default function FlechePage() {
                 <button
                   key={d.v}
                   onClick={() => setDifficulty(d.v as typeof difficulty)}
-                  className={`rounded-md border-2 border-ink px-4 py-1.5 font-display text-sm uppercase tracking-wide transition-colors ${
+                  className={`rounded-none border-2 border-ink px-4 py-1.5 font-sans text-sm font-semibold uppercase tracking-wide transition-colors ${
                     difficulty === d.v
                       ? "bg-ink text-paper"
                       : "bg-paper text-ink hover:bg-accent"
@@ -221,9 +233,12 @@ export default function FlechePage() {
                 </button>
               ))}
             </div>
+            <p className="font-serif-accent -mt-2 text-sm italic text-ink/70">
+              {DIFFICULTY_HELP[difficulty]}
+            </p>
 
             {/* Custom words — the headline feature, front and center */}
-            <div className="space-y-3 rounded-xl border-2 border-ink/15 bg-muted/30 p-4">
+            <div className="space-y-3 rounded-none border-2 border-ink/15 bg-muted/30 p-4">
               <div>
                 <p className="text-sm font-bold uppercase tracking-[0.12em]">
                   Vos mots personnalisés
@@ -244,7 +259,7 @@ export default function FlechePage() {
                         next[i] = { ...next[i], answer: e.target.value };
                         setCustomClues(next);
                       }}
-                      className={`w-36 rounded border-2 bg-white px-2 py-1 text-sm uppercase font-mono ${
+                      className={`w-36 rounded-none border-2 bg-white px-2 py-1 text-sm uppercase font-mono ${
                         isWordTooLong(cc.answer) ? "border-destructive" : "border-ink/20"
                       }`}
                     />
@@ -256,7 +271,7 @@ export default function FlechePage() {
                         next[i] = { ...next[i], clue: e.target.value };
                         setCustomClues(next);
                       }}
-                      className="flex-1 rounded border-2 border-ink/20 bg-white px-2 py-1 text-sm"
+                      className="flex-1 rounded-none border-2 border-ink/20 bg-white px-2 py-1 text-sm"
                     />
                     <button
                       onClick={() => setCustomClues(customClues.filter((_, j) => j !== i))}
@@ -275,7 +290,7 @@ export default function FlechePage() {
 
               <button
                 onClick={() => setCustomClues([...customClues, { answer: "", clue: "" }])}
-                className="rounded-lg border-2 border-ink bg-white px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0] shadow-ink/60 transition-transform hover:-translate-y-0.5"
+                className="rounded-none border-2 border-ink bg-white px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0] shadow-ink/60 transition-transform hover:-translate-y-0.5"
               >
                 + Ajouter un mot personnalisé
               </button>
@@ -300,7 +315,7 @@ export default function FlechePage() {
                 placeholder="ex: ANNIVERSAIRE"
                 value={hiddenWord}
                 onChange={(e) => setHiddenWord(e.target.value)}
-                className="w-48 rounded border px-2 py-1 text-sm uppercase font-mono"
+                className="w-48 rounded-none border px-2 py-1 text-sm uppercase font-mono"
               />
             </div>
 
@@ -308,9 +323,9 @@ export default function FlechePage() {
               <button
                 onClick={generate}
                 disabled={loading || capacity.message !== null}
-                className="btn-lapos rounded-md bg-brand px-7 py-3 text-base text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                className="btn-lapos rounded-none bg-brand px-7 py-3 text-base text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
               >
-                Générer une grille
+                Créer ma grille
               </button>
               {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
@@ -407,10 +422,10 @@ export default function FlechePage() {
               {grid.code && (
                 <span className="text-sm font-mono text-muted-foreground">{grid.code}</span>
               )}
-              <Button variant="outline" onClick={() => setShowSolution(!showSolution)}>
+              <Button variant="outline" className="rounded-none" onClick={() => setShowSolution(!showSolution)}>
                 {showSolution ? "Cacher solution" : "Voir solution"}
               </Button>
-              <Button variant="outline" onClick={() => window.print()}>
+              <Button variant="outline" className="rounded-none" onClick={() => window.print()}>
                 Imprimer / PDF
               </Button>
               {grid.code && (
@@ -425,13 +440,13 @@ export default function FlechePage() {
                   {copied ? "Lien copie!" : "Copier le lien"}
                 </Button>
               )}
-              <Button variant="outline" onClick={createBook}>
+              <Button variant="outline" className="rounded-none" onClick={createBook}>
                 Creer un livre
               </Button>
             </div>
 
             {/* Add custom words + regenerate */}
-            <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+            <div className="border rounded-none p-4 space-y-3 bg-muted/30">
               <p className="text-sm font-medium">Ajouter des mots et regenerer</p>
               <div className="space-y-2">
                 {customClues.map((cc, i) => (
@@ -445,7 +460,7 @@ export default function FlechePage() {
                           next[i] = { ...next[i], answer: e.target.value };
                           setCustomClues(next);
                         }}
-                        className={`border-2 rounded px-2 py-1 text-sm w-32 uppercase font-mono bg-white ${
+                        className={`border-2 rounded-none px-2 py-1 text-sm w-32 uppercase font-mono bg-white ${
                           isWordTooLong(cc.answer) ? "border-destructive" : "border-transparent"
                         }`}
                       />
@@ -457,7 +472,7 @@ export default function FlechePage() {
                           next[i] = { ...next[i], clue: e.target.value };
                           setCustomClues(next);
                         }}
-                        className="border rounded px-2 py-1 text-sm flex-1 bg-white"
+                        className="border rounded-none px-2 py-1 text-sm flex-1 bg-white"
                       />
                       <button
                         onClick={() => setCustomClues(customClues.filter((_, j) => j !== i))}
@@ -491,7 +506,7 @@ export default function FlechePage() {
                   placeholder="ex: ANNIVERSAIRE"
                   value={hiddenWord}
                   onChange={(e) => setHiddenWord(e.target.value)}
-                  className="border rounded px-2 py-1 text-sm w-48 uppercase font-mono bg-white"
+                  className="border rounded-none px-2 py-1 text-sm w-48 uppercase font-mono bg-white"
                 />
                 {hiddenCells.size > 0 && (
                   <span className="text-xs text-green-600">
@@ -521,14 +536,14 @@ export default function FlechePage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setCustomClues([...customClues, { answer: "", clue: "" }])}
-                  className="rounded-lg border-2 border-ink bg-paper px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0] shadow-ink/60 transition-transform hover:-translate-y-0.5"
+                  className="rounded-none border-2 border-ink bg-paper px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0] shadow-ink/60 transition-transform hover:-translate-y-0.5"
                 >
                   + Ajouter un mot
                 </button>
                 <button
                   onClick={generate}
                   disabled={loading || capacity.message !== null}
-                  className="btn-lapos rounded-md bg-brand px-6 py-2.5 text-sm text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                  className="btn-lapos rounded-none bg-brand px-6 py-2.5 text-sm text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
                 >
                   Régénérer
                 </button>

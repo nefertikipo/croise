@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ShuffledImage } from "@/components/shared/shuffled-image";
+import { CreateBookLink } from "@/components/shared/create-book-link";
 
 // The three things you can make/offer with Les Flèches.
 const PRODUCTS = [
@@ -10,12 +11,13 @@ const PRODUCTS = [
     cta: "Créer un poster",
     href: "/fleche",
   },
-  {
+    {
     kicker: "À feuilleter",
     title: "Un livre",
     body: "Plusieurs grilles reliées en un petit livret paginé, avec les solutions à la fin.",
     cta: "Créer un livre",
     href: "/fleche",
+    book: true,
   },
   {
     kicker: "Toute l'année",
@@ -64,16 +66,13 @@ export default function Home() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/fleche"
-                className="btn-lapos rounded-md bg-brand px-7 py-3 text-base text-brand-foreground"
+                className="btn-lapos rounded-none bg-brand px-7 py-3 text-base text-brand-foreground"
               >
                 Créer une grille
               </Link>
-              <Link
-                href="/fleche"
-                className="btn-lapos rounded-md bg-paper px-7 py-3 text-base text-ink"
-              >
+              <CreateBookLink className="btn-lapos rounded-none bg-paper px-7 py-3 text-base text-ink">
                 Créer un livre
-              </Link>
+              </CreateBookLink>
             </div>
           </div>
         </div>
@@ -95,12 +94,18 @@ export default function Home() {
                 <p className="font-serif-accent mt-3 flex-1 text-[15px] italic leading-snug text-ink/75">
                   {p.body}
                 </p>
-                <Link
-                  href={p.href}
-                  className="btn-lapos mt-6 rounded-md bg-sun px-4 py-2.5 text-sm text-ink"
-                >
-                  {p.cta}
-                </Link>
+                {"book" in p && p.book ? (
+                  <CreateBookLink className="btn-lapos mt-6 rounded-none bg-sun px-4 py-2.5 text-sm text-ink">
+                    {p.cta}
+                  </CreateBookLink>
+                ) : (
+                  <Link
+                    href={p.href}
+                    className="btn-lapos mt-6 rounded-none bg-sun px-4 py-2.5 text-sm text-ink"
+                  >
+                    {p.cta}
+                  </Link>
+                )}
               </div>
             ))}
           </div>
@@ -125,7 +130,7 @@ export default function Home() {
           </p>
           <Link
             href="/fleche"
-            className="btn-lapos rounded-md bg-brand px-9 py-4 text-lg text-brand-foreground"
+            className="btn-lapos rounded-none bg-brand px-9 py-4 text-lg text-brand-foreground"
           >
             Commencer ma grille
           </Link>

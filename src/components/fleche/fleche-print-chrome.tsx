@@ -61,7 +61,7 @@ export function FlechePrintMotCache({ count }: { count: number }) {
         {Array.from({ length: count }, (_, i) => (
           <div
             key={i}
-            className="flex h-9 w-9 items-center justify-center rounded-[3px] border-2 border-ink text-[10px] text-muted-foreground"
+            className="flex h-9 w-9 items-center justify-center rounded-none border-2 border-ink text-[10px] text-muted-foreground"
           >
             {i + 1}
           </div>

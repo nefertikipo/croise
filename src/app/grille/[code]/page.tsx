@@ -128,13 +128,13 @@ export default function GrillePage() {
         <div className="flex items-center gap-3 flex-wrap">
           <Button
             onClick={() => setShowSolution(!showSolution)}
-            className="btn-lapos rounded-md bg-sun px-4 py-2.5 text-sm text-ink"
+            className="btn-lapos rounded-none bg-sun px-4 py-2.5 text-sm text-ink"
           >
             {showSolution ? "Cacher solution" : "Voir solution"}
           </Button>
           <Button
             onClick={() => window.print()}
-            className="btn-lapos rounded-md bg-brand px-4 py-2.5 text-sm text-brand-foreground"
+            className="btn-lapos rounded-none bg-brand px-4 py-2.5 text-sm text-brand-foreground"
           >
             Imprimer / PDF
           </Button>
@@ -144,13 +144,13 @@ export default function GrillePage() {
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             }}
-            className="btn-lapos rounded-md bg-paper px-4 py-2.5 text-sm text-ink"
+            className="btn-lapos rounded-none bg-paper px-4 py-2.5 text-sm text-ink"
           >
             {copied ? "Lien copié!" : "Copier le lien"}
           </Button>
           <Button
             onClick={() => router.push("/fleche")}
-            className="btn-lapos rounded-md bg-ink px-4 py-2.5 text-sm text-paper"
+            className="btn-lapos rounded-none bg-ink px-4 py-2.5 text-sm text-paper"
           >
             Nouvelle grille
           </Button>

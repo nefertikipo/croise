@@ -146,7 +146,7 @@ export default function ContributePage() {
                   <button
                     key={d}
                     onClick={() => setDifficulty(d)}
-                    className={`flex-1 rounded-md border-2 border-ink px-4 py-1.5 font-display uppercase tracking-wide text-sm transition-colors ${
+                    className={`flex-1 rounded-none border-2 border-ink px-4 py-1.5 font-display uppercase tracking-wide text-sm transition-colors ${
                       selected
                         ? "bg-ink text-paper"
                         : "bg-paper text-ink hover:bg-accent"
@@ -164,7 +164,7 @@ export default function ContributePage() {
           <Button
             onClick={submit}
             disabled={saving || !word.trim() || !clue.trim()}
-            className="btn-lapos w-full rounded-md bg-brand px-6 py-3 text-sm text-brand-foreground"
+            className="btn-lapos w-full rounded-none bg-brand px-6 py-3 text-sm text-brand-foreground"
           >
             {saving ? "Envoi..." : "Soumettre"}
           </Button>
