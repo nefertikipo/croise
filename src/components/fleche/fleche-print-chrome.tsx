@@ -6,14 +6,15 @@
 
 const CELL = 70; // matches CELL_SIZE in fleche-grid.tsx
 
-// A4 printable area at 96dpi with the 10mm @page margin (globals.css):
-// 190mm wide × 277mm tall.
-const A4_CONTENT_W = 718;
-const A4_CONTENT_H = 1047;
+// A4 printable area at 96dpi with the 10mm @page margin (globals.css) is
+// 190mm × 277mm (≈718×1047px); trim a few % so rounding never spills to a
+// second sheet.
+const A4_CONTENT_W = 700;
+const A4_CONTENT_H = 1010;
 
 // Reserved vertical space for the printed chrome (unscaled px), used so the
 // grid + header + mot-caché strip fit on a single sheet.
-const HEADER_BLOCK = 150;
+const HEADER_BLOCK = 100;
 const MOTCACHE_BLOCK = 110;
 
 /**
@@ -33,25 +34,18 @@ export function computeFlechePrintScale(
   return Math.min(A4_CONTENT_W / gridW, A4_CONTENT_H / contentH, 1);
 }
 
-export function FlechePrintHeader({ title }: { title: string }) {
+export function FlechePrintHeader() {
   return (
-    <header className="hidden print:flex flex-col items-center gap-2 pt-1 pb-6">
-      <div className="flex items-center gap-3">
-        <span className="flex h-12 w-12 items-center justify-center rounded-[6px] border-[3px] border-ink bg-brand text-brand-foreground text-2xl font-bold">
-          ►
-        </span>
-        <span
-          className="text-5xl leading-none text-ink"
-          style={{ fontFamily: "var(--font-handwritten)" }}
-        >
-          Les Flèches
-        </span>
-      </div>
-      {title && (
-        <h1 className="font-display uppercase tracking-[0.12em] text-lg text-ink text-center">
-          {title}
-        </h1>
-      )}
+    <header className="hidden print:flex items-center justify-center gap-3 pt-1 pb-6">
+      <span className="flex h-12 w-12 items-center justify-center rounded-[6px] border-[3px] border-ink bg-brand text-brand-foreground text-2xl font-bold">
+        ►
+      </span>
+      <span
+        className="text-5xl leading-none text-ink"
+        style={{ fontFamily: "var(--font-handwritten)" }}
+      >
+        Les Flèches
+      </span>
     </header>
   );
 }

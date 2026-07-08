@@ -213,21 +213,33 @@
     display: none;
   }
   .fleche-print-area {
-    display: flex !important;
-    flex-direction: column;
-    align-items: center;
+    display: block !important;
     visibility: visible;
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
-    /* Per-grid scale set inline via --print-scale (see fleche-print-chrome.tsx);
-       falls back to the old flat scale if a page forgets to set it. */
-    transform: scale(var(--print-scale, 0.85));
-    transform-origin: top center;
     /* Print the brand red, clue tints, and grid ink faithfully. */
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+  /* One printed sheet per block; center the scaled unit horizontally. */
+  .fleche-print-page,
+  .fleche-print-solution {
+    width: 100%;
+    text-align: center;
+  }
+  .fleche-print-solution {
+    break-before: page;
+  }
+  /* `zoom` (not `transform: scale`) so the browser paginates on the SCALED
+     size — otherwise header + grid split across pages. Per-grid scale is set
+     inline via --print-scale (see fleche-print-chrome.tsx). Shrinks header +
+     grid + mot-caché to a single sheet; inline-block keeps them one unit. */
+  .fleche-print-scale {
+    display: inline-block;
+    text-align: left;
+    zoom: var(--print-scale, 0.85);
   }
   .fleche-print-area * {
     visibility: visible;
