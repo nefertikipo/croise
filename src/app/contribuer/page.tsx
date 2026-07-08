@@ -76,32 +76,37 @@ export default function ContributePage() {
     <main className="flex-1 px-4 py-8">
       <div className="max-w-lg mx-auto space-y-8">
         <div>
-          <h1 className="text-2xl font-bold">Contribuer des indices</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Ecrivez vos propres indices de mots fleches. Ils seront relus avant d'etre utilises dans les grilles.
+          <h1 className="text-4xl">Contribuer des indices</h1>
+          <p className="font-serif-accent mt-2 text-lg italic text-ink/80">
+            Ecrivez vos propres indices de mots fléchés. Ils seront relus avant
+            d&apos;être utilisés dans les grilles.
           </p>
         </div>
 
         {/* Author */}
         <div>
-          <label className="text-sm font-medium">Votre nom (optionnel)</label>
+          <label className="font-display text-xs uppercase tracking-[0.2em] text-ink">
+            Votre nom (optionnel)
+          </label>
           <input
             value={author}
             onChange={(e) => setAuthor(e.target.value)}
             placeholder="ex: Louise"
-            className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+            className="frame-tight mt-2 w-full bg-paper px-3 py-2 text-sm focus:outline-none"
           />
         </div>
 
         {/* Word + Clue input */}
-        <div className="border rounded-xl p-6 space-y-4 bg-white shadow-sm">
+        <div className="frame space-y-4 bg-paper p-6">
           <div>
-            <label className="text-sm font-medium">Mot</label>
+            <label className="font-display text-xs uppercase tracking-[0.2em] text-ink">
+              Mot
+            </label>
             <input
               value={word}
               onChange={(e) => setWord(e.target.value)}
               placeholder="ex: CROISSANT"
-              className="mt-1 w-full border rounded-lg px-3 py-2 text-lg uppercase font-mono"
+              className="frame-tight mt-2 w-full bg-paper px-3 py-2 text-lg uppercase font-mono focus:outline-none"
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   document.getElementById("clue-input")?.focus();
@@ -111,37 +116,41 @@ export default function ContributePage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium">Indice</label>
+            <label className="font-display text-xs uppercase tracking-[0.2em] text-ink">
+              Indice
+            </label>
             <input
               id="clue-input"
               value={clue}
               onChange={(e) => setClue(e.target.value)}
               placeholder="ex: viennoiserie du matin"
-              className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+              className="frame-tight mt-2 w-full bg-paper px-3 py-2 text-sm focus:outline-none"
               onKeyDown={(e) => {
                 if (e.key === "Enter") submit();
               }}
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              L'indice ne doit pas contenir le mot lui-meme
+            <p className="font-serif-accent mt-2 text-xs italic text-ink/70">
+              L&apos;indice ne doit pas contenir le mot lui-même
             </p>
           </div>
 
           <div>
-            <label className="text-sm font-medium">Difficulte</label>
-            <div className="flex gap-2 mt-1">
+            <label className="font-display text-xs uppercase tracking-[0.2em] text-ink">
+              Difficulté
+            </label>
+            <div className="flex gap-2 mt-2">
               {([1, 2, 3] as const).map((d) => {
                 const labels = { 1: "Facile", 2: "Moyen", 3: "Difficile" };
-                const colors = {
-                  1: difficulty === d ? "bg-green-200 border-green-400 text-green-700" : "bg-green-50 border-green-200 text-green-600",
-                  2: difficulty === d ? "bg-amber-200 border-amber-400 text-amber-700" : "bg-amber-50 border-amber-200 text-amber-600",
-                  3: difficulty === d ? "bg-red-200 border-red-400 text-red-700" : "bg-red-50 border-red-200 text-red-600",
-                };
+                const selected = difficulty === d;
                 return (
                   <button
                     key={d}
                     onClick={() => setDifficulty(d)}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${colors[d]}`}
+                    className={`flex-1 rounded-md border-2 border-ink px-4 py-1.5 font-display uppercase tracking-wide text-sm transition-colors ${
+                      selected
+                        ? "bg-ink text-paper"
+                        : "bg-paper text-ink hover:bg-accent"
+                    }`}
                   >
                     {labels[d]}
                   </button>
@@ -150,9 +159,13 @@ export default function ContributePage() {
             </div>
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="text-sm text-brand">{error}</p>}
 
-          <Button onClick={submit} disabled={saving || !word.trim() || !clue.trim()} className="w-full">
+          <Button
+            onClick={submit}
+            disabled={saving || !word.trim() || !clue.trim()}
+            className="btn-lapos w-full rounded-md bg-brand px-6 py-3 text-sm text-brand-foreground"
+          >
             {saving ? "Envoi..." : "Soumettre"}
           </Button>
         </div>
@@ -160,20 +173,20 @@ export default function ContributePage() {
         {/* Community contributions */}
         {contributions.length > 0 && (
           <div className="space-y-2">
-            <h2 className="text-sm font-medium">
-              Indices de la communaute ({contributions.length})
+            <h2 className="text-2xl">
+              Indices de la communauté ({contributions.length})
             </h2>
             {contributions.map((c, i) => {
               const diffLabel = c.difficulty ? ["", "Facile", "Moyen", "Difficile"][c.difficulty] : null;
               const diffColor = c.difficulty
-                ? { 1: "text-green-600", 2: "text-amber-600", 3: "text-red-600" }[c.difficulty]
+                ? { 1: "text-turquoise", 2: "text-sun", 3: "text-brand" }[c.difficulty]
                 : "";
               return (
-                <div key={i} className="flex items-center gap-3 text-sm border rounded-lg px-3 py-2">
+                <div key={i} className="frame-tight flex items-center gap-3 bg-paper px-3 py-2 text-sm">
                   <span className="font-mono font-bold uppercase shrink-0 w-24 truncate">{c.word}</span>
-                  <span className="text-muted-foreground flex-1">{c.clue}</span>
-                  {diffLabel && <span className={`text-xs shrink-0 ${diffColor}`}>{diffLabel}</span>}
-                  {c.author && <span className="text-xs text-muted-foreground/50 shrink-0">{c.author}</span>}
+                  <span className="font-serif-accent flex-1 italic text-ink/70">{c.clue}</span>
+                  {diffLabel && <span className={`font-display text-xs uppercase tracking-wide shrink-0 ${diffColor}`}>{diffLabel}</span>}
+                  {c.author && <span className="text-xs text-ink/40 shrink-0">{c.author}</span>}
                 </div>
               );
             })}
