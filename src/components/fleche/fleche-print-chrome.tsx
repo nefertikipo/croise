@@ -17,6 +17,11 @@ const A4_CONTENT_H = 1010;
 const HEADER_BLOCK = 100;
 const MOTCACHE_BLOCK = 110;
 
+// Padding + border of the decorative "stamp" frame drawn around the printed
+// sheet (see `.fleche-print-scale` in globals.css). Reserved on every side so
+// the frame never pushes content onto a second page.
+const FRAME = 24;
+
 /**
  * Largest scale (≤ 1) at which the header, an `width`×`height` grid, and the
  * optional mot-caché strip still fit one A4 sheet. Computed from known cell
@@ -28,9 +33,9 @@ export function computeFlechePrintScale(
   height: number,
   hasHidden: boolean,
 ): number {
-  const gridW = width * CELL;
+  const gridW = width * CELL + 2 * FRAME;
   const contentH =
-    HEADER_BLOCK + height * CELL + (hasHidden ? MOTCACHE_BLOCK : 0);
+    HEADER_BLOCK + height * CELL + (hasHidden ? MOTCACHE_BLOCK : 0) + 2 * FRAME;
   return Math.min(A4_CONTENT_W / gridW, A4_CONTENT_H / contentH, 1);
 }
 
