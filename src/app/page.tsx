@@ -9,7 +9,7 @@ const PRODUCTS = [
     title: "Un poster",
     body: "Une grille unique, imprimée grand format — à encadrer, à accrocher, à offrir.",
     cta: "Créer un poster",
-    href: "/fleche",
+    href: "/fleche?intent=poster",
   },
     {
     kicker: "À feuilleter",
@@ -24,7 +24,7 @@ const PRODUCTS = [
     title: "Chaque mois",
     body: "Offrez une nouvelle grille personnalisée, livrée fraîche chaque mois de l'année.",
     cta: "Offrir un abonnement",
-    href: "/fleche",
+    href: "/offrir",
   },
 ];
 

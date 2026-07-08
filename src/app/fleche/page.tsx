@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
@@ -18,16 +18,42 @@ import {
   computeFlechePrintScale,
 } from "@/components/fleche/fleche-print-chrome";
 
-// What each difficulty level actually means, shown under the selector.
-const DIFFICULTY_HELP: Record<string, string> = {
-  facile:
-    "Mots courants et définitions directes — parfait pour débuter ou pour offrir aux plus jeunes.",
-  balanced:
-    "Un mélange de mots familiers et de quelques défis : le bon équilibre pour une grille à offrir.",
-  moyen:
-    "Vocabulaire plus riche et définitions moins évidentes — pour les amateurs réguliers.",
-  difficile:
-    "Mots rares et définitions retorses — réservé aux cruciverbistes aguerris.",
+// Example clues at each level — same answer (CHAT), increasingly indirect —
+// to show the *style* difference, not just a label.
+const CLUE_EXAMPLES = {
+  facile: { label: "Facile", clue: "Félin domestique", answer: "CHAT" },
+  moyen: { label: "Moyen", clue: "Compagnon à moustaches", answer: "CHAT" },
+  difficile: { label: "Difficile", clue: "Il retombe sur ses pattes", answer: "CHAT" },
+} as const;
+
+type ExampleLevel = keyof typeof CLUE_EXAMPLES;
+
+// What each difficulty entails + the actual clue mix. "balanced" realizes
+// ~50/35/15 in generated grids (see pickClue() in fleche-vector-gen.ts).
+const DIFFICULTY_INFO: Record<
+  string,
+  { help: string; mix: string; show: ExampleLevel[] }
+> = {
+  facile: {
+    help: "Mots courants et définitions directes — parfait pour débuter ou pour offrir aux plus jeunes.",
+    mix: "Que des définitions faciles",
+    show: ["facile"],
+  },
+  balanced: {
+    help: "Un mélange de mots familiers et de quelques défis : le bon équilibre pour une grille à offrir.",
+    mix: "≈ 50 % faciles · 35 % moyennes · 15 % difficiles",
+    show: ["facile", "moyen", "difficile"],
+  },
+  moyen: {
+    help: "Vocabulaire plus riche et définitions moins évidentes — pour les amateurs réguliers.",
+    mix: "Que des définitions de niveau moyen",
+    show: ["moyen"],
+  },
+  difficile: {
+    help: "Mots rares et définitions retorses — réservé aux cruciverbistes aguerris.",
+    mix: "Que des définitions difficiles",
+    show: ["difficile"],
+  },
 };
 
 interface ClueInCell {
@@ -72,6 +98,18 @@ export default function FlechePage() {
   const [hiddenWord, setHiddenWord] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [poster, setPoster] = useState(false);
+
+  // Poster intent (from the homepage "Créer un poster" CTA): read client-side
+  // after mount to avoid a hydration mismatch, then default to the largest
+  // single-sheet format meant for framing.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("intent") === "poster") {
+      setPoster(true);
+      setGridWidth(11);
+      setGridHeight(17);
+    }
+  }, []);
 
   // Valid custom words drive both the generation estimate and the button state.
   const validCustomCount = customClues.filter(
@@ -178,10 +216,20 @@ export default function FlechePage() {
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="space-y-1">
           <h1 className="text-5xl text-ink">
-            Mots <span className="text-brand">Fléchés</span>
+            {poster ? (
+              <>
+                Votre <span className="text-brand">Poster</span>
+              </>
+            ) : (
+              <>
+                Mots <span className="text-brand">Fléchés</span>
+              </>
+            )}
           </h1>
           <p className="font-serif-accent text-lg italic text-ink/75">
-            Générez une grille personnalisée, glissez vos mots, imprimez.
+            {poster
+              ? "Une grande grille, prête à imprimer et à encadrer."
+              : "Générez une grille personnalisée, glissez vos mots, imprimez."}
           </p>
         </div>
 
@@ -233,9 +281,29 @@ export default function FlechePage() {
                 </button>
               ))}
             </div>
-            <p className="font-serif-accent -mt-2 text-sm italic text-ink/70">
-              {DIFFICULTY_HELP[difficulty]}
-            </p>
+            <div className="-mt-2 space-y-2 border-2 border-ink/15 bg-muted/30 p-4">
+              <p className="font-serif-accent text-sm italic text-ink/75">
+                {DIFFICULTY_INFO[difficulty].help}
+              </p>
+              <p className="font-display text-xs uppercase tracking-wide text-ink/60">
+                Mélange&nbsp;:{" "}
+                <span className="text-brand">{DIFFICULTY_INFO[difficulty].mix}</span>
+              </p>
+              <ul className="space-y-1">
+                {DIFFICULTY_INFO[difficulty].show.map((lvl) => {
+                  const ex = CLUE_EXAMPLES[lvl];
+                  return (
+                    <li key={lvl} className="text-sm text-ink/80">
+                      <span className="mr-1 font-display text-[11px] uppercase tracking-wide text-ink/45">
+                        {ex.label}
+                      </span>
+                      <span className="italic">« {ex.clue} »</span> →{" "}
+                      <span className="font-mono font-semibold">{ex.answer}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
 
             {/* Custom words — the headline feature, front and center */}
             <div className="space-y-3 rounded-none border-2 border-ink/15 bg-muted/30 p-4">
