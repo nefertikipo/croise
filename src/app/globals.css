@@ -4,13 +4,25 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Custom display face: wide Art-Deco poster font (à la Lapo's "Song Sheet JNL"),
+   derived from the freeware "Dylan Dog" font with French accents built in.
+   Missing glyphs (digits, punctuation) fall through to Anton via --font-display. */
+@font-face {
+  font-family: "Fleches Display";
+  src: url("/fonts/fleches-display.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-display);
-  --font-display: var(--font-display);
+  --font-heading: "Fleches Display", var(--font-anton), ui-sans-serif;
+  --font-display: "Fleches Display", var(--font-anton), ui-sans-serif;
+  --font-serif: var(--font-serif);
   --font-handwritten: var(--font-handwritten);
 
   /* Brand palette */
@@ -62,25 +74,25 @@
 }
 
 :root {
-  /* Brand tokens — vintage editorial crossword, summery pop */
-  --paper: oklch(0.965 0.014 90);        /* warm sun-faded cream */
+  /* Brand tokens — Italian-aperitivo editorial (à la Lapo's) */
+  --paper: #ffefe1;                      /* warm Lapo's cream */
   --ink: oklch(0.2 0.01 260);            /* near-black newsprint ink */
-  --brand: oklch(0.585 0.2 26);          /* fléchés arrow red */
-  --brand-foreground: oklch(0.985 0.01 85);
+  --brand: #d92b27;                      /* Lapo's brand red */
+  --brand-foreground: #fff6ec;
   --blueprint: oklch(0.56 0.13 240);     /* clue-cell blue */
-  --gold: oklch(0.78 0.13 80);           /* warm accent */
-  --turquoise: oklch(0.72 0.12 200);     /* pen-ink turquoise */
+  --gold: #bb9a62;                       /* Lapo's warm gold */
+  --turquoise: #108474;                  /* Lapo's deep teal */
   --pink: oklch(0.72 0.15 5);            /* nail-polish pink */
-  --sun: oklch(0.85 0.15 90);            /* summer yellow */
+  --sun: #f1d879;                        /* Lapo's amber */
 
-  --background: oklch(0.98 0.009 85);
+  --background: #fff6ec;
   --foreground: oklch(0.26 0.028 265);
   --card: oklch(0.995 0.005 85);
   --card-foreground: oklch(0.26 0.028 265);
   --popover: oklch(0.995 0.005 85);
   --popover-foreground: oklch(0.26 0.028 265);
-  --primary: oklch(0.585 0.2 26);
-  --primary-foreground: oklch(0.985 0.01 85);
+  --primary: #d92b27;
+  --primary-foreground: #fff6ec;
   --secondary: oklch(0.945 0.012 85);
   --secondary-foreground: oklch(0.3 0.03 265);
   --muted: oklch(0.955 0.01 85);
@@ -90,7 +102,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.9 0.012 80);
   --input: oklch(0.9 0.012 80);
-  --ring: oklch(0.585 0.2 26);
+  --ring: #d92b27;
   --chart-1: oklch(0.585 0.2 26);
   --chart-2: oklch(0.56 0.13 250);
   --chart-3: oklch(0.78 0.13 80);
@@ -172,7 +184,7 @@
     @apply font-sans;
   }
   h1, h2, h3 {
-    @apply font-display uppercase;
+    @apply font-display uppercase tracking-wide;
   }
   /* Print-grain overlay for the sun-faded risograph feel */
   body::after {
@@ -193,6 +205,41 @@
   }
   .font-handwritten {
     font-family: var(--font-handwritten), cursive;
+  }
+  .font-serif-accent {
+    font-family: var(--font-serif), Georgia, serif;
+  }
+
+  /* Lapo's-style "vintage stamp" frame: a solid outer border, a thin inset
+     inner rule, and a hard (blur-less) offset drop shadow. */
+  .frame {
+    border: 2px solid var(--ink);
+    box-shadow:
+      inset 0 0 0 3px rgb(255 255 255 / 0.9),
+      inset 0 0 0 4px var(--ink),
+      6px 6px 0 0 var(--ink);
+  }
+  .frame-tight {
+    border: 2px solid var(--ink);
+    box-shadow:
+      inset 0 0 0 2px var(--paper),
+      inset 0 0 0 3px var(--ink),
+      5px 5px 0 0 var(--ink);
+  }
+
+  /* Chunky vintage button: solid fill, black border, hard offset shadow that
+     collapses on press — the treatment on every Lapo's CTA. */
+  .btn-lapos {
+    @apply inline-flex items-center justify-center gap-2 border-2 border-ink font-display uppercase tracking-wide leading-none transition-transform;
+    box-shadow: 4px 4px 0 0 var(--ink);
+  }
+  .btn-lapos:hover {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 0 var(--ink);
+  }
+  .btn-lapos:active {
+    transform: translate(4px, 4px);
+    box-shadow: 0 0 0 0 var(--ink);
   }
   /* Playful arrow bullet used for the wordmark */
   .brand-arrow::before {
@@ -240,6 +287,14 @@
     display: inline-block;
     text-align: left;
     zoom: var(--print-scale, 0.85);
+    padding: 18px;
+    background: #fff;
+    /* Decorative "stamp" frame (Lapo's-style). A real `double` border renders
+       two parallel rules in one property — prints reliably in every browser
+       (no ::before, which Safari can drop when printing). */
+    border: 7px double #1a1a1a;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
   .fleche-print-area * {
     visibility: visible;

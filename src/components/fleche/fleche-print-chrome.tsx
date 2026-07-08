@@ -17,6 +17,11 @@ const A4_CONTENT_H = 1010;
 const HEADER_BLOCK = 100;
 const MOTCACHE_BLOCK = 110;
 
+// Padding + border of the decorative "stamp" frame drawn around the printed
+// sheet (see `.fleche-print-scale` in globals.css). Reserved on every side so
+// the frame never pushes content onto a second page.
+const FRAME = 24;
+
 /**
  * Largest scale (≤ 1) at which the header, an `width`×`height` grid, and the
  * optional mot-caché strip still fit one A4 sheet. Computed from known cell
@@ -28,22 +33,17 @@ export function computeFlechePrintScale(
   height: number,
   hasHidden: boolean,
 ): number {
-  const gridW = width * CELL;
+  const gridW = width * CELL + 2 * FRAME;
   const contentH =
-    HEADER_BLOCK + height * CELL + (hasHidden ? MOTCACHE_BLOCK : 0);
+    HEADER_BLOCK + height * CELL + (hasHidden ? MOTCACHE_BLOCK : 0) + 2 * FRAME;
   return Math.min(A4_CONTENT_W / gridW, A4_CONTENT_H / contentH, 1);
 }
 
 export function FlechePrintHeader() {
   return (
-    <header className="hidden print:flex items-center justify-center gap-3 pt-1 pb-6">
-      <span className="flex h-12 w-12 items-center justify-center rounded-[6px] border-[3px] border-ink bg-brand text-brand-foreground text-2xl font-bold">
-        ►
-      </span>
-      <span
-        className="text-5xl leading-none text-ink"
-        style={{ fontFamily: "var(--font-handwritten)" }}
-      >
+    <header className="hidden print:flex items-baseline justify-center gap-2 pt-1 pb-6">
+      <span className="font-display text-4xl leading-none text-brand">►</span>
+      <span className="font-display text-5xl uppercase leading-none tracking-wide text-brand">
         Les Flèches
       </span>
     </header>

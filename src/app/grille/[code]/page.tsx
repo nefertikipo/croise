@@ -95,7 +95,7 @@ export default function GrillePage() {
     return (
       <main className="flex-1 px-4 py-8">
         <div className="max-w-5xl mx-auto">
-          <p className="text-muted-foreground">Chargement...</p>
+          <p className="font-serif-accent text-lg italic text-ink/70">Chargement...</p>
         </div>
       </main>
     );
@@ -105,7 +105,7 @@ export default function GrillePage() {
     return (
       <main className="flex-1 px-4 py-8">
         <div className="max-w-5xl mx-auto">
-          <p className="text-destructive">Grille introuvable</p>
+          <p className="text-brand">Grille introuvable</p>
         </div>
       </main>
     );
@@ -120,29 +120,38 @@ export default function GrillePage() {
             onChange={(e) => setTitle(e.target.value)}
             onBlur={updateTitle}
             placeholder="Nommer cette grille..."
-            className="text-2xl font-bold bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary outline-none"
+            className="font-display text-2xl uppercase tracking-wide bg-transparent border-b-2 border-transparent hover:border-ink/30 focus:border-ink outline-none"
           />
-          <span className="text-sm font-mono text-muted-foreground">{code}</span>
+          <span className="text-sm font-mono text-ink/60">{code}</span>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <Button variant="outline" onClick={() => setShowSolution(!showSolution)}>
+          <Button
+            onClick={() => setShowSolution(!showSolution)}
+            className="btn-lapos rounded-md bg-sun px-4 py-2.5 text-sm text-ink"
+          >
             {showSolution ? "Cacher solution" : "Voir solution"}
           </Button>
-          <Button variant="outline" onClick={() => window.print()}>
+          <Button
+            onClick={() => window.print()}
+            className="btn-lapos rounded-md bg-brand px-4 py-2.5 text-sm text-brand-foreground"
+          >
             Imprimer / PDF
           </Button>
           <Button
-            variant="outline"
             onClick={() => {
               navigator.clipboard.writeText(window.location.href);
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             }}
+            className="btn-lapos rounded-md bg-paper px-4 py-2.5 text-sm text-ink"
           >
-            {copied ? "Lien copie!" : "Copier le lien"}
+            {copied ? "Lien copié!" : "Copier le lien"}
           </Button>
-          <Button variant="outline" onClick={() => router.push("/fleche")}>
+          <Button
+            onClick={() => router.push("/fleche")}
+            className="btn-lapos rounded-md bg-ink px-4 py-2.5 text-sm text-paper"
+          >
             Nouvelle grille
           </Button>
         </div>
@@ -192,11 +201,11 @@ export default function GrillePage() {
 
         {hiddenCells.size > 0 && (
           <div className="flex items-center gap-1">
-            <span className="mr-2 text-sm font-medium">Mot caché :</span>
+            <span className="mr-2 font-display text-sm uppercase tracking-[0.2em] text-ink">Mot caché :</span>
             {Array.from({ length: hiddenCells.size }, (_, i) => (
               <div
                 key={i}
-                className="flex h-8 w-8 items-center justify-center border-2 border-primary text-xs text-muted-foreground"
+                className="flex h-8 w-8 items-center justify-center border-2 border-ink text-xs text-ink/70"
               >
                 {showSolution ? cleanHidden[i] : i + 1}
               </div>
@@ -204,7 +213,7 @@ export default function GrillePage() {
           </div>
         )}
 
-        <p className="text-sm text-muted-foreground">
+        <p className="font-serif-accent text-sm italic text-ink/70">
           {grid.words.length} mots
         </p>
       </div>

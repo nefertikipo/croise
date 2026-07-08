@@ -49,12 +49,12 @@ export default async function CrosswordPage({
   return (
     <main className="flex-1 px-4 py-8">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 border-b-2 border-ink pb-4">
           <div>
-            <h1 className="text-2xl font-bold">
+            <h1 className="text-4xl">
               {crossword.title ?? "Crossword"}
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="font-display text-xs uppercase tracking-[0.2em] text-ink/60 mt-1">
               Code: {crossword.code}
             </p>
           </div>

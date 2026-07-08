@@ -165,10 +165,10 @@ export default function FlechePage() {
     <main className="flex-1 px-4 py-10">
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="space-y-1">
-          <h1 className="text-4xl font-black text-ink">
+          <h1 className="text-5xl text-ink">
             Mots <span className="text-brand">Fléchés</span>
           </h1>
-          <p className="text-muted-foreground">
+          <p className="font-serif-accent text-lg italic text-ink/75">
             Générez une grille personnalisée, glissez vos mots, imprimez.
           </p>
         </div>
@@ -177,7 +177,7 @@ export default function FlechePage() {
         {!grid && !loading && (
           <div className="space-y-6 rounded-2xl border-2 border-ink bg-card p-6 shadow-[4px_4px_0_0] shadow-ink/80">
             <div className="flex flex-wrap items-center gap-2">
-              <label className="text-sm font-medium mr-1">Format :</label>
+              <label className="mr-2 font-display text-sm uppercase tracking-wide text-ink">Format</label>
               {[
                 { w: 11, h: 17, label: "11×17" },
                 { w: 11, h: 15, label: "11×15" },
@@ -188,10 +188,10 @@ export default function FlechePage() {
                 <button
                   key={s.label}
                   onClick={() => { setGridWidth(s.w); setGridHeight(s.h); }}
-                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                  className={`rounded-md border-2 border-ink px-4 py-1.5 font-display text-sm uppercase tracking-wide transition-colors ${
                     gridWidth === s.w && gridHeight === s.h
                       ? "bg-ink text-paper"
-                      : "bg-secondary text-muted-foreground hover:bg-accent"
+                      : "bg-paper text-ink hover:bg-accent"
                   }`}
                 >
                   {s.label}
@@ -201,7 +201,7 @@ export default function FlechePage() {
 
             {/* Difficulty selector */}
             <div className="flex flex-wrap items-center gap-2">
-              <label className="text-sm font-medium mr-1">Difficulté :</label>
+              <label className="mr-2 font-display text-sm uppercase tracking-wide text-ink">Difficulté</label>
               {[
                 { v: "facile", label: "Facile" },
                 { v: "balanced", label: "Équilibré" },
@@ -211,10 +211,10 @@ export default function FlechePage() {
                 <button
                   key={d.v}
                   onClick={() => setDifficulty(d.v as typeof difficulty)}
-                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                  className={`rounded-md border-2 border-ink px-4 py-1.5 font-display text-sm uppercase tracking-wide transition-colors ${
                     difficulty === d.v
                       ? "bg-ink text-paper"
-                      : "bg-secondary text-muted-foreground hover:bg-accent"
+                      : "bg-paper text-ink hover:bg-accent"
                   }`}
                 >
                   {d.label}
@@ -305,13 +305,13 @@ export default function FlechePage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Button
+              <button
                 onClick={generate}
                 disabled={loading || capacity.message !== null}
-                size="lg"
+                className="btn-lapos rounded-md bg-brand px-7 py-3 text-base text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
               >
                 Générer une grille
-              </Button>
+              </button>
               {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
           </div>
@@ -521,13 +521,17 @@ export default function FlechePage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setCustomClues([...customClues, { answer: "", clue: "" }])}
-                  className="text-sm border rounded px-3 py-1 hover:bg-muted bg-white"
+                  className="rounded-lg border-2 border-ink bg-paper px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0] shadow-ink/60 transition-transform hover:-translate-y-0.5"
                 >
                   + Ajouter un mot
                 </button>
-                <Button onClick={generate} disabled={loading || capacity.message !== null}>
+                <button
+                  onClick={generate}
+                  disabled={loading || capacity.message !== null}
+                  className="btn-lapos rounded-md bg-brand px-6 py-2.5 text-sm text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                >
                   Régénérer
-                </Button>
+                </button>
               </div>
 
               {loading && <GenerationProgress estimatedMs={estimatedMs} />}
