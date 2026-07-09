@@ -15,6 +15,7 @@ import {
 import {
   FlechePrintHeader,
   FlechePrintMotCache,
+  FlechePrintFooter,
   computeFlechePrintScale,
 } from "@/components/fleche/fleche-print-chrome";
 
@@ -450,6 +451,7 @@ export default function FlechePage() {
                     />
                   </div>
                   <FlechePrintMotCache count={hiddenCells.size} />
+                  <FlechePrintFooter />
                 </div>
               </div>
               <div className="fleche-print-solution hidden print:block">

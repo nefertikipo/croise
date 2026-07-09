@@ -17,6 +17,7 @@ const A4_CONTENT_H = 1010;
 const HEADER_BLOCK = 100;
 const TITLE_BLOCK = 48; // extra reserve when a grid title is shown
 const MOTCACHE_BLOCK = 110;
+const FOOTER_BLOCK = 44; // reserve for the lesfleches.com credit line
 
 // Padding + border of the decorative "stamp" frame drawn around the printed
 // sheet (see `.fleche-print-scale` in globals.css). Reserved on every side so
@@ -41,8 +42,23 @@ export function computeFlechePrintScale(
     (hasTitle ? TITLE_BLOCK : 0) +
     height * CELL +
     (hasHidden ? MOTCACHE_BLOCK : 0) +
+    FOOTER_BLOCK +
     2 * FRAME;
   return Math.min(A4_CONTENT_W / gridW, A4_CONTENT_H / contentH, 1);
+}
+
+/**
+ * The lead magnet: every free printed grid points back to the site, so whoever
+ * receives it can come make their own. Not a gate — the grid is free.
+ */
+export function FlechePrintFooter() {
+  return (
+    <footer className="hidden pt-6 text-center print:block">
+      <span className="font-display text-base uppercase tracking-[0.15em] text-brand">
+        Créez la vôtre gratuitement sur lesfleches.com
+      </span>
+    </footer>
+  );
 }
 
 export function FlechePrintHeader({ title }: { title?: string }) {

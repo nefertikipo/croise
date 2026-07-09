@@ -185,7 +185,7 @@ const INK = "#2f2a26";
 const PAPER = "#fffcf5";
 const EMPTY_BG = "#ece3d3";
 const DEFAULT_ACCENT = "#1f9e94";
-const CUSTOM_BG = "#f3ddd4";
+const CUSTOM_BG = "#dbe6fb";
 
 interface ArrowSpec {
   /** Clue cell row/col */
