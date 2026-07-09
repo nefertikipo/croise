@@ -15,6 +15,7 @@ const A4_CONTENT_H = 1010;
 // Reserved vertical space for the printed chrome (unscaled px), used so the
 // grid + header + mot-caché strip fit on a single sheet.
 const HEADER_BLOCK = 100;
+const TITLE_BLOCK = 48; // extra reserve when a grid title is shown
 const MOTCACHE_BLOCK = 110;
 
 // Padding + border of the decorative "stamp" frame drawn around the printed
@@ -32,20 +33,32 @@ export function computeFlechePrintScale(
   width: number,
   height: number,
   hasHidden: boolean,
+  hasTitle = false,
 ): number {
   const gridW = width * CELL + 2 * FRAME;
   const contentH =
-    HEADER_BLOCK + height * CELL + (hasHidden ? MOTCACHE_BLOCK : 0) + 2 * FRAME;
+    HEADER_BLOCK +
+    (hasTitle ? TITLE_BLOCK : 0) +
+    height * CELL +
+    (hasHidden ? MOTCACHE_BLOCK : 0) +
+    2 * FRAME;
   return Math.min(A4_CONTENT_W / gridW, A4_CONTENT_H / contentH, 1);
 }
 
-export function FlechePrintHeader() {
+export function FlechePrintHeader({ title }: { title?: string }) {
   return (
-    <header className="hidden print:flex items-baseline justify-center gap-2 pt-1 pb-6">
-      <span className="font-display text-4xl leading-none text-brand">►</span>
-      <span className="font-display text-5xl uppercase leading-none tracking-wide text-brand">
-        Les Flèches
-      </span>
+    <header className="hidden text-center print:block pt-1 pb-6">
+      <div className="flex items-baseline justify-center gap-2">
+        <span className="font-display text-4xl leading-none text-brand">►</span>
+        <span className="font-display text-5xl uppercase leading-none tracking-wide text-brand">
+          Les Flèches
+        </span>
+      </div>
+      {title && (
+        <p className="mt-3 font-display text-2xl uppercase tracking-wide text-ink">
+          {title}
+        </p>
+      )}
     </header>
   );
 }

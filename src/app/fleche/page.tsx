@@ -99,6 +99,8 @@ export default function FlechePage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [poster, setPoster] = useState(false);
+  const [title, setTitle] = useState("");
+  const gridTitle = title.trim();
 
   // Poster intent (from the homepage "Créer un poster" CTA): read client-side
   // after mount to avoid a hydration mismatch, then default to the largest
@@ -236,6 +238,17 @@ export default function FlechePage() {
         {/* Before generation: pick a format, add your words, generate */}
         {!grid && !loading && (
           <div className="space-y-6 rounded-none border-2 border-ink bg-card p-6 shadow-[4px_4px_0_0] shadow-ink/80">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="mr-2 font-display text-sm uppercase tracking-wide text-ink">Titre</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={40}
+                placeholder="ex: Joyeux anniversaire Maman (optionnel)"
+                className="frame-tight w-72 max-w-full bg-paper px-3 py-1.5 text-sm text-ink placeholder:text-ink/40 focus:outline-none"
+              />
+            </div>
+
             <div className="flex flex-wrap items-center gap-2">
               <label className="mr-2 font-display text-sm uppercase tracking-wide text-ink">Format</label>
               {[
@@ -415,13 +428,14 @@ export default function FlechePage() {
                     grid.width,
                     grid.height,
                     hiddenCells.size > 0,
+                    gridTitle.length > 0,
                   ),
                 } as CSSProperties
               }
             >
               <div className="fleche-print-page">
                 <div className="fleche-print-scale">
-                  <FlechePrintHeader />
+                  <FlechePrintHeader title={gridTitle || undefined} />
                   <div className="overflow-x-auto">
                     <FlecheGrid
                       key={gridKey}
@@ -437,7 +451,10 @@ export default function FlechePage() {
                 </div>
               </div>
               <div className="fleche-print-solution hidden print:block">
-                <div className="fleche-print-scale">
+                <p className="mb-4 font-display text-xl uppercase tracking-wide text-ink">
+                  Solution{gridTitle ? ` — ${gridTitle}` : ""}
+                </p>
+                <div className="fleche-print-scale fleche-print-solution-scale">
                   <div className="rotate-180">
                     <FlecheGrid
                       cells={grid.cells}
@@ -484,6 +501,20 @@ export default function FlechePage() {
                 <> dont {grid.words.filter((w) => w.isCustom).length} personnalise(s)</>
               )}
             </p>
+
+            {/* Grid title — editable after generation; shows on the printed sheet */}
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="mr-1 font-display text-sm uppercase tracking-wide text-ink">
+                Titre
+              </label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={40}
+                placeholder="ex: Joyeux anniversaire Maman (optionnel)"
+                className="frame-tight w-80 max-w-full bg-paper px-3 py-1.5 text-sm text-ink placeholder:text-ink/40 focus:outline-none"
+              />
+            </div>
 
             {/* Actions */}
             <div className="flex items-center gap-3 flex-wrap">
