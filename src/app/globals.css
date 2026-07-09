@@ -77,7 +77,7 @@
   /* Brand tokens — Italian-aperitivo editorial (à la Lapo's) */
   --paper: #ffefe1;                      /* warm Lapo's cream */
   --ink: oklch(0.2 0.01 260);            /* near-black newsprint ink */
-  --brand: #1b54c9;                      /* brand blue (primary) */
+  --brand: #0f4c81;                      /* aperitivo azzurro (primary) */
   --brand-foreground: #fff6ec;
   --blueprint: oklch(0.56 0.13 240);     /* clue-cell blue */
   --gold: #bb9a62;                       /* Lapo's warm gold */
@@ -91,7 +91,7 @@
   --card-foreground: oklch(0.26 0.028 265);
   --popover: oklch(0.995 0.005 85);
   --popover-foreground: oklch(0.26 0.028 265);
-  --primary: #1b54c9;
+  --primary: #0f4c81;
   --primary-foreground: #fff6ec;
   --secondary: oklch(0.945 0.012 85);
   --secondary-foreground: oklch(0.3 0.03 265);
@@ -102,7 +102,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.9 0.012 80);
   --input: oklch(0.9 0.012 80);
-  --ring: #1b54c9;
+  --ring: #0f4c81;
   --chart-1: oklch(0.5 0.18 262);
   --chart-2: oklch(0.56 0.13 250);
   --chart-3: oklch(0.78 0.13 80);
