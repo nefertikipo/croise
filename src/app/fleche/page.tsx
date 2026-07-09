@@ -70,6 +70,8 @@ interface FlecheCell {
   type: "letter" | "clue" | "empty";
   letter?: string;
   clues?: ClueInCell[];
+  breakRight?: boolean;
+  breakBottom?: boolean;
 }
 
 interface FlecheData {
@@ -333,7 +335,7 @@ export default function FlechePage() {
                 <div key={i} className="space-y-1">
                   <div className="flex items-center gap-2">
                     <input
-                      placeholder="Mot (ex: SARAH)"
+                      placeholder="Mot ou phrase (ex: BON ANNIVERSAIRE)"
                       value={cc.answer}
                       onChange={(e) => {
                         const next = [...customClues];
@@ -455,15 +457,13 @@ export default function FlechePage() {
                   Solution{gridTitle ? ` — ${gridTitle}` : ""}
                 </p>
                 <div className="fleche-print-scale fleche-print-solution-scale">
-                  <div className="rotate-180">
-                    <FlecheGrid
-                      cells={grid.cells}
-                      width={grid.width}
-                      height={grid.height}
-                      showSolution
-                      plain
-                    />
-                  </div>
+                  <FlecheGrid
+                    cells={grid.cells}
+                    width={grid.width}
+                    height={grid.height}
+                    showSolution
+                    plain
+                  />
                 </div>
               </div>
             </div>
@@ -552,7 +552,7 @@ export default function FlechePage() {
                   <div key={i} className="space-y-1">
                     <div className="flex items-center gap-2">
                       <input
-                        placeholder="Mot (ex: SARAH)"
+                        placeholder="Mot ou phrase (ex: BON ANNIVERSAIRE)"
                         value={cc.answer}
                         onChange={(e) => {
                           const next = [...customClues];

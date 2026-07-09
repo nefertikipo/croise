@@ -116,6 +116,29 @@ function FitText({
   );
 }
 
+/**
+ * Dotted rule drawn on a letter cell's right/bottom edge to mark where one word
+ * ends and the next begins inside a multi-word answer.
+ */
+function WordBreak({ right, bottom }: { right?: boolean; bottom?: boolean }) {
+  return (
+    <>
+      {right && (
+        <span
+          className="pointer-events-none absolute -right-px top-0 bottom-0 z-20 border-r-[3px] border-dashed"
+          style={{ borderColor: INK }}
+        />
+      )}
+      {bottom && (
+        <span
+          className="pointer-events-none absolute -bottom-px left-0 right-0 z-20 border-b-[3px] border-dashed"
+          style={{ borderColor: INK }}
+        />
+      )}
+    </>
+  );
+}
+
 interface ClueInCell {
   text: string;
   direction: "right" | "down";
@@ -130,6 +153,9 @@ interface FlecheCell {
   type: "letter" | "clue" | "empty";
   letter?: string;
   clues?: ClueInCell[];
+  /** Right/bottom edge marks a multi-word break → render a dotted rule. */
+  breakRight?: boolean;
+  breakBottom?: boolean;
 }
 
 interface FlecheGridProps {
@@ -569,6 +595,7 @@ export function FlecheGrid({
                     autoCorrect="off"
                     spellCheck={false}
                   />
+                  <WordBreak right={cell.breakRight} bottom={cell.breakBottom} />
                 </div>
               );
             }
@@ -610,6 +637,7 @@ export function FlecheGrid({
                     {cell.letter}
                   </span>
                 )}
+                <WordBreak right={cell.breakRight} bottom={cell.breakBottom} />
               </div>
             );
           }
