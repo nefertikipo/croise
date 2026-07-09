@@ -113,11 +113,11 @@ export function NewsletterSection() {
             type="email"
             required
             placeholder="votre@email.fr"
-            className="frame-tight flex-1 rounded-md bg-paper px-4 py-3 text-ink placeholder:text-ink/40 focus:outline-none"
+            className="frame-tight flex-1 rounded-none bg-paper px-4 py-3 text-ink placeholder:text-ink/40 focus:outline-none"
           />
           <button
             type="submit"
-            className="btn-lapos rounded-md bg-ink px-6 py-3 text-sm text-paper"
+            className="btn-lapos rounded-none bg-ink px-6 py-3 text-sm text-paper"
           >
             S&apos;inscrire
           </button>

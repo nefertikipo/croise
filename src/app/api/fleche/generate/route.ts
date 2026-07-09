@@ -7,7 +7,7 @@ import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
 import { generateCrosswordCode } from "@/lib/code";
 import { checkCapacity } from "@/lib/crossword/check-capacity";
-import { normalizeAnswer } from "@/lib/crossword/normalize";
+import { normalizeAnswer, answerBreaks } from "@/lib/crossword/normalize";
 import type { Coord } from "@/lib/crossword/fleche-math";
 
 export const maxDuration = 120;
@@ -21,6 +21,7 @@ const requestSchema = z.object({
   excludeClues: z.array(z.string()).default([]),
   excludeAnswers: z.array(z.string()).default([]),
   hiddenWord: z.string().optional(),
+  title: z.string().max(60).optional(),
   difficulty: z.enum(["facile", "moyen", "difficile", "balanced"]).optional(),
 });
 
@@ -109,6 +110,9 @@ export async function POST(request: Request) {
     const cells: {
       type: "letter" | "clue" | "empty";
       letter?: string;
+      /** Right/bottom edge is a multi-word break → render dotted. */
+      breakRight?: boolean;
+      breakBottom?: boolean;
       clues?: {
         text: string;
         direction: "right" | "down";
@@ -116,8 +120,17 @@ export async function POST(request: Request) {
         answerCol: number;
         answerLength: number;
         answer: string;
+        isCustom?: boolean;
       }[];
     }[][] = [];
+
+    // Map each custom answer (folded) to its word-break offsets so the placed
+    // word can render dotted borders where one word ends and the next begins.
+    const breaksByAnswer = new Map<string, number[]>();
+    for (const c of params.customClues ?? []) {
+      const breaks = answerBreaks(c.answer);
+      if (breaks.length > 0) breaksByAnswer.set(normalizeAnswer(c.answer), breaks);
+    }
 
     for (let y = 0; y < grid.height; y++) {
       const row: (typeof cells)[0] = [];
@@ -156,6 +169,30 @@ export async function POST(request: Request) {
       cells.push(row);
     }
 
+    // Mark word breaks: for each placed custom answer with breaks, walk its
+    // letter cells and flag the trailing edge of the last cell of each word.
+    if (breaksByAnswer.size > 0) {
+      for (const row of cells) {
+        for (const cell of row) {
+          if (cell.type !== "clue") continue;
+          for (const clue of cell.clues ?? []) {
+            const breaks = clue.isCustom ? breaksByAnswer.get(clue.answer) : undefined;
+            if (!breaks) continue;
+            for (const p of breaks) {
+              if (p < 1 || p >= clue.answerLength) continue;
+              const k = p - 1; // last cell of the finished word
+              const rr = clue.answerRow + (clue.direction === "down" ? k : 0);
+              const cc = clue.answerCol + (clue.direction === "right" ? k : 0);
+              const target = cells[rr]?.[cc];
+              if (target?.type !== "letter") continue;
+              if (clue.direction === "right") target.breakRight = true;
+              else target.breakBottom = true;
+            }
+          }
+        }
+      }
+    }
+
     const wordList2 = words.map((w) => ({
       answer: w.word,
       clue: w.clueText,
@@ -183,6 +220,7 @@ export async function POST(request: Request) {
         .values({
           code: gridCode,
           language: "fr",
+          title: params.title?.trim() || null,
           width: grid.width,
           height: grid.height,
           gridPattern: pattern,
@@ -193,17 +231,21 @@ export async function POST(request: Request) {
         .returning({ id: crosswords.id });
       gridId = saved.id;
 
-      const wordRows = words.map((w, i) => ({
-        crosswordId: saved.id,
-        answer: w.word,
-        direction: w.slot.direction === "horizontal" ? "right" : "down",
-        number: i + 1,
-        startRow: w.slot.cells[0].y,
-        startCol: w.slot.cells[0].x,
-        length: w.slot.length,
-        clueText: w.clueText,
-        isCustom: w.isCustom,
-      }));
+      const wordRows = words.map((w, i) => {
+        const wordBreaks = w.isCustom ? breaksByAnswer.get(w.word) : undefined;
+        return {
+          crosswordId: saved.id,
+          answer: w.word,
+          direction: w.slot.direction === "horizontal" ? "right" : "down",
+          number: i + 1,
+          startRow: w.slot.cells[0].y,
+          startCol: w.slot.cells[0].x,
+          length: w.slot.length,
+          clueText: w.clueText,
+          isCustom: w.isCustom,
+          breaks: wordBreaks && wordBreaks.length > 0 ? JSON.stringify(wordBreaks) : null,
+        };
+      });
       if (wordRows.length > 0) {
         await db.insert(placedWords).values(wordRows);
       }

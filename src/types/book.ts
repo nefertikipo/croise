@@ -55,6 +55,9 @@ export interface FlecheCell {
   type: "letter" | "clue" | "empty";
   letter?: string;
   clues?: ClueInCell[];
+  /** Right/bottom edge marks a multi-word break → render a dotted rule. */
+  breakRight?: boolean;
+  breakBottom?: boolean;
 }
 
 export interface BookWord {

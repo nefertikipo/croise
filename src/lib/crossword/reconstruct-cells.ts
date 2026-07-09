@@ -15,6 +15,8 @@ interface StoredPlacedWord {
   length: number;
   clueText: string;
   isCustom: boolean;
+  /** JSON array of multi-word break offsets, if any. */
+  breaks?: string | null;
 }
 
 /**
@@ -61,5 +63,27 @@ export function reconstructCells(
     }
     cells.push(row);
   }
+
+  // Multi-word breaks: flag the trailing edge of each finished word's last cell.
+  for (const w of words) {
+    if (!w.breaks) continue;
+    let offsets: number[];
+    try {
+      offsets = JSON.parse(w.breaks);
+    } catch {
+      continue;
+    }
+    for (const p of offsets) {
+      if (p < 1 || p >= w.length) continue;
+      const k = p - 1;
+      const r = w.startRow + (w.direction === "down" ? k : 0);
+      const c = w.startCol + (w.direction === "right" ? k : 0);
+      const cell = cells[r]?.[c];
+      if (cell?.type !== "letter") continue;
+      if (w.direction === "right") cell.breakRight = true;
+      else cell.breakBottom = true;
+    }
+  }
+
   return cells;
 }
