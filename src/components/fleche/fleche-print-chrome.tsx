@@ -15,7 +15,7 @@ const A4_CONTENT_H = 1010;
 // Reserved vertical space for the printed chrome (unscaled px), used so the
 // grid + header + mot-caché strip fit on a single sheet.
 const HEADER_BLOCK = 100;
-const TITLE_BLOCK = 48; // extra reserve when a grid title is shown
+const TITLE_BLOCK = 72; // extra reserve when a grid title is shown (now the big line)
 const MOTCACHE_BLOCK = 110;
 const FOOTER_BLOCK = 44; // reserve for the lesfleches.com credit line
 
@@ -64,14 +64,21 @@ export function FlechePrintFooter() {
 export function FlechePrintHeader({ title }: { title?: string }) {
   return (
     <header className="hidden text-center print:block pt-1 pb-6">
-      <div className="flex items-baseline justify-center gap-2">
-        <span className="font-display text-4xl leading-none text-brand">►</span>
-        <span className="font-display text-5xl uppercase leading-none tracking-wide text-brand">
+      {/* When there's a personalized title it's the star — the brand mark shrinks
+         to a small line above it. With no title, the wordmark stands on its own. */}
+      <div
+        className={
+          "flex items-baseline justify-center gap-2 text-brand " +
+          (title ? "text-xl" : "text-5xl")
+        }
+      >
+        <span className="font-display leading-none">►</span>
+        <span className="font-display uppercase leading-none tracking-wide">
           Les Flèches
         </span>
       </div>
       {title && (
-        <p className="mt-3 font-display text-2xl uppercase tracking-wide text-ink">
+        <p className="mt-2 font-display text-5xl uppercase leading-none tracking-wide text-ink">
           {title}
         </p>
       )}
