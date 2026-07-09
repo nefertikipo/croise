@@ -1,5 +1,11 @@
 import type { Metadata } from "next";
-import { Inter, Fraunces, Anton, Oswald, Patrick_Hand } from "next/font/google";
+import {
+  Inter,
+  Fraunces,
+  Anton,
+  Barlow_Semi_Condensed,
+  Patrick_Hand,
+} from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/shared/nav";
 
@@ -8,12 +14,14 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-// Condensed face for clue text: fits far more of a long French definition per
-// line than Inter, and matches the mots fléchés magazine look.
-const condensed = Oswald({
+// Condensed face for clue text: Barlow Semi Condensed keeps clues compact
+// enough to fit a long French definition per line, but has a large x-height and
+// open letterforms that stay legible at the tiny sizes clue cells force —
+// noticeably more readable than a narrow condensed face like Oswald.
+const condensed = Barlow_Semi_Condensed({
   variable: "--font-condensed",
   subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: ["500", "600"],
 });
 
 // Fallback for the display face: Anton covers glyphs our custom "Fléchés
