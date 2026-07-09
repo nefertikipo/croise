@@ -250,8 +250,11 @@
 }
 
 @media print {
+  /* margin:0 removes the browser's default print chrome (date, page title,
+     URL, page number) that would otherwise print in the page margins. We add
+     our own safe margin as padding on each printed sheet below. */
   @page {
-    margin: 10mm;
+    margin: 0;
   }
   body * {
     visibility: hidden;
@@ -271,10 +274,13 @@
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
-  /* One printed sheet per block; center the scaled unit horizontally. */
+  /* One printed sheet per block; center the scaled unit horizontally. The
+     padding is our printer-safe margin (replaces the @page margin we zeroed
+     out to drop the browser chrome). */
   .fleche-print-page,
   .fleche-print-solution {
     width: 100%;
+    padding: 12mm 10mm;
     text-align: center;
   }
   .fleche-print-solution {
