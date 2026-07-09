@@ -263,6 +263,13 @@
   body::after {
     display: none;
   }
+  /* Plain white paper for print — drop the cream fill and grid-paper lines so
+     nothing but the puzzle uses ink. */
+  html,
+  body {
+    background: #fff !important;
+    background-image: none !important;
+  }
   .fleche-print-area {
     display: block !important;
     visibility: visible;
@@ -282,9 +289,17 @@
     width: 100%;
     padding: 12mm 10mm;
     text-align: center;
+    background: #fff;
   }
   .fleche-print-solution {
     break-before: page;
+  }
+  /* Ink-saving print: white out every grid cell fill (cream letter cells,
+     tinted clue/hidden/custom cells) — the puzzle stays fully readable via its
+     borders, clue text, arrows and mot-caché numbers, and uses far less ink.
+     `!important` is needed to beat the cells' inline background-color. */
+  .fleche-print-area .inline-grid > div {
+    background-color: #fff !important;
   }
   /* `zoom` (not `transform: scale`) so the browser paginates on the SCALED
      size — otherwise header + grid split across pages. Per-grid scale is set
