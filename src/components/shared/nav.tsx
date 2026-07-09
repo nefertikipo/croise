@@ -4,7 +4,6 @@ import { CreateBookLink } from "@/components/shared/create-book-link";
 const LINKS = [
   { href: "/fleche", label: "Créer" },
   { href: "/contribuer", label: "Contribuer" },
-  { href: "/admin/label", label: "Scorer" },
 ];
 
 export function Nav() {
