@@ -16,4 +16,6 @@ export const placedWords = pgTable("placed_words", {
   originalClueId: integer("original_clue_id").references(() => clueEntries.id),
   clueText: text("clue_text").notNull(),
   isCustom: boolean("is_custom").notNull().default(false),
+  /** JSON array of letter offsets where a multi-word answer breaks (e.g. [3]). */
+  breaks: text("breaks"),
 });

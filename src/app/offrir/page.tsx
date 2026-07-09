@@ -75,9 +75,19 @@ export default function OffrirPage() {
             </p>
           ) : (
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                if (email.trim()) setSubmitted(true);
+                if (!email.trim()) return;
+                try {
+                  await fetch("/api/leads", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, source: "offrir-waitlist" }),
+                  });
+                } catch (err) {
+                  console.error(err);
+                }
+                setSubmitted(true);
               }}
               className="flex w-full max-w-md flex-col gap-3 sm:flex-row"
             >

@@ -162,6 +162,7 @@ export default function FlechePage() {
           customClues: validCustom,
           excludeAnswers: Array.from(usedAnswers),
           hiddenWord: cleanHidden || undefined,
+          title: gridTitle || undefined,
           difficulty,
         }),
       });

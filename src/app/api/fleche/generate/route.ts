@@ -21,6 +21,7 @@ const requestSchema = z.object({
   excludeClues: z.array(z.string()).default([]),
   excludeAnswers: z.array(z.string()).default([]),
   hiddenWord: z.string().optional(),
+  title: z.string().max(60).optional(),
   difficulty: z.enum(["facile", "moyen", "difficile", "balanced"]).optional(),
 });
 
@@ -219,6 +220,7 @@ export async function POST(request: Request) {
         .values({
           code: gridCode,
           language: "fr",
+          title: params.title?.trim() || null,
           width: grid.width,
           height: grid.height,
           gridPattern: pattern,
@@ -229,17 +231,21 @@ export async function POST(request: Request) {
         .returning({ id: crosswords.id });
       gridId = saved.id;
 
-      const wordRows = words.map((w, i) => ({
-        crosswordId: saved.id,
-        answer: w.word,
-        direction: w.slot.direction === "horizontal" ? "right" : "down",
-        number: i + 1,
-        startRow: w.slot.cells[0].y,
-        startCol: w.slot.cells[0].x,
-        length: w.slot.length,
-        clueText: w.clueText,
-        isCustom: w.isCustom,
-      }));
+      const wordRows = words.map((w, i) => {
+        const wordBreaks = w.isCustom ? breaksByAnswer.get(w.word) : undefined;
+        return {
+          crosswordId: saved.id,
+          answer: w.word,
+          direction: w.slot.direction === "horizontal" ? "right" : "down",
+          number: i + 1,
+          startRow: w.slot.cells[0].y,
+          startCol: w.slot.cells[0].x,
+          length: w.slot.length,
+          clueText: w.clueText,
+          isCustom: w.isCustom,
+          breaks: wordBreaks && wordBreaks.length > 0 ? JSON.stringify(wordBreaks) : null,
+        };
+      });
       if (wordRows.length > 0) {
         await db.insert(placedWords).values(wordRows);
       }
