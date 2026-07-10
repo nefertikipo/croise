@@ -7,7 +7,9 @@ import {
   Patrick_Hand,
 } from "next/font/google";
 import "./globals.css";
-import { Nav } from "@/components/shared/nav";
+import { SiteChrome } from "@/components/shared/site-chrome";
+import { SanityLive } from "@/sanity/lib/live";
+import { SITE_URL } from "@/lib/site";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -51,8 +53,13 @@ const handwritten = Patrick_Hand({
 });
 
 export const metadata: Metadata = {
-  title: "Les Fleches - Mots fleches personnalises",
-  description: "Creez des grilles de mots fleches personnalisees avec vos propres mots. Exportez en PDF pret a imprimer.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Les Flèches — Mots fléchés et mots croisés personnalisés",
+    template: "%s · Les Flèches",
+  },
+  description:
+    "Créez des mots fléchés et mots croisés personnalisés avec vos propres mots — une idée cadeau originale, imprimée et prête à offrir.",
 };
 
 export default function RootLayout({
@@ -66,8 +73,9 @@ export default function RootLayout({
       className={`${inter.variable} ${display.variable} ${serif.variable} ${handwritten.variable} ${condensed.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
-        <Nav />
+        <SiteChrome />
         {children}
+        <SanityLive />
       </body>
     </html>
   );
