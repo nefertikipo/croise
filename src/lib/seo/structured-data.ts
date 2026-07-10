@@ -63,6 +63,8 @@ export function itemListJsonLd(items: { name: string; path?: string }[]): WithCo
   return {
     "@context": "https://schema.org",
     "@type": "ItemList",
+    // A curated set of ideas, not a ranking.
+    itemListOrder: "https://schema.org/ItemListUnordered",
     itemListElement: items.map((item, index) => ({
       "@type": "ListItem",
       position: index + 1,
