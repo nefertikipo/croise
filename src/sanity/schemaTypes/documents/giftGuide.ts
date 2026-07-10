@@ -101,9 +101,9 @@ export const giftGuide = defineType({
               type: "string",
               options: {
                 list: [
-                  { title: "€ — moins de 20€", value: "low" },
-                  { title: "€€ — 20 à 50€", value: "mid" },
-                  { title: "€€€ — plus de 50€", value: "high" },
+                  { title: "€ (moins de 20€)", value: "low" },
+                  { title: "€€ (20 à 50€)", value: "mid" },
+                  { title: "€€€ (plus de 50€)", value: "high" },
                 ],
               },
             }),

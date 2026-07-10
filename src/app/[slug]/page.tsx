@@ -15,6 +15,9 @@ import type { LandingPage, SlugRow } from "@/types/sanity-content";
 
 type RouteProps = { params: Promise<{ slug: string }> };
 
+// Revalidate so newly published/edited content appears without a redeploy.
+export const revalidate = 60;
+
 export async function generateStaticParams() {
   try {
     const slugs = await client.fetch<SlugRow[]>(LANDING_SLUGS_QUERY);

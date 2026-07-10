@@ -8,11 +8,14 @@ import { ARTICLES_QUERY } from "@/sanity/lib/queries";
 import type { ArticleListItem } from "@/types/sanity-content";
 
 export const metadata: Metadata = {
-  title: "Le journal — idées cadeaux & jeux de lettres",
+  title: "Le journal : idées cadeaux et jeux de lettres",
   description:
     "Conseils, idées cadeaux originales et guides autour des mots fléchés et mots croisés personnalisés.",
   alternates: { canonical: absoluteUrl("/blog") },
 };
+
+// Revalidate so newly published/edited content appears without a redeploy.
+export const revalidate = 60;
 
 export default async function BlogIndexPage() {
   const { data } = await sanityFetch({ query: ARTICLES_QUERY });

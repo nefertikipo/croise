@@ -15,11 +15,8 @@ import type { GiftGuideDetail, SlugRow } from "@/types/sanity-content";
 
 type RouteProps = { params: Promise<{ slug: string }> };
 
-const PRICE_LABELS: Record<string, string> = {
-  low: "€",
-  mid: "€€",
-  high: "€€€",
-};
+// Revalidate so newly published/edited content appears without a redeploy.
+export const revalidate = 60;
 
 export async function generateStaticParams() {
   try {
@@ -81,19 +78,10 @@ export default async function GiftGuidePage({ params }: RouteProps) {
           />
         )}
 
-        <ol className="mt-10 space-y-8">
+        <ul className="mt-10 space-y-8">
           {items.map((item, index) => (
             <li key={`${item.name}-${index}`} className="frame bg-paper p-6">
-              <div className="flex items-baseline justify-between gap-3">
-                <h2 className="text-2xl text-ink">
-                  <span className="text-brand">{index + 1}.</span> {item.name}
-                </h2>
-                {item.priceBracket && (
-                  <span className="font-display text-sm text-ink/50">
-                    {PRICE_LABELS[item.priceBracket]}
-                  </span>
-                )}
-              </div>
+              <h2 className="text-2xl text-ink">{item.name}</h2>
               {item.image && (
                 <SanityImage
                   value={item.image}
@@ -110,12 +98,12 @@ export default async function GiftGuidePage({ params }: RouteProps) {
                   href={item.href}
                   className="btn-lapos mt-4 inline-block rounded-md bg-sun px-4 py-2 text-sm text-ink"
                 >
-                  Découvrir
+                  Composer le mien
                 </Link>
               )}
             </li>
           ))}
-        </ol>
+        </ul>
 
         {guide.body && (
           <div className="mt-10">

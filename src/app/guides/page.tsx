@@ -14,6 +14,9 @@ export const metadata: Metadata = {
   alternates: { canonical: absoluteUrl("/guides") },
 };
 
+// Revalidate so newly published/edited content appears without a redeploy.
+export const revalidate = 60;
+
 export default async function GuidesIndexPage() {
   const { data } = await sanityFetch({ query: GIFT_GUIDES_QUERY });
   const guides = (data ?? []) as GiftGuideListItem[];
