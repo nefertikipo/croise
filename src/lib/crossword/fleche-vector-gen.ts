@@ -1294,6 +1294,7 @@ function pickClue(
   clueDb: Map<string, string[]>,
   clueDifficulty?: Map<string, number>,
   mode: DifficultyMode = "balanced",
+  usedClues?: Set<string>,
 ): string {
   const clues = clueDb.get(word.toUpperCase());
   if (!clues || clues.length === 0) return "?";
@@ -1302,7 +1303,16 @@ function pickClue(
   const filtered = clues.filter(
     (c) => !c.toUpperCase().includes(word.toUpperCase()),
   );
-  const pool = filtered.length > 0 ? filtered : clues;
+  let pool = filtered.length > 0 ? filtered : clues;
+
+  // Avoid reusing a clue text already placed elsewhere in the grid: the same
+  // clue (e.g. "PALACE LONDONIEN") can be valid for several answers, and two
+  // identical clue cells side by side look like a bug. Only apply the filter if
+  // it leaves something to choose from.
+  if (usedClues && usedClues.size > 0) {
+    const fresh = pool.filter((c) => !usedClues.has(c.toUpperCase()));
+    if (fresh.length > 0) pool = fresh;
+  }
 
   // Prefer short clues (fit the potence clue frame)
   const short = pool.filter((c) => c.length <= 40);
@@ -1536,6 +1546,9 @@ export function generateFlecheVector(
 
     // Phase 4: Write letters into grid and build word list
     const words: VectorGenResult["words"] = [];
+    // Clue texts already placed, so pickClue avoids showing the same clue twice
+    // (one clue can be valid for multiple answers).
+    const usedClues = new Set<string>();
 
     for (const slot of slots) {
       const word = assignment.get(slot.id);
@@ -1555,8 +1568,10 @@ export function generateFlecheVector(
       const clueText = isCustom
         ? customClues.find(
             (c) => normalizeAnswer(c.answer) === word,
-          )?.clue ?? pickClue(word, clueDb, clueDifficulty, params.difficulty)
-        : pickClue(word, clueDb, clueDifficulty, params.difficulty);
+          )?.clue ??
+          pickClue(word, clueDb, clueDifficulty, params.difficulty, usedClues)
+        : pickClue(word, clueDb, clueDifficulty, params.difficulty, usedClues);
+      usedClues.add(clueText.toUpperCase());
 
       // Write clue text into the blue cell
       const blueCell = grid.cells[slot.clueOrigin.y][slot.clueOrigin.x];
