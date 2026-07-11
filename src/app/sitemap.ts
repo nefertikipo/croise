@@ -10,6 +10,9 @@ type SitemapRow = {
   _updatedAt: string;
 };
 
+// Keep the sitemap current as content is published, without a redeploy.
+export const revalidate = 60;
+
 // Static, hand-maintained routes that should always appear in the sitemap.
 const STATIC_PATHS = ["/", "/fleche", "/blog", "/guides"];
 
