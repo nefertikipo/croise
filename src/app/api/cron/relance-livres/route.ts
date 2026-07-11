@@ -20,14 +20,21 @@ const MAX_AGE_DAYS = 30;
 const BATCH_LIMIT = 100;
 
 export async function GET(request: Request) {
-  // Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}` when the env var
-  // is set; reject anything else so the endpoint can't be triggered publicly.
+  // Fail closed: with no CRON_SECRET set, reminders are considered OFF and the
+  // endpoint refuses to run, so no email can ever be sent by accident. To turn
+  // reminders on, set CRON_SECRET and add the schedule back to vercel.json.
   const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!secret) {
+    return NextResponse.json(
+      { error: "Reminders disabled (CRON_SECRET unset)" },
+      { status: 403 },
+    );
+  }
+  // Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}`; reject anything
+  // else so the endpoint can't be triggered publicly.
+  const auth = request.headers.get("authorization");
+  if (auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const now = Date.now();

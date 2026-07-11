@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/relance-livres",
-      "schedule": "0 10 * * *"
-    }
-  ]
-}
