@@ -21,6 +21,7 @@
     "@sanity/image-url": "^2.1.1",
     "@sanity/vision": "^6.4.0",
     "ai": "^6.0.145",
+    "better-auth": "^1.6.23",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "crossword-layout-generator": "^0.1.1",

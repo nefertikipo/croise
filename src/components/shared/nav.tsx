@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { CreateBookLink } from "@/components/shared/create-book-link";
 import { MobileMenu } from "@/components/shared/mobile-menu";
+import { AuthNav } from "@/components/shared/auth-nav";
 
 const LINKS = [
   { href: "/fleche", label: "Créer" },
+  { href: "/idees-de-mots", label: "Idées de mots" },
   { href: "/contribuer", label: "Contribuer" },
 ];
 
@@ -39,6 +41,7 @@ export function Nav() {
               </Link>
             ))}
             <CreateBookLink />
+            <AuthNav />
           </div>
 
           <div className="hidden sm:block">

@@ -1,8 +1,11 @@
 import { pgTable, text, integer, timestamp, uuid } from "drizzle-orm/pg-core";
+import { user } from "@/db/schema/auth";
 
 export const crosswords = pgTable("crosswords", {
   id: uuid("id").defaultRandom().primaryKey(),
   code: text("code").notNull().unique(),
+  // Owner when generated while signed in; null for anonymous grids.
+  ownerId: text("owner_id").references(() => user.id, { onDelete: "set null" }),
   title: text("title"),
   language: text("language").notNull().default("en"),
   width: integer("width").notNull(),
