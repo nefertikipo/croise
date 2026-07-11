@@ -3,6 +3,8 @@ import { CreateBookLink } from "@/components/shared/create-book-link";
 
 const LINKS = [
   { href: "/fleche", label: "Créer" },
+  { href: "/idees-de-mots", label: "Idées de mots" },
+  { href: "/guides", label: "Idées cadeaux" },
   { href: "/contribuer", label: "Contribuer" },
 ];
 

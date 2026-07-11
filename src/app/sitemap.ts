@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 
 import { absoluteUrl } from "@/lib/site";
+import { WORD_IDEAS } from "@/lib/word-ideas";
 import { client } from "@/sanity/lib/client";
 import { SITEMAP_QUERY } from "@/sanity/lib/queries";
 
@@ -14,7 +15,14 @@ type SitemapRow = {
 export const revalidate = 60;
 
 // Static, hand-maintained routes that should always appear in the sitemap.
-const STATIC_PATHS = ["/", "/fleche", "/blog", "/guides"];
+const STATIC_PATHS = [
+  "/",
+  "/fleche",
+  "/blog",
+  "/guides",
+  "/idees-de-mots",
+  ...WORD_IDEAS.map((r) => `/idees-de-mots/${r.slug}`),
+];
 
 function hrefFor(row: SitemapRow): string {
   switch (row._type) {
