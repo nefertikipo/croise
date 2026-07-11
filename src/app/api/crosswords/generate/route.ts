@@ -9,6 +9,7 @@ import { findCluesForAnswers, getWordFrequencies } from "@/lib/clues/repository"
 import { buildWordListFromClues } from "@/lib/crossword/word-list";
 import { personalizeClues } from "@/lib/clues/personalizer";
 import { generateCrosswordCode } from "@/lib/code";
+import { auth } from "@/lib/auth";
 import type { Language, Difficulty, Vibe, CustomClue } from "@/types";
 
 export const maxDuration = 60;
@@ -125,10 +126,15 @@ export async function POST(request: Request) {
     const code = generateCrosswordCode();
     const gridFlat = result.grid.join("");
 
+    // Attach to the signed-in user if there is one (anonymous otherwise).
+    const authSession = await auth.api.getSession({ headers: request.headers });
+    const ownerId = authSession?.user.id ?? null;
+
     const [crossword] = await db
       .insert(crosswords)
       .values({
         code,
+        ownerId,
         title: params.theme ?? "My Crossword",
         language: params.language,
         width: result.width,
