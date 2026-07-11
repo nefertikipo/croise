@@ -60,6 +60,13 @@ export function AuthNav() {
             >
               Mes grilles
             </Link>
+            <Link
+              href="/mes-livres"
+              onClick={() => setOpen(false)}
+              className="block border-t-2 border-ink px-4 py-2.5 font-display text-xs uppercase tracking-wide text-ink hover:bg-ink/5"
+            >
+              Mes livres
+            </Link>
             <button
               onClick={handleSignOut}
               className="block w-full border-t-2 border-ink px-4 py-2.5 text-left font-display text-xs uppercase tracking-wide text-brand hover:bg-brand/5"

@@ -69,6 +69,27 @@ const statements = [
          FOREIGN KEY ("owner_id") REFERENCES "user"("id") ON DELETE SET NULL;
      END IF;
    END $$`,
+  // books.owner_id predates auth as an unused uuid column; convert it to text
+  // (matching user.id) so signed-in users can own books. Always-null today, so
+  // the cast is safe.
+  `DO $$ BEGIN
+     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'books' AND column_name = 'owner_id') THEN
+       ALTER TABLE "books" ADD COLUMN "owner_id" text;
+     ELSIF EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'books' AND column_name = 'owner_id' AND data_type = 'uuid') THEN
+       ALTER TABLE "books" ALTER COLUMN "owner_id" TYPE text USING "owner_id"::text;
+     END IF;
+   END $$`,
+  `DO $$ BEGIN
+     IF NOT EXISTS (
+       SELECT 1 FROM pg_constraint WHERE conname = 'books_owner_id_user_id_fk'
+     ) THEN
+       ALTER TABLE "books"
+         ADD CONSTRAINT "books_owner_id_user_id_fk"
+         FOREIGN KEY ("owner_id") REFERENCES "user"("id") ON DELETE SET NULL;
+     END IF;
+   END $$`,
 ];
 
 async function main() {
