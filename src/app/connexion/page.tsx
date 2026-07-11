@@ -3,9 +3,9 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn, signUp } from "@/lib/auth-client";
+import { signIn, signUp, requestPasswordReset } from "@/lib/auth-client";
 
-type Mode = "signin" | "signup";
+type Mode = "signin" | "signup" | "forgot";
 
 function ConnexionForm() {
   const router = useRouter();
@@ -18,6 +18,13 @@ function ConnexionForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
+  function switchMode(next: Mode) {
+    setMode(next);
+    setError(null);
+    setResetSent(false);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,21 +63,103 @@ function ConnexionForm() {
     }
   }
 
+  async function handleForgot(e: React.FormEvent) {
+    e.preventDefault();
+    if (loading) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await requestPasswordReset({
+        email,
+        redirectTo: "/reinitialiser-mot-de-passe",
+      });
+      if (res.error) {
+        setError(res.error.message || "Impossible d'envoyer le lien.");
+        return;
+      }
+      setResetSent(true);
+    } catch {
+      setError("Une erreur est survenue. Réessayez.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4 py-12">
       <div className="border-2 border-ink bg-paper p-6 shadow-[6px_6px_0_0_var(--ink)]">
         <h1 className="font-display text-3xl uppercase tracking-wide text-brand">
-          {mode === "signin" ? "Se connecter" : "Créer un compte"}
+          {mode === "signin"
+            ? "Se connecter"
+            : mode === "signup"
+              ? "Créer un compte"
+              : "Mot de passe oublié"}
         </h1>
         <p className="mt-1 font-serif text-sm italic text-ink/70">
-          Enregistrez vos grilles et retrouvez-les partout.
+          {mode === "forgot"
+            ? "Nous vous enverrons un lien pour en choisir un nouveau."
+            : "Enregistrez vos grilles et retrouvez-les partout."}
         </p>
 
+        {mode === "forgot" ? (
+          resetSent ? (
+            <div className="mt-6 border-2 border-ink bg-paper p-4">
+              <p className="font-sans text-sm text-ink">
+                Si un compte existe pour <strong>{email}</strong>, un lien de
+                réinitialisation vient d&apos;être envoyé. Vérifiez votre boîte
+                de réception (et les spams).
+              </p>
+              <button
+                type="button"
+                onClick={() => switchMode("signin")}
+                className="btn-lapos mt-4 w-full rounded-md bg-ink px-4 py-2.5 text-sm text-paper"
+              >
+                Retour à la connexion
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleForgot} className="mt-6 space-y-3">
+              <label className="block">
+                <span className="font-display text-xs uppercase tracking-wide text-ink/70">
+                  E-mail
+                </span>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2 font-sans text-sm outline-none focus:border-brand"
+                />
+              </label>
+              {error && (
+                <p className="border-2 border-brand bg-brand/10 px-3 py-2 font-sans text-sm text-brand">
+                  {error}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-lapos w-full rounded-md bg-ink px-4 py-2.5 text-sm text-paper disabled:opacity-50"
+              >
+                {loading ? "…" : "Envoyer le lien"}
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMode("signin")}
+                className="w-full text-center font-display text-xs uppercase tracking-wide text-ink/60 hover:text-brand"
+              >
+                Annuler
+              </button>
+            </form>
+          )
+        ) : (
+          <>
         {/* Mode toggle */}
         <div className="mt-5 grid grid-cols-2 border-2 border-ink">
           <button
             type="button"
-            onClick={() => setMode("signin")}
+            onClick={() => switchMode("signin")}
             className={`py-2 font-display text-xs uppercase tracking-wide transition-colors ${
               mode === "signin" ? "bg-ink text-paper" : "text-ink hover:bg-ink/5"
             }`}
@@ -79,7 +168,7 @@ function ConnexionForm() {
           </button>
           <button
             type="button"
-            onClick={() => setMode("signup")}
+            onClick={() => switchMode("signup")}
             className={`border-l-2 border-ink py-2 font-display text-xs uppercase tracking-wide transition-colors ${
               mode === "signup" ? "bg-ink text-paper" : "text-ink hover:bg-ink/5"
             }`}
@@ -167,6 +256,18 @@ function ConnexionForm() {
                 : "Créer mon compte"}
           </button>
         </form>
+
+        {mode === "signin" && (
+          <button
+            type="button"
+            onClick={() => switchMode("forgot")}
+            className="mt-3 w-full text-center font-display text-xs uppercase tracking-wide text-ink/60 hover:text-brand"
+          >
+            Mot de passe oublié ?
+          </button>
+        )}
+          </>
+        )}
       </div>
 
       <Link

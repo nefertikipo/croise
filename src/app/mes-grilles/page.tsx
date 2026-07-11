@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 
 export const metadata = {
-  title: "Mes grilles - Les Fléchés",
+  title: "Mes grilles - Les Flèches",
 };
 
 // User-owned grids are always fresh; never cache this page.

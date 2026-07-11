@@ -13,6 +13,8 @@ export const books = pgTable("books", {
   dedicationText: text("dedication_text"),
   coverConfig: jsonb("cover_config"),
   status: text("status").notNull().default("draft"),
+  // When we last emailed the owner a "finish your book" reminder (null = never).
+  reminderSentAt: timestamp("reminder_sent_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
