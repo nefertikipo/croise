@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CreateBookLink } from "@/components/shared/create-book-link";
+import { AuthNav } from "@/components/shared/auth-nav";
 
 const LINKS = [
   { href: "/fleche", label: "Créer" },
@@ -39,6 +40,7 @@ export function Nav() {
               </Link>
             ))}
             <CreateBookLink />
+            <AuthNav />
           </div>
 
           <Link
