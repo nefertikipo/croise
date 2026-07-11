@@ -4,7 +4,7 @@ import { Resend } from "resend";
 const apiKey = process.env.RESEND_API_KEY;
 
 /** From address; must be on a domain verified in Resend. */
-const FROM = process.env.EMAIL_FROM || "Les Fléchés <bonjour@lesfleches.com>";
+const FROM = process.env.EMAIL_FROM || "Les Flèches <bonjour@lesfleches.com>";
 
 const resend = apiKey ? new Resend(apiKey) : null;
 

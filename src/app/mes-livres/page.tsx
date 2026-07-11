@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { books } from "@/db/schema/books";
 
 export const metadata = {
-  title: "Mes livres - Les Fléchés",
+  title: "Mes livres - Les Flèches",
 };
 
 // User-owned books are always fresh; never cache this page.
