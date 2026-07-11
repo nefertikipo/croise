@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShuffledImage } from "@/components/shared/shuffled-image";
+import { HeroCarousel } from "@/components/shared/hero-carousel";
 import { CreateBookLink } from "@/components/shared/create-book-link";
 
 // The three things you can make/offer with Les Flèches.
@@ -33,19 +33,8 @@ export default function Home() {
     <main className="flex-1">
       {/* ── Hero: photo recomposed as a shuffled crossword grid ── */}
       <section className="border-b-2 border-ink">
-        <div className="relative h-[62vh] min-h-[460px] w-full overflow-hidden bg-ink">
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2">
-            <ShuffledImage
-              src="/demo-car.png"
-              cols={14}
-              rows={13}
-              intensity={0.3}
-              seed={11}
-              gap={2}
-              className="w-full !bg-ink"
-            />
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-b from-ink/60 via-ink/15 to-ink/35" />
+        <div className="relative h-[88vw] min-h-0 w-full overflow-hidden bg-ink sm:h-[62vh] sm:min-h-[460px]">
+          <HeroCarousel className="absolute inset-0" />
           <div className="absolute inset-x-0 top-0 px-4 pt-10 text-center sm:pt-14">
             <h1 className="mx-auto max-w-4xl text-5xl leading-[0.9] text-paper drop-shadow-[0_2px_0_rgba(0,0,0,0.35)] sm:text-6xl lg:text-7xl">
               Des grilles <span className="text-brand-foreground">à</span>{" "}
