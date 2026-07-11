@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { books, bookPages } from "@/db/schema/books";
 import { crosswords } from "@/db/schema/crosswords";
 import { generateBookCode } from "@/lib/code";
+import { auth } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 
 const requestSchema = z.object({
@@ -25,10 +26,15 @@ export async function POST(request: Request) {
 
     const code = generateBookCode();
 
+    // Attach to the signed-in user if there is one (anonymous otherwise).
+    const authSession = await auth.api.getSession({ headers: request.headers });
+    const ownerId = authSession?.user.id ?? null;
+
     const [book] = await db
       .insert(books)
       .values({
         code,
+        ownerId,
         title: parsed.title || "Mon livre de mots fleches",
         description: parsed.description,
         dedicationText: parsed.dedicationText,
