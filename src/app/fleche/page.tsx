@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
 import { GenerationProgress } from "@/components/fleche/generation-progress";
+import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import {
@@ -36,7 +37,7 @@ const DIFFICULTY_INFO: Record<
   { help: string; mix: string; show: ExampleLevel[] }
 > = {
   facile: {
-    help: "Mots courants et définitions directes — parfait pour débuter ou pour offrir aux plus jeunes.",
+    help: "Mots courants et définitions directes, parfait pour débuter ou pour offrir aux plus jeunes.",
     mix: "Que des définitions faciles",
     show: ["facile"],
   },
@@ -46,12 +47,12 @@ const DIFFICULTY_INFO: Record<
     show: ["facile", "moyen", "difficile"],
   },
   moyen: {
-    help: "Vocabulaire plus riche et définitions moins évidentes — pour les amateurs réguliers.",
+    help: "Vocabulaire plus riche et définitions moins évidentes, pour les amateurs réguliers.",
     mix: "Que des définitions de niveau moyen",
     show: ["moyen"],
   },
   difficile: {
-    help: "Mots rares et définitions retorses — réservé aux cruciverbistes aguerris.",
+    help: "Mots rares et définitions retorses, réservé aux cruciverbistes aguerris.",
     mix: "Que des définitions difficiles",
     show: ["difficile"],
   },
@@ -329,7 +330,7 @@ export default function FlechePage() {
                   Vos mots personnalisés
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Prénoms, dates, clins d&apos;œil — ils seront placés dans la grille.
+                  Prénoms, dates, clins d&apos;œil, ils seront placés dans la grille.
                 </p>
               </div>
 
@@ -385,11 +386,17 @@ export default function FlechePage() {
               )}
               {!capacity.message && capacity.tight && (
                 <p className="text-sm text-amber-600">
-                  Grille bien remplie — la génération peut être plus longue, voire
+                  Grille bien remplie, la génération peut être plus longue, voire
                   échouer. Si c&apos;est le cas, agrandissez la grille ou retirez un mot.
                 </p>
               )}
             </div>
+
+            <WordIdeasHelper
+              onPick={(clue) =>
+                setCustomClues((prev) => [...prev, { answer: "", clue }])
+              }
+            />
 
             {/* Hidden word — a secondary, optional touch */}
             <div className="flex flex-wrap items-center gap-2">
@@ -457,7 +464,7 @@ export default function FlechePage() {
               </div>
               <div className="fleche-print-solution hidden print:block">
                 <p className="mb-4 font-display text-xl uppercase tracking-wide text-ink">
-                  Solution{gridTitle ? ` — ${gridTitle}` : ""}
+                  Solution{gridTitle ? ` : ${gridTitle}` : ""}
                 </p>
                 <div className="fleche-print-scale fleche-print-solution-scale">
                   <FlecheGrid
@@ -493,7 +500,7 @@ export default function FlechePage() {
             {hiddenMissing.length > 0 && (
               <p className="mt-2 text-sm text-destructive">
                 ⚠ Le mot caché « {cleanHiddenWord} » n&apos;a pas pu être entièrement
-                intégré — lettres absentes : {hiddenMissing.join(", ")}. Régénérez ou
+                intégré, lettres absentes : {hiddenMissing.join(", ")}. Régénérez ou
                 changez de mot.
               </p>
             )}
@@ -597,7 +604,7 @@ export default function FlechePage() {
               )}
               {!capacity.message && capacity.tight && (
                 <p className="text-sm text-amber-600">
-                  Grille bien remplie — la génération peut être plus longue, voire échouer.
+                  Grille bien remplie, la génération peut être plus longue, voire échouer.
                 </p>
               )}
 
@@ -617,7 +624,7 @@ export default function FlechePage() {
                 )}
                 {hiddenMissing.length > 0 && (
                   <span className="text-xs text-destructive">
-                    ⚠ lettres absentes : {hiddenMissing.join(", ")} — régénérez
+                    ⚠ lettres absentes : {hiddenMissing.join(", ")}, régénérez
                   </span>
                 )}
               </div>
