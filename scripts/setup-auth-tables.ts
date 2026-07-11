@@ -90,6 +90,8 @@ const statements = [
          FOREIGN KEY ("owner_id") REFERENCES "user"("id") ON DELETE SET NULL;
      END IF;
    END $$`,
+  // Tracks when the owner was last emailed a "finish your book" reminder.
+  `ALTER TABLE "books" ADD COLUMN IF NOT EXISTS "reminder_sent_at" timestamp`,
 ];
 
 async function main() {
