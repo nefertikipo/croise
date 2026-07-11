@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { CreateBookLink } from "@/components/shared/create-book-link";
+import { AuthNav } from "@/components/shared/auth-nav";
 
 const LINKS = [
   { href: "/fleche", label: "Créer" },
@@ -58,6 +59,7 @@ export function MobileMenu() {
                 {l.label}
               </Link>
             ))}
+            <AuthNav variant="sheet" onNavigate={() => setOpen(false)} />
             <CreateBookLink className="border-b border-ink/10 py-3 text-left font-display text-base uppercase tracking-wide text-ink transition-colors hover:text-brand" />
             <Link
               href="/fleche"
