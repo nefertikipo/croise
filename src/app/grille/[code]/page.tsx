@@ -14,6 +14,7 @@ import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden
 import {
   FlechePrintHeader,
   FlechePrintMotCache,
+  FlechePrintFooter,
   computeFlechePrintScale,
 } from "@/components/fleche/fleche-print-chrome";
 
@@ -31,6 +32,8 @@ interface FlecheCell {
   type: "letter" | "clue" | "empty";
   letter?: string;
   clues?: ClueInCell[];
+  breakRight?: boolean;
+  breakBottom?: boolean;
 }
 
 interface GridData {
@@ -128,13 +131,13 @@ export default function GrillePage() {
         <div className="flex items-center gap-3 flex-wrap">
           <Button
             onClick={() => setShowSolution(!showSolution)}
-            className="btn-lapos rounded-md bg-sun px-4 py-2.5 text-sm text-ink"
+            className="btn-lapos rounded-none bg-sun px-4 py-2.5 text-sm text-ink"
           >
             {showSolution ? "Cacher solution" : "Voir solution"}
           </Button>
           <Button
             onClick={() => window.print()}
-            className="btn-lapos rounded-md bg-brand px-4 py-2.5 text-sm text-brand-foreground"
+            className="btn-lapos rounded-none bg-brand px-4 py-2.5 text-sm text-brand-foreground"
           >
             Imprimer / PDF
           </Button>
@@ -144,13 +147,13 @@ export default function GrillePage() {
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             }}
-            className="btn-lapos rounded-md bg-paper px-4 py-2.5 text-sm text-ink"
+            className="btn-lapos rounded-none bg-paper px-4 py-2.5 text-sm text-ink"
           >
             {copied ? "Lien copié!" : "Copier le lien"}
           </Button>
           <Button
             onClick={() => router.push("/fleche")}
-            className="btn-lapos rounded-md bg-ink px-4 py-2.5 text-sm text-paper"
+            className="btn-lapos rounded-none bg-ink px-4 py-2.5 text-sm text-paper"
           >
             Nouvelle grille
           </Button>
@@ -164,13 +167,14 @@ export default function GrillePage() {
                 grid.width,
                 grid.height,
                 hiddenCells.size > 0,
+                title.trim().length > 0,
               ),
             } as CSSProperties
           }
         >
           <div className="fleche-print-page">
             <div className="fleche-print-scale">
-              <FlechePrintHeader />
+              <FlechePrintHeader title={title.trim() || undefined} />
               <div className="overflow-x-auto">
                 <FlecheGrid
                   cells={grid.cells}
@@ -182,19 +186,21 @@ export default function GrillePage() {
                 />
               </div>
               <FlechePrintMotCache count={hiddenCells.size} />
+              <FlechePrintFooter />
             </div>
           </div>
           <div className="fleche-print-solution hidden print:block">
-            <div className="fleche-print-scale">
-              <div className="rotate-180">
-                <FlecheGrid
-                  cells={grid.cells}
-                  width={grid.width}
-                  height={grid.height}
-                  showSolution
-                  plain
-                />
-              </div>
+            <p className="mb-4 font-display text-xl uppercase tracking-wide text-ink">
+              Solution{title.trim() ? ` — ${title.trim()}` : ""}
+            </p>
+            <div className="fleche-print-scale fleche-print-solution-scale">
+              <FlecheGrid
+                cells={grid.cells}
+                width={grid.width}
+                height={grid.height}
+                showSolution
+                plain
+              />
             </div>
           </div>
         </div>

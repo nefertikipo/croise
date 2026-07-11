@@ -46,7 +46,7 @@ export function ShuffledPhrase({
               <span
                 key={i}
                 className={cn(
-                  "flex h-11 w-11 sm:h-14 sm:w-14 items-center justify-center rounded-[3px] border-2 border-ink font-display text-xl sm:text-2xl shadow-[2px_2px_0_0] shadow-ink/70",
+                  "flex h-11 w-11 sm:h-14 sm:w-14 items-center justify-center rounded-none border-2 border-ink font-display text-xl sm:text-2xl shadow-[2px_2px_0_0] shadow-ink/70",
                   tone,
                 )}
                 style={{

@@ -22,3 +22,26 @@ export function normalizeAnswer(word: string): string {
     .toUpperCase()
     .replace(/[^A-Z]/g, "");
 }
+
+/**
+ * Word-break offsets for a multi-word answer (e.g. "BON ANNIVERSAIRE").
+ *
+ * Returns the letter indices at which a new word begins in the folded answer —
+ * the boundary sits *before* each returned index. "BON ANNIVERSAIRE" folds to
+ * "BONANNIVERSAIRE" and returns [3] (a break between the 3rd and 4th cell). The
+ * grid still places every letter contiguously; these offsets drive the dotted
+ * cell borders that mark where one word ends and the next begins.
+ */
+export function answerBreaks(raw: string): number[] {
+  const lengths = raw
+    .split(/\s+/)
+    .map((w) => normalizeAnswer(w).length)
+    .filter((n) => n > 0);
+  const breaks: number[] = [];
+  let acc = 0;
+  for (let i = 0; i < lengths.length - 1; i++) {
+    acc += lengths[i];
+    breaks.push(acc);
+  }
+  return breaks;
+}

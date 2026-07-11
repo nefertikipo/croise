@@ -1,19 +1,29 @@
 import type { Metadata } from "next";
-import { Inter, Fraunces, Anton, Oswald, Patrick_Hand } from "next/font/google";
+import {
+  Inter,
+  Fraunces,
+  Anton,
+  Barlow_Semi_Condensed,
+  Patrick_Hand,
+} from "next/font/google";
 import "./globals.css";
-import { Nav } from "@/components/shared/nav";
+import { SiteChrome } from "@/components/shared/site-chrome";
+import { SanityLive } from "@/sanity/lib/live";
+import { SITE_URL } from "@/lib/site";
 
 const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
 });
 
-// Condensed face for clue text: fits far more of a long French definition per
-// line than Inter, and matches the mots fléchés magazine look.
-const condensed = Oswald({
+// Condensed face for clue text: Barlow Semi Condensed keeps clues compact
+// enough to fit a long French definition per line, but has a large x-height and
+// open letterforms that stay legible at the tiny sizes clue cells force —
+// noticeably more readable than a narrow condensed face like Oswald.
+const condensed = Barlow_Semi_Condensed({
   variable: "--font-condensed",
   subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: ["500", "600"],
 });
 
 // Fallback for the display face: Anton covers glyphs our custom "Fléchés
@@ -43,8 +53,13 @@ const handwritten = Patrick_Hand({
 });
 
 export const metadata: Metadata = {
-  title: "Les Fleches - Mots fleches personnalises",
-  description: "Creez des grilles de mots fleches personnalisees avec vos propres mots. Exportez en PDF pret a imprimer.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Les Flèches — Mots fléchés et mots croisés personnalisés",
+    template: "%s · Les Flèches",
+  },
+  description:
+    "Créez des mots fléchés et mots croisés personnalisés avec vos propres mots — une idée cadeau originale, imprimée et prête à offrir.",
 };
 
 export default function RootLayout({
@@ -58,8 +73,9 @@ export default function RootLayout({
       className={`${inter.variable} ${display.variable} ${serif.variable} ${handwritten.variable} ${condensed.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
-        <Nav />
+        <SiteChrome />
         {children}
+        <SanityLive />
       </body>
     </html>
   );

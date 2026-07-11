@@ -77,7 +77,7 @@
   /* Brand tokens — Italian-aperitivo editorial (à la Lapo's) */
   --paper: #ffefe1;                      /* warm Lapo's cream */
   --ink: oklch(0.2 0.01 260);            /* near-black newsprint ink */
-  --brand: #d92b27;                      /* Lapo's brand red */
+  --brand: #0f4c81;                      /* aperitivo azzurro (primary) */
   --brand-foreground: #fff6ec;
   --blueprint: oklch(0.56 0.13 240);     /* clue-cell blue */
   --gold: #bb9a62;                       /* Lapo's warm gold */
@@ -91,7 +91,7 @@
   --card-foreground: oklch(0.26 0.028 265);
   --popover: oklch(0.995 0.005 85);
   --popover-foreground: oklch(0.26 0.028 265);
-  --primary: #d92b27;
+  --primary: #0f4c81;
   --primary-foreground: #fff6ec;
   --secondary: oklch(0.945 0.012 85);
   --secondary-foreground: oklch(0.3 0.03 265);
@@ -102,8 +102,8 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.9 0.012 80);
   --input: oklch(0.9 0.012 80);
-  --ring: #d92b27;
-  --chart-1: oklch(0.585 0.2 26);
+  --ring: #0f4c81;
+  --chart-1: oklch(0.5 0.18 262);
   --chart-2: oklch(0.56 0.13 250);
   --chart-3: oklch(0.78 0.13 80);
   --chart-4: oklch(0.5 0.1 160);
@@ -111,18 +111,18 @@
   --radius: 0.75rem;
   --sidebar: oklch(0.97 0.01 85);
   --sidebar-foreground: oklch(0.26 0.028 265);
-  --sidebar-primary: oklch(0.585 0.2 26);
+  --sidebar-primary: oklch(0.5 0.18 262);
   --sidebar-primary-foreground: oklch(0.985 0.01 85);
   --sidebar-accent: oklch(0.93 0.03 250);
   --sidebar-accent-foreground: oklch(0.3 0.05 260);
   --sidebar-border: oklch(0.9 0.012 80);
-  --sidebar-ring: oklch(0.585 0.2 26);
+  --sidebar-ring: oklch(0.5 0.18 262);
 }
 
 .dark {
   --paper: oklch(0.2 0.02 265);
   --ink: oklch(0.96 0.008 85);
-  --brand: oklch(0.64 0.19 26);
+  --brand: oklch(0.65 0.16 262);
   --brand-foreground: oklch(0.98 0.01 85);
   --blueprint: oklch(0.62 0.13 240);
   --gold: oklch(0.8 0.13 80);
@@ -136,7 +136,7 @@
   --card-foreground: oklch(0.96 0.008 85);
   --popover: oklch(0.24 0.022 265);
   --popover-foreground: oklch(0.96 0.008 85);
-  --primary: oklch(0.64 0.19 26);
+  --primary: oklch(0.65 0.16 262);
   --primary-foreground: oklch(0.98 0.01 85);
   --secondary: oklch(0.28 0.02 265);
   --secondary-foreground: oklch(0.96 0.008 85);
@@ -230,7 +230,8 @@
   /* Chunky vintage button: solid fill, black border, hard offset shadow that
      collapses on press — the treatment on every Lapo's CTA. */
   .btn-lapos {
-    @apply inline-flex items-center justify-center gap-2 border-2 border-ink font-display uppercase tracking-wide leading-none transition-transform;
+    /* Inter (font-sans), not the deco display face — buttons must stay legible. */
+    @apply inline-flex items-center justify-center gap-2 border-2 border-ink font-sans font-semibold uppercase tracking-wide leading-none transition-transform;
     box-shadow: 4px 4px 0 0 var(--ink);
   }
   .btn-lapos:hover {
@@ -249,8 +250,11 @@
 }
 
 @media print {
+  /* margin:0 removes the browser's default print chrome (date, page title,
+     URL, page number) that would otherwise print in the page margins. We add
+     our own safe margin as padding on each printed sheet below. */
   @page {
-    margin: 10mm;
+    margin: 0;
   }
   body * {
     visibility: hidden;
@@ -258,6 +262,13 @@
   /* The fixed grain overlay would repeat on every printed sheet. */
   body::after {
     display: none;
+  }
+  /* Plain white paper for print — drop the cream fill and grid-paper lines so
+     nothing but the puzzle uses ink. */
+  html,
+  body {
+    background: #fff !important;
+    background-image: none !important;
   }
   .fleche-print-area {
     display: block !important;
@@ -270,14 +281,25 @@
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
-  /* One printed sheet per block; center the scaled unit horizontally. */
+  /* One printed sheet per block; center the scaled unit horizontally. The
+     padding is our printer-safe margin (replaces the @page margin we zeroed
+     out to drop the browser chrome). */
   .fleche-print-page,
   .fleche-print-solution {
     width: 100%;
+    padding: 12mm 10mm;
     text-align: center;
+    background: #fff;
   }
   .fleche-print-solution {
     break-before: page;
+  }
+  /* Ink-saving print: white out every grid cell fill (cream letter cells,
+     tinted clue/hidden/custom cells) — the puzzle stays fully readable via its
+     borders, clue text, arrows and mot-caché numbers, and uses far less ink.
+     `!important` is needed to beat the cells' inline background-color. */
+  .fleche-print-area .inline-grid > div {
+    background-color: #fff !important;
   }
   /* `zoom` (not `transform: scale`) so the browser paginates on the SCALED
      size — otherwise header + grid split across pages. Per-grid scale is set
@@ -295,6 +317,11 @@
     border: 7px double #1a1a1a;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+  /* The solution doesn't need to fill its sheet — print it at roughly half the
+     main grid's size. */
+  .fleche-print-solution-scale {
+    zoom: calc(var(--print-scale, 0.85) * 0.5);
   }
   .fleche-print-area * {
     visibility: visible;

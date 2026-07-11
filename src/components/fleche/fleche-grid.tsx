@@ -41,12 +41,20 @@ function FitText({
     const span = spanRef.current;
     if (!box || !span) return;
     let cancelled = false;
+    let rafId = 0;
 
     const measure = () => {
       if (cancelled) return;
       const maxH = box.clientHeight;
       const maxW = box.clientWidth;
-      if (maxH <= 0 || maxW <= 0) return;
+      // The box hasn't been laid out yet (0×0 during the first paint, or while a
+      // print `zoom` transform settles). Retry on the next frame instead of
+      // giving up — otherwise the font stays stuck at `max`, overflows, and gets
+      // clipped by `overflow-hidden`, making the clue disappear.
+      if (maxH <= 0 || maxW <= 0) {
+        rafId = requestAnimationFrame(measure);
+        return;
+      }
 
       const fits = (f: number) => {
         span.style.fontSize = `${f}px`;
@@ -83,8 +91,19 @@ function FitText({
     const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
     if (fonts?.ready) fonts.ready.then(() => measure());
 
+    // Re-fit whenever the box actually changes size — e.g. print `zoom`
+    // scaling, container relayout, or a delayed flex settle. Without this the
+    // clue can be sized against a stale/zero box and end up clipped.
+    const ro =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => measure())
+        : null;
+    ro?.observe(box);
+
     return () => {
       cancelled = true;
+      if (rafId) cancelAnimationFrame(rafId);
+      ro?.disconnect();
     };
   }, [text, max, min, lineRatio]);
 
@@ -101,11 +120,12 @@ function FitText({
         ref={spanRef}
         className={cn(
           "block uppercase break-words hyphens-auto",
-          italic && "italic opacity-40",
+          italic && "italic opacity-60",
         )}
         style={{
           fontFamily: "var(--font-condensed), var(--font-sans), sans-serif",
           fontSize: `${size}px`,
+          fontWeight: 500,
           lineHeight: `${size * lineRatio}px`,
           wordBreak: "break-word",
         }}
@@ -113,6 +133,29 @@ function FitText({
         {text}
       </span>
     </div>
+  );
+}
+
+/**
+ * Dotted rule drawn on a letter cell's right/bottom edge to mark where one word
+ * ends and the next begins inside a multi-word answer.
+ */
+function WordBreak({ right, bottom }: { right?: boolean; bottom?: boolean }) {
+  return (
+    <>
+      {right && (
+        <span
+          className="pointer-events-none absolute -right-px top-0 bottom-0 z-20 border-r-[3px] border-dashed"
+          style={{ borderColor: INK }}
+        />
+      )}
+      {bottom && (
+        <span
+          className="pointer-events-none absolute -bottom-px left-0 right-0 z-20 border-b-[3px] border-dashed"
+          style={{ borderColor: INK }}
+        />
+      )}
+    </>
   );
 }
 
@@ -130,6 +173,9 @@ interface FlecheCell {
   type: "letter" | "clue" | "empty";
   letter?: string;
   clues?: ClueInCell[];
+  /** Right/bottom edge marks a multi-word break → render a dotted rule. */
+  breakRight?: boolean;
+  breakBottom?: boolean;
 }
 
 interface FlecheGridProps {
@@ -159,7 +205,7 @@ const INK = "#2f2a26";
 const PAPER = "#fffcf5";
 const EMPTY_BG = "#ece3d3";
 const DEFAULT_ACCENT = "#1f9e94";
-const CUSTOM_BG = "#f3ddd4";
+const CUSTOM_BG = "#dbe6fb";
 
 interface ArrowSpec {
   /** Clue cell row/col */
@@ -508,7 +554,7 @@ export function FlecheGrid({
                       text={cl.text}
                       max={hasTwo ? 10 : 13}
                       min={5}
-                      lineRatio={1.05}
+                      lineRatio={1.1}
                       italic={cl.text === cl.answer}
                     />
                   </div>
@@ -569,6 +615,7 @@ export function FlecheGrid({
                     autoCorrect="off"
                     spellCheck={false}
                   />
+                  <WordBreak right={cell.breakRight} bottom={cell.breakBottom} />
                 </div>
               );
             }
@@ -610,6 +657,7 @@ export function FlecheGrid({
                     {cell.letter}
                   </span>
                 )}
+                <WordBreak right={cell.breakRight} bottom={cell.breakBottom} />
               </div>
             );
           }

@@ -3,8 +3,21 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-/** Nav action: creates an empty book and opens it in the editor. */
-export function CreateBookLink() {
+const NAV_CLASS =
+  "font-display text-sm uppercase tracking-wide text-ink transition-colors hover:text-brand disabled:opacity-50";
+
+/**
+ * Creates an empty book and opens it in the editor. Used both as a bare nav
+ * link (default styling) and as a styled CTA button — pass `className` +
+ * `children` to reuse it anywhere "Créer un livre" should start the book flow.
+ */
+export function CreateBookLink({
+  className,
+  children,
+}: {
+  className?: string;
+  children?: React.ReactNode;
+}) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
 
@@ -30,9 +43,9 @@ export function CreateBookLink() {
     <button
       onClick={createBook}
       disabled={creating}
-      className="font-display text-sm uppercase tracking-wide text-ink transition-colors hover:text-brand disabled:opacity-50"
+      className={className ?? NAV_CLASS}
     >
-      {creating ? "Création…" : "Créer un livre"}
+      {creating ? "Création…" : (children ?? "Créer un livre")}
     </button>
   );
 }

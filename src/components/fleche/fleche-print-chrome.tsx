@@ -15,7 +15,9 @@ const A4_CONTENT_H = 1010;
 // Reserved vertical space for the printed chrome (unscaled px), used so the
 // grid + header + mot-caché strip fit on a single sheet.
 const HEADER_BLOCK = 100;
+const TITLE_BLOCK = 72; // extra reserve when a grid title is shown (now the big line)
 const MOTCACHE_BLOCK = 110;
+const FOOTER_BLOCK = 44; // reserve for the lesfleches.com credit line
 
 // Padding + border of the decorative "stamp" frame drawn around the printed
 // sheet (see `.fleche-print-scale` in globals.css). Reserved on every side so
@@ -32,20 +34,54 @@ export function computeFlechePrintScale(
   width: number,
   height: number,
   hasHidden: boolean,
+  hasTitle = false,
 ): number {
   const gridW = width * CELL + 2 * FRAME;
   const contentH =
-    HEADER_BLOCK + height * CELL + (hasHidden ? MOTCACHE_BLOCK : 0) + 2 * FRAME;
+    HEADER_BLOCK +
+    (hasTitle ? TITLE_BLOCK : 0) +
+    height * CELL +
+    (hasHidden ? MOTCACHE_BLOCK : 0) +
+    FOOTER_BLOCK +
+    2 * FRAME;
   return Math.min(A4_CONTENT_W / gridW, A4_CONTENT_H / contentH, 1);
 }
 
-export function FlechePrintHeader() {
+/**
+ * The lead magnet: every free printed grid points back to the site, so whoever
+ * receives it can come make their own. Not a gate — the grid is free.
+ */
+export function FlechePrintFooter() {
   return (
-    <header className="hidden print:flex items-baseline justify-center gap-2 pt-1 pb-6">
-      <span className="font-display text-4xl leading-none text-brand">►</span>
-      <span className="font-display text-5xl uppercase leading-none tracking-wide text-brand">
-        Les Flèches
+    <footer className="hidden pt-6 text-center print:block">
+      <span className="font-display text-base uppercase tracking-[0.15em] text-brand">
+        Créez la vôtre gratuitement sur lesfleches.com
       </span>
+    </footer>
+  );
+}
+
+export function FlechePrintHeader({ title }: { title?: string }) {
+  return (
+    <header className="hidden text-center print:block pt-1 pb-6">
+      {/* When there's a personalized title it's the star — the brand mark shrinks
+         to a small line above it. With no title, the wordmark stands on its own. */}
+      <div
+        className={
+          "flex items-baseline justify-center gap-2 text-brand " +
+          (title ? "text-xl" : "text-5xl")
+        }
+      >
+        <span className="font-display leading-none">►</span>
+        <span className="font-display uppercase leading-none tracking-wide">
+          Les Flèches
+        </span>
+      </div>
+      {title && (
+        <p className="mt-2 font-display text-5xl uppercase leading-none tracking-wide text-ink">
+          {title}
+        </p>
+      )}
     </header>
   );
 }
@@ -61,7 +97,7 @@ export function FlechePrintMotCache({ count }: { count: number }) {
         {Array.from({ length: count }, (_, i) => (
           <div
             key={i}
-            className="flex h-9 w-9 items-center justify-center rounded-[3px] border-2 border-ink text-[10px] text-muted-foreground"
+            className="flex h-9 w-9 items-center justify-center rounded-none border-2 border-ink text-[10px] text-muted-foreground"
           >
             {i + 1}
           </div>

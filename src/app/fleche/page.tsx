@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
 import { GenerationProgress } from "@/components/fleche/generation-progress";
+import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import {
@@ -15,8 +16,47 @@ import {
 import {
   FlechePrintHeader,
   FlechePrintMotCache,
+  FlechePrintFooter,
   computeFlechePrintScale,
 } from "@/components/fleche/fleche-print-chrome";
+
+// Example clues at each level — same answer (CHAT), increasingly indirect —
+// to show the *style* difference, not just a label.
+const CLUE_EXAMPLES = {
+  facile: { label: "Facile", clue: "Félin domestique", answer: "CHAT" },
+  moyen: { label: "Moyen", clue: "Compagnon à moustaches", answer: "CHAT" },
+  difficile: { label: "Difficile", clue: "Il retombe sur ses pattes", answer: "CHAT" },
+} as const;
+
+type ExampleLevel = keyof typeof CLUE_EXAMPLES;
+
+// What each difficulty entails + the actual clue mix. "balanced" realizes
+// ~50/35/15 in generated grids (see pickClue() in fleche-vector-gen.ts).
+const DIFFICULTY_INFO: Record<
+  string,
+  { help: string; mix: string; show: ExampleLevel[] }
+> = {
+  facile: {
+    help: "Mots courants et définitions directes, parfait pour débuter ou pour offrir aux plus jeunes.",
+    mix: "Que des définitions faciles",
+    show: ["facile"],
+  },
+  balanced: {
+    help: "Un mélange de mots familiers et de quelques défis : le bon équilibre pour une grille à offrir.",
+    mix: "≈ 50 % faciles · 35 % moyennes · 15 % difficiles",
+    show: ["facile", "moyen", "difficile"],
+  },
+  moyen: {
+    help: "Vocabulaire plus riche et définitions moins évidentes, pour les amateurs réguliers.",
+    mix: "Que des définitions de niveau moyen",
+    show: ["moyen"],
+  },
+  difficile: {
+    help: "Mots rares et définitions retorses, réservé aux cruciverbistes aguerris.",
+    mix: "Que des définitions difficiles",
+    show: ["difficile"],
+  },
+};
 
 interface ClueInCell {
   text: string;
@@ -32,6 +72,8 @@ interface FlecheCell {
   type: "letter" | "clue" | "empty";
   letter?: string;
   clues?: ClueInCell[];
+  breakRight?: boolean;
+  breakBottom?: boolean;
 }
 
 interface FlecheData {
@@ -60,6 +102,20 @@ export default function FlechePage() {
   const [hiddenWord, setHiddenWord] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [poster, setPoster] = useState(false);
+  const [title, setTitle] = useState("");
+  const gridTitle = title.trim();
+
+  // Poster intent (from the homepage "Créer un poster" CTA): read client-side
+  // after mount to avoid a hydration mismatch, then default to the largest
+  // single-sheet format meant for framing.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("intent") === "poster") {
+      setPoster(true);
+      setGridWidth(11);
+      setGridHeight(17);
+    }
+  }, []);
 
   // Valid custom words drive both the generation estimate and the button state.
   const validCustomCount = customClues.filter(
@@ -107,6 +163,7 @@ export default function FlechePage() {
           customClues: validCustom,
           excludeAnswers: Array.from(usedAnswers),
           hiddenWord: cleanHidden || undefined,
+          title: gridTitle || undefined,
           difficulty,
         }),
       });
@@ -166,16 +223,37 @@ export default function FlechePage() {
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="space-y-1">
           <h1 className="text-5xl text-ink">
-            Mots <span className="text-brand">Fléchés</span>
+            {poster ? (
+              <>
+                Votre <span className="text-brand">Poster</span>
+              </>
+            ) : (
+              <>
+                Mots <span className="text-brand">Fléchés</span>
+              </>
+            )}
           </h1>
           <p className="font-serif-accent text-lg italic text-ink/75">
-            Générez une grille personnalisée, glissez vos mots, imprimez.
+            {poster
+              ? "Une grande grille, prête à imprimer et à encadrer."
+              : "Générez une grille personnalisée, glissez vos mots, imprimez."}
           </p>
         </div>
 
         {/* Before generation: pick a format, add your words, generate */}
         {!grid && !loading && (
-          <div className="space-y-6 rounded-2xl border-2 border-ink bg-card p-6 shadow-[4px_4px_0_0] shadow-ink/80">
+          <div className="space-y-6 rounded-none border-2 border-ink bg-card p-6 shadow-[4px_4px_0_0] shadow-ink/80">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="mr-2 font-display text-sm uppercase tracking-wide text-ink">Titre</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={40}
+                placeholder="ex: Joyeux anniversaire Maman (optionnel)"
+                className="frame-tight w-72 max-w-full bg-paper px-3 py-1.5 text-sm text-ink placeholder:text-ink/40 focus:outline-none"
+              />
+            </div>
+
             <div className="flex flex-wrap items-center gap-2">
               <label className="mr-2 font-display text-sm uppercase tracking-wide text-ink">Format</label>
               {[
@@ -188,7 +266,7 @@ export default function FlechePage() {
                 <button
                   key={s.label}
                   onClick={() => { setGridWidth(s.w); setGridHeight(s.h); }}
-                  className={`rounded-md border-2 border-ink px-4 py-1.5 font-display text-sm uppercase tracking-wide transition-colors ${
+                  className={`rounded-none border-2 border-ink px-4 py-1.5 font-sans text-sm font-semibold uppercase tracking-wide transition-colors ${
                     gridWidth === s.w && gridHeight === s.h
                       ? "bg-ink text-paper"
                       : "bg-paper text-ink hover:bg-accent"
@@ -211,7 +289,7 @@ export default function FlechePage() {
                 <button
                   key={d.v}
                   onClick={() => setDifficulty(d.v as typeof difficulty)}
-                  className={`rounded-md border-2 border-ink px-4 py-1.5 font-display text-sm uppercase tracking-wide transition-colors ${
+                  className={`rounded-none border-2 border-ink px-4 py-1.5 font-sans text-sm font-semibold uppercase tracking-wide transition-colors ${
                     difficulty === d.v
                       ? "bg-ink text-paper"
                       : "bg-paper text-ink hover:bg-accent"
@@ -221,15 +299,38 @@ export default function FlechePage() {
                 </button>
               ))}
             </div>
+            <div className="-mt-2 space-y-2 border-2 border-ink/15 bg-muted/30 p-4">
+              <p className="font-serif-accent text-sm italic text-ink/75">
+                {DIFFICULTY_INFO[difficulty].help}
+              </p>
+              <p className="font-display text-xs uppercase tracking-wide text-ink/60">
+                Mélange&nbsp;:{" "}
+                <span className="text-brand">{DIFFICULTY_INFO[difficulty].mix}</span>
+              </p>
+              <ul className="space-y-1">
+                {DIFFICULTY_INFO[difficulty].show.map((lvl) => {
+                  const ex = CLUE_EXAMPLES[lvl];
+                  return (
+                    <li key={lvl} className="text-sm text-ink/80">
+                      <span className="mr-1 font-display text-[11px] uppercase tracking-wide text-ink/45">
+                        {ex.label}
+                      </span>
+                      <span className="italic">« {ex.clue} »</span> →{" "}
+                      <span className="font-mono font-semibold">{ex.answer}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
 
             {/* Custom words — the headline feature, front and center */}
-            <div className="space-y-3 rounded-xl border-2 border-ink/15 bg-muted/30 p-4">
+            <div className="space-y-3 rounded-none border-2 border-ink/15 bg-muted/30 p-4">
               <div>
                 <p className="text-sm font-bold uppercase tracking-[0.12em]">
                   Vos mots personnalisés
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Prénoms, dates, clins d&apos;œil — ils seront placés dans la grille.
+                  Prénoms, dates, clins d&apos;œil, ils seront placés dans la grille.
                 </p>
               </div>
 
@@ -237,14 +338,14 @@ export default function FlechePage() {
                 <div key={i} className="space-y-1">
                   <div className="flex items-center gap-2">
                     <input
-                      placeholder="Mot (ex: SARAH)"
+                      placeholder="Mot ou phrase (ex: BON ANNIVERSAIRE)"
                       value={cc.answer}
                       onChange={(e) => {
                         const next = [...customClues];
                         next[i] = { ...next[i], answer: e.target.value };
                         setCustomClues(next);
                       }}
-                      className={`w-36 rounded border-2 bg-white px-2 py-1 text-sm uppercase font-mono ${
+                      className={`w-36 rounded-none border-2 bg-white px-2 py-1 text-sm uppercase font-mono ${
                         isWordTooLong(cc.answer) ? "border-destructive" : "border-ink/20"
                       }`}
                     />
@@ -256,7 +357,7 @@ export default function FlechePage() {
                         next[i] = { ...next[i], clue: e.target.value };
                         setCustomClues(next);
                       }}
-                      className="flex-1 rounded border-2 border-ink/20 bg-white px-2 py-1 text-sm"
+                      className="flex-1 rounded-none border-2 border-ink/20 bg-white px-2 py-1 text-sm"
                     />
                     <button
                       onClick={() => setCustomClues(customClues.filter((_, j) => j !== i))}
@@ -275,7 +376,7 @@ export default function FlechePage() {
 
               <button
                 onClick={() => setCustomClues([...customClues, { answer: "", clue: "" }])}
-                className="rounded-lg border-2 border-ink bg-white px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0] shadow-ink/60 transition-transform hover:-translate-y-0.5"
+                className="rounded-none border-2 border-ink bg-white px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0] shadow-ink/60 transition-transform hover:-translate-y-0.5"
               >
                 + Ajouter un mot personnalisé
               </button>
@@ -285,11 +386,17 @@ export default function FlechePage() {
               )}
               {!capacity.message && capacity.tight && (
                 <p className="text-sm text-amber-600">
-                  Grille bien remplie — la génération peut être plus longue, voire
+                  Grille bien remplie, la génération peut être plus longue, voire
                   échouer. Si c&apos;est le cas, agrandissez la grille ou retirez un mot.
                 </p>
               )}
             </div>
+
+            <WordIdeasHelper
+              onPick={(clue) =>
+                setCustomClues((prev) => [...prev, { answer: "", clue }])
+              }
+            />
 
             {/* Hidden word — a secondary, optional touch */}
             <div className="flex flex-wrap items-center gap-2">
@@ -300,7 +407,7 @@ export default function FlechePage() {
                 placeholder="ex: ANNIVERSAIRE"
                 value={hiddenWord}
                 onChange={(e) => setHiddenWord(e.target.value)}
-                className="w-48 rounded border px-2 py-1 text-sm uppercase font-mono"
+                className="w-48 rounded-none border px-2 py-1 text-sm uppercase font-mono"
               />
             </div>
 
@@ -308,9 +415,9 @@ export default function FlechePage() {
               <button
                 onClick={generate}
                 disabled={loading || capacity.message !== null}
-                className="btn-lapos rounded-md bg-brand px-7 py-3 text-base text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                className="btn-lapos rounded-none bg-brand px-7 py-3 text-base text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
               >
-                Générer une grille
+                Créer ma grille
               </button>
               {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
@@ -332,13 +439,14 @@ export default function FlechePage() {
                     grid.width,
                     grid.height,
                     hiddenCells.size > 0,
+                    gridTitle.length > 0,
                   ),
                 } as CSSProperties
               }
             >
               <div className="fleche-print-page">
                 <div className="fleche-print-scale">
-                  <FlechePrintHeader />
+                  <FlechePrintHeader title={gridTitle || undefined} />
                   <div className="overflow-x-auto">
                     <FlecheGrid
                       key={gridKey}
@@ -351,19 +459,21 @@ export default function FlechePage() {
                     />
                   </div>
                   <FlechePrintMotCache count={hiddenCells.size} />
+                  <FlechePrintFooter />
                 </div>
               </div>
               <div className="fleche-print-solution hidden print:block">
-                <div className="fleche-print-scale">
-                  <div className="rotate-180">
-                    <FlecheGrid
-                      cells={grid.cells}
-                      width={grid.width}
-                      height={grid.height}
-                      showSolution
-                      plain
-                    />
-                  </div>
+                <p className="mb-4 font-display text-xl uppercase tracking-wide text-ink">
+                  Solution{gridTitle ? ` : ${gridTitle}` : ""}
+                </p>
+                <div className="fleche-print-scale fleche-print-solution-scale">
+                  <FlecheGrid
+                    cells={grid.cells}
+                    width={grid.width}
+                    height={grid.height}
+                    showSolution
+                    plain
+                  />
                 </div>
               </div>
             </div>
@@ -390,7 +500,7 @@ export default function FlechePage() {
             {hiddenMissing.length > 0 && (
               <p className="mt-2 text-sm text-destructive">
                 ⚠ Le mot caché « {cleanHiddenWord} » n&apos;a pas pu être entièrement
-                intégré — lettres absentes : {hiddenMissing.join(", ")}. Régénérez ou
+                intégré, lettres absentes : {hiddenMissing.join(", ")}. Régénérez ou
                 changez de mot.
               </p>
             )}
@@ -402,15 +512,29 @@ export default function FlechePage() {
               )}
             </p>
 
+            {/* Grid title — editable after generation; shows on the printed sheet */}
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="mr-1 font-display text-sm uppercase tracking-wide text-ink">
+                Titre
+              </label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={40}
+                placeholder="ex: Joyeux anniversaire Maman (optionnel)"
+                className="frame-tight w-80 max-w-full bg-paper px-3 py-1.5 text-sm text-ink placeholder:text-ink/40 focus:outline-none"
+              />
+            </div>
+
             {/* Actions */}
             <div className="flex items-center gap-3 flex-wrap">
               {grid.code && (
                 <span className="text-sm font-mono text-muted-foreground">{grid.code}</span>
               )}
-              <Button variant="outline" onClick={() => setShowSolution(!showSolution)}>
+              <Button variant="outline" className="rounded-none" onClick={() => setShowSolution(!showSolution)}>
                 {showSolution ? "Cacher solution" : "Voir solution"}
               </Button>
-              <Button variant="outline" onClick={() => window.print()}>
+              <Button variant="outline" className="rounded-none" onClick={() => window.print()}>
                 Imprimer / PDF
               </Button>
               {grid.code && (
@@ -425,27 +549,27 @@ export default function FlechePage() {
                   {copied ? "Lien copie!" : "Copier le lien"}
                 </Button>
               )}
-              <Button variant="outline" onClick={createBook}>
+              <Button variant="outline" className="rounded-none" onClick={createBook}>
                 Creer un livre
               </Button>
             </div>
 
             {/* Add custom words + regenerate */}
-            <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+            <div className="border rounded-none p-4 space-y-3 bg-muted/30">
               <p className="text-sm font-medium">Ajouter des mots et regenerer</p>
               <div className="space-y-2">
                 {customClues.map((cc, i) => (
                   <div key={i} className="space-y-1">
                     <div className="flex items-center gap-2">
                       <input
-                        placeholder="Mot (ex: SARAH)"
+                        placeholder="Mot ou phrase (ex: BON ANNIVERSAIRE)"
                         value={cc.answer}
                         onChange={(e) => {
                           const next = [...customClues];
                           next[i] = { ...next[i], answer: e.target.value };
                           setCustomClues(next);
                         }}
-                        className={`border-2 rounded px-2 py-1 text-sm w-32 uppercase font-mono bg-white ${
+                        className={`border-2 rounded-none px-2 py-1 text-sm w-32 uppercase font-mono bg-white ${
                           isWordTooLong(cc.answer) ? "border-destructive" : "border-transparent"
                         }`}
                       />
@@ -457,7 +581,7 @@ export default function FlechePage() {
                           next[i] = { ...next[i], clue: e.target.value };
                           setCustomClues(next);
                         }}
-                        className="border rounded px-2 py-1 text-sm flex-1 bg-white"
+                        className="border rounded-none px-2 py-1 text-sm flex-1 bg-white"
                       />
                       <button
                         onClick={() => setCustomClues(customClues.filter((_, j) => j !== i))}
@@ -480,7 +604,7 @@ export default function FlechePage() {
               )}
               {!capacity.message && capacity.tight && (
                 <p className="text-sm text-amber-600">
-                  Grille bien remplie — la génération peut être plus longue, voire échouer.
+                  Grille bien remplie, la génération peut être plus longue, voire échouer.
                 </p>
               )}
 
@@ -491,7 +615,7 @@ export default function FlechePage() {
                   placeholder="ex: ANNIVERSAIRE"
                   value={hiddenWord}
                   onChange={(e) => setHiddenWord(e.target.value)}
-                  className="border rounded px-2 py-1 text-sm w-48 uppercase font-mono bg-white"
+                  className="border rounded-none px-2 py-1 text-sm w-48 uppercase font-mono bg-white"
                 />
                 {hiddenCells.size > 0 && (
                   <span className="text-xs text-green-600">
@@ -500,7 +624,7 @@ export default function FlechePage() {
                 )}
                 {hiddenMissing.length > 0 && (
                   <span className="text-xs text-destructive">
-                    ⚠ lettres absentes : {hiddenMissing.join(", ")} — régénérez
+                    ⚠ lettres absentes : {hiddenMissing.join(", ")}, régénérez
                   </span>
                 )}
               </div>
@@ -521,14 +645,14 @@ export default function FlechePage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setCustomClues([...customClues, { answer: "", clue: "" }])}
-                  className="rounded-lg border-2 border-ink bg-paper px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0] shadow-ink/60 transition-transform hover:-translate-y-0.5"
+                  className="rounded-none border-2 border-ink bg-paper px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0] shadow-ink/60 transition-transform hover:-translate-y-0.5"
                 >
                   + Ajouter un mot
                 </button>
                 <button
                   onClick={generate}
                   disabled={loading || capacity.message !== null}
-                  className="btn-lapos rounded-md bg-brand px-6 py-2.5 text-sm text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                  className="btn-lapos rounded-none bg-brand px-6 py-2.5 text-sm text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
                 >
                   Régénérer
                 </button>

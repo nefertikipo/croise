@@ -4,8 +4,8 @@ import { AuthNav } from "@/components/shared/auth-nav";
 
 const LINKS = [
   { href: "/fleche", label: "Créer" },
+  { href: "/idees-de-mots", label: "Idées de mots" },
   { href: "/contribuer", label: "Contribuer" },
-  { href: "/admin/label", label: "Scorer" },
 ];
 
 export function Nav() {
@@ -45,7 +45,7 @@ export function Nav() {
 
           <Link
             href="/fleche"
-            className="btn-lapos rounded-md bg-ink px-4 py-2 text-sm text-paper"
+            className="btn-lapos rounded-none bg-ink px-4 py-2 text-sm text-paper"
           >
             Commencer
           </Link>
