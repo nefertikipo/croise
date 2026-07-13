@@ -1,41 +1,51 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { MOTIFS, FRAMES } from "@/lib/design/patterns";
+import { PhotoCropDialog } from "@/components/book/photo-crop-dialog";
 import { cn } from "@/lib/utils";
 import type { PageDesign } from "@/types/book";
 
 interface DesignPickerProps {
   design: PageDesign;
   onChange: (design: PageDesign) => void;
-}
-
-/** Downscale an uploaded image and return it as a JPEG data URL. */
-async function fileToDataUrl(file: File, maxDim = 1400): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  const ctx = canvas.getContext("2d")!;
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.82);
+  /** When set, an upload opens a crop dialog locked to this width/height ratio. */
+  cropAspect?: number;
 }
 
 const swatchClass = "relative h-14 w-11 border-2 border-black bg-card overflow-hidden";
 
-export function DesignPicker({ design, onChange }: DesignPickerProps) {
+export function DesignPicker({ design, onChange, cropAspect }: DesignPickerProps) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<{ photoRef: string; preview: string } | null>(null);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setUploading(true);
+    setError(null);
     try {
-      const imageUrl = await fileToDataUrl(file);
-      onChange({ ...design, imageUrl });
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/books/upload-photo", { method: "POST", body });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(typeof data?.error === "string" ? data.error : "Echec de l'import.");
+        return;
+      }
+      // Full-res original lives in storage (photoRef); imageUrl is a preview only.
+      if (cropAspect) {
+        setPending({ photoRef: data.photoRef, preview: data.preview });
+      } else {
+        onChange({ ...design, photoRef: data.photoRef, imageUrl: data.preview, crop: undefined });
+      }
     } catch (err) {
       console.error("Image upload failed:", err);
+      setError("Echec de l'import de la photo.");
     } finally {
+      setUploading(false);
       e.target.value = "";
     }
   }
@@ -125,23 +135,40 @@ export function DesignPicker({ design, onChange }: DesignPickerProps) {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            disabled={uploading}
             onClick={() => fileRef.current?.click()}
-            className="border-2 border-black px-3 py-1 text-sm hover:bg-muted"
+            className="border-2 border-black px-3 py-1 text-sm hover:bg-muted disabled:opacity-50"
           >
-            {design.imageUrl ? "Changer l'image" : "Importer une image"}
+            {uploading ? "Import..." : design.imageUrl ? "Changer l'image" : "Importer une image"}
           </button>
-          {design.imageUrl && (
+          {design.imageUrl && !uploading && (
             <button
               type="button"
-              onClick={() => onChange({ ...design, imageUrl: undefined })}
+              onClick={() => onChange({ ...design, imageUrl: undefined, photoRef: undefined, crop: undefined })}
               className="text-sm text-muted-foreground hover:text-destructive"
             >
               Retirer
             </button>
           )}
         </div>
+        {error && <p className="text-xs text-destructive">{error}</p>}
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
       </div>
+
+      {pending && cropAspect && (
+        <PhotoCropDialog
+          image={pending.preview}
+          aspect={cropAspect}
+          onCancel={() => {
+            onChange({ ...design, photoRef: pending.photoRef, imageUrl: pending.preview, crop: undefined });
+            setPending(null);
+          }}
+          onConfirm={(crop, croppedPreview) => {
+            onChange({ ...design, photoRef: pending.photoRef, imageUrl: croppedPreview, crop });
+            setPending(null);
+          }}
+        />
+      )}
     </div>
   );
 }

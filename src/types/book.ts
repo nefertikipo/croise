@@ -10,8 +10,14 @@ export interface PageDesign {
   motif?: string;
   /** Id of a frame style drawn inside the page edges. */
   frame?: string;
-  /** Uploaded background image (data URL, downscaled client-side). */
+  /** Small preview data URL for the editor. NOT for print — see `photoRef`. */
   imageUrl?: string;
+  /** Storage ref for the full-resolution original used by the print engine
+   * (see src/lib/book-pdf/photo-store.ts). */
+  photoRef?: string;
+  /** User's crop of the original, as fractions (0..1) of its width/height. The
+   * print engine extracts this region from the full-res original. */
+  crop?: { x: number; y: number; w: number; h: number };
 }
 
 /** Persisted shape of `books.coverConfig`. */
@@ -21,6 +27,14 @@ export interface CoverConfig {
   occasion?: string;
   themeColor?: string;
   design?: PageDesign;
+  /** Id of the chosen print cover template (see src/lib/book-pdf/cover-templates.ts). */
+  coverTemplate?: string;
+  /** Chosen page-colour key (see COVER_COLORS in cover-templates.ts). */
+  coverColor?: string;
+  /** Chosen title font key: "serif" | "sans" | "display" (see COVER_FONTS). */
+  titleFont?: string;
+  /** Render the title bold (synthetic — the fonts ship a single weight). */
+  titleBold?: boolean;
 }
 
 /** Persisted shape of a grid page's `config`. */
@@ -29,7 +43,7 @@ export interface GridPageConfig {
   hiddenWord?: string;
 }
 
-export type ContentLayout = "note" | "quote";
+export type ContentLayout = "note" | "quote" | "photo";
 
 /** Persisted shape of a content page's `config`. */
 export interface ContentPageConfig {
@@ -39,6 +53,10 @@ export interface ContentPageConfig {
   quote?: string;
   backgroundColor?: string;
   design?: PageDesign;
+  /** Photo page: chosen layout template id (see photo-layouts.ts). */
+  photoLayout?: string;
+  /** Photo page: fills for the layout's PHOTO slots, in order. */
+  photos?: PageDesign[];
 }
 
 export interface ClueInCell {

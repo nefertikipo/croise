@@ -6,7 +6,8 @@ import { eq } from "drizzle-orm";
 import { serializePage } from "@/lib/books/serialize";
 
 const requestSchema = z.object({
-  layout: z.enum(["note", "quote"]).default("note"),
+  layout: z.enum(["note", "quote", "photo"]).default("note"),
+  photoLayout: z.string().optional(),
   title: z.string().optional(),
   body: z.string().optional(),
   quote: z.string().optional(),

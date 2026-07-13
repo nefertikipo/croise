@@ -5,10 +5,13 @@ import {
   Anton,
   Barlow_Semi_Condensed,
   Patrick_Hand,
+  Instrument_Serif,
+  Abel,
 } from "next/font/google";
 import "./globals.css";
 import { SiteChrome } from "@/components/shared/site-chrome";
 import { SanityLive } from "@/sanity/lib/live";
+import { sanityEnabled } from "@/sanity/env";
 import { SITE_URL } from "@/lib/site";
 
 const inter = Inter({
@@ -52,6 +55,19 @@ const handwritten = Patrick_Hand({
   weight: "400",
 });
 
+// Cover title serif + sans-serif options.
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument",
+  subsets: ["latin"],
+  weight: "400",
+});
+
+const abel = Abel({
+  variable: "--font-abel",
+  subsets: ["latin"],
+  weight: "400",
+});
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
@@ -70,12 +86,12 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${inter.variable} ${display.variable} ${serif.variable} ${handwritten.variable} ${condensed.variable} h-full antialiased`}
+      className={`${inter.variable} ${display.variable} ${serif.variable} ${handwritten.variable} ${condensed.variable} ${instrumentSerif.variable} ${abel.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
         <SiteChrome />
         {children}
-        <SanityLive />
+        {sanityEnabled && <SanityLive />}
       </body>
     </html>
   );

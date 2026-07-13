@@ -2,6 +2,7 @@
 
 import { Field, TextField, TextAreaField, ColorPicker } from "@/components/book/field";
 import { DesignPicker } from "@/components/book/design-picker";
+import { PhotoPageEditor } from "@/components/book/photo-page-editor";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ContentLayout, ContentPageConfig } from "@/types/book";
@@ -18,6 +19,9 @@ const LAYOUTS: { value: ContentLayout; label: string }[] = [
 ];
 
 export function ContentPageEditor({ config, onChange, onDelete }: ContentPageEditorProps) {
+  if (config.layout === "photo") {
+    return <PhotoPageEditor config={config} onChange={onChange} onDelete={onDelete} />;
+  }
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">

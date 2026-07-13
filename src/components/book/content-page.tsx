@@ -1,14 +1,23 @@
 import { BookPageFrame } from "@/components/book/book-page-frame";
 import { PageDesignLayer } from "@/components/book/page-design-layer";
+import { PhotoPagePreview } from "@/components/book/photo-page-preview";
 import type { ContentPageConfig } from "@/types/book";
 
 interface ContentPageViewProps {
   config: ContentPageConfig;
 }
 
-/** A user-authored content page interleaved between grids (a note or a quote). */
+/** A user-authored content page interleaved between grids (photo, note, or quote). */
 export function ContentPageView({ config }: ContentPageViewProps) {
   const bg = config.backgroundColor ?? "var(--color-card)";
+
+  if (config.layout === "photo") {
+    return (
+      <BookPageFrame>
+        <PhotoPagePreview layoutId={config.photoLayout} photos={config.photos} />
+      </BookPageFrame>
+    );
+  }
 
   if (config.layout === "quote") {
     return (

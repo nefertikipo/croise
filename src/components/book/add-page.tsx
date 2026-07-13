@@ -79,6 +79,9 @@ export function AddPage({ busy, onAddGrids, onAddContent }: AddPageProps) {
             + Citation
           </Button>
         </div>
+        <Button variant="outline" className="w-full" disabled={busy} onClick={() => onAddContent("photo")}>
+          + Photos
+        </Button>
       </div>
     </div>
   );
