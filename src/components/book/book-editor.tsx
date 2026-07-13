@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PageRail, type RailItem } from "@/components/book/page-rail";
-import { CoverEditor } from "@/components/book/cover-editor";
+import { CoverStudio } from "@/components/book/cover-studio";
 import { DedicationEditor } from "@/components/book/dedication-editor";
 import { GridPageProperties } from "@/components/book/grid-page-properties";
 import { ContentPageEditor } from "@/components/book/content-page-editor";
@@ -68,6 +68,16 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
     debounce("book-cover", () => patchBook({ coverConfig: cover }));
   }
 
+  async function previewCover() {
+    if (!book.coverConfig?.design?.photoRef) {
+      alert("Ajoutez d'abord une photo de couverture.");
+      return;
+    }
+    // Persist the current cover config so the generated PDF reflects it.
+    await patchBook({ coverConfig: book.coverConfig });
+    window.open(`/api/books/${code}/cover.pdf`, "_blank");
+  }
+
   function updateDedication(text: string) {
     setBook((b) => ({ ...b, dedicationText: text }));
     debounce("book-dedication", () => patchBook({ dedicationText: text }));
@@ -122,7 +132,7 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
       const res = await fetch(`/api/books/${code}/pages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ layout }),
+        body: JSON.stringify(layout === "photo" ? { layout, photoLayout: "hero" } : { layout }),
       });
       if (!res.ok) throw new Error("Failed");
       const page = (await res.json()) as BookData["pages"][number];
@@ -243,6 +253,9 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
             {saving ? "Enregistrement…" : "Enregistré"}
           </span>
           <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" onClick={previewCover}>
+              Aperçu couverture
+            </Button>
             <Button variant="outline" onClick={() => window.print()}>
               Imprimer / PDF
             </Button>
@@ -254,7 +267,11 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
       </div>
 
       {/* Editor body */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[220px_1fr_320px] gap-6 px-4 py-6 print:hidden">
+      <div
+        className={`max-w-7xl mx-auto grid grid-cols-1 gap-6 px-4 py-6 print:hidden ${
+          selectedId === "cover" ? "lg:grid-cols-[220px_1fr]" : "lg:grid-cols-[220px_1fr_320px]"
+        }`}
+      >
         {/* Rail */}
         <aside className="lg:max-h-[80vh] lg:overflow-auto">
           <PageRail
@@ -269,7 +286,14 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
 
         {/* Canvas: facing-page spreads */}
         <section className="min-w-0">
-          {selectedId === "add" ? (
+          {selectedId === "cover" ? (
+            <CoverStudio
+              title={book.title}
+              cover={book.coverConfig ?? {}}
+              onTitleChange={updateTitle}
+              onCoverChange={updateCover}
+            />
+          ) : selectedId === "add" ? (
             <div className="text-muted-foreground italic pt-20 text-center">
               Choisissez une page à ajouter →
             </div>
@@ -285,16 +309,9 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
           )}
         </section>
 
-        {/* Properties panel */}
+        {/* Properties panel (hidden for the cover — it uses the full-width studio) */}
+        {selectedId !== "cover" && (
         <aside className="lg:max-h-[80vh] lg:overflow-auto">
-          {selectedId === "cover" && (
-            <CoverEditor
-              title={book.title}
-              cover={book.coverConfig ?? {}}
-              onTitleChange={updateTitle}
-              onCoverChange={updateCover}
-            />
-          )}
           {selectedId === "dedication" && (
             <DedicationEditor text={book.dedicationText ?? ""} onChange={updateDedication} />
           )}
@@ -333,6 +350,7 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
             />
           )}
         </aside>
+        )}
       </div>
 
       {/* Print-only layout */}

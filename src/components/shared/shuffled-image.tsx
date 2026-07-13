@@ -1,47 +1,14 @@
 import { cn } from "@/lib/utils";
+import { seeded, scramble } from "@/lib/design/shuffle-grid";
 
 /**
  * Slices an image into a grid of tiles and "shuffles" them slide-puzzle style.
  * `intensity` controls how scrambled it gets (0 = intact, 1 = fully shuffled).
- * Deterministic (seeded) so SSR and client render identically.
+ * Deterministic (seeded) so SSR and client render identically. Shares its
+ * scramble logic with the print engine (see lib/design/shuffle-grid.ts).
  *
  * Preview for the future book/photo feature — see memory: shuffled-photo-book-idea.
  */
-
-function seeded(seed: number) {
-  let s = seed % 2147483647;
-  if (s <= 0) s += 2147483646;
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
-}
-
-/** Neighbour-swap scramble: recognisable but visibly displaced. */
-function scramble(cols: number, rows: number, intensity: number, seed: number) {
-  const n = cols * rows;
-  const perm = Array.from({ length: n }, (_, i) => i);
-  const rand = seeded(seed);
-  for (let i = 0; i < n; i++) {
-    if (rand() > intensity) continue;
-    const r = Math.floor(i / cols);
-    const c = i % cols;
-    // pick a neighbour (right/left/down/up) and swap
-    const dirs = [
-      [0, 1],
-      [0, -1],
-      [1, 0],
-      [-1, 0],
-    ];
-    const [dr, dc] = dirs[Math.floor(rand() * 4)];
-    const nr = r + dr;
-    const nc = c + dc;
-    if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
-    const j = nr * cols + nc;
-    [perm[i], perm[j]] = [perm[j], perm[i]];
-  }
-  return perm;
-}
 
 export function ShuffledImage({
   src,
@@ -50,6 +17,9 @@ export function ShuffledImage({
   intensity = 0.35,
   seed = 7,
   gap = 1.5,
+  jitter = true,
+  square = true,
+  background,
   className,
 }: {
   src: string;
@@ -58,6 +28,13 @@ export function ShuffledImage({
   intensity?: number;
   seed?: number;
   gap?: number;
+  /** Tiny per-tile vertical offset for a hand-shuffled feel. Off for clean grids. */
+  jitter?: boolean;
+  /** Force square tiles (self-sizing). Off = tiles fill their grid cell, so the
+   * gaps show in both directions when the container has a fixed height. */
+  square?: boolean;
+  /** Colour shown in the gaps between tiles (defaults to paper cream). */
+  background?: string;
   className?: string;
 }) {
   const perm = scramble(cols, rows, intensity, seed);
@@ -70,23 +47,24 @@ export function ShuffledImage({
         gridTemplateColumns: `repeat(${cols}, 1fr)`,
         gridTemplateRows: `repeat(${rows}, 1fr)`,
         gap,
+        backgroundColor: background,
       }}
     >
       {perm.map((source, pos) => {
         const sr = Math.floor(source / cols);
         const sc = source % cols;
-        // tiny extra jitter for the hand-shuffled feel
-        const jitter = (rand() - 0.5) * intensity * 5;
+        // tiny extra offset for the hand-shuffled feel (site only)
+        const offset = jitter ? (rand() - 0.5) * intensity * 5 : 0;
         return (
           <div
             key={pos}
             className="relative overflow-hidden bg-cover"
             style={{
-              aspectRatio: "1 / 1",
+              ...(square ? { aspectRatio: "1 / 1" } : null),
               backgroundImage: `url(${src})`,
               backgroundSize: `${cols * 100}% ${rows * 100}%`,
               backgroundPosition: `${(sc / (cols - 1)) * 100}% ${(sr / (rows - 1)) * 100}%`,
-              transform: `translateY(${jitter.toFixed(2)}px)`,
+              transform: `translateY(${offset.toFixed(2)}px)`,
             }}
           />
         );
