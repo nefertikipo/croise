@@ -4,10 +4,10 @@ const nextConfig: NextConfig = {
   // Load sharp from node_modules at runtime (with its native libvips binary)
   // instead of bundling it — fixes ERR_DLOPEN on Vercel serverless.
   serverExternalPackages: ["sharp"],
-  // Ship the embedded cover fonts into the API function bundle so the PDF
-  // engine can read them via fs on serverless.
+  // Force sharp's native binaries + the embedded cover fonts into the API
+  // function bundle (Vercel's tracer misses them otherwise).
   outputFileTracingIncludes: {
-    "/api/books/**": ["./public/fonts/**"],
+    "/api/**": ["./public/fonts/**", "./node_modules/@img/**", "./node_modules/sharp/**"],
   },
   images: {
     remotePatterns: [
