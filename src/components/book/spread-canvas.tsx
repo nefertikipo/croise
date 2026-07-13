@@ -19,6 +19,8 @@ interface SpreadCanvasProps {
   wordIndex: WordIndexEntry[];
   selectedId: SlotId;
   onSelect: (id: SlotId) => void;
+  /** Double-click a page to open it in the focused Page view. */
+  onFocus?: (id: SlotId) => void;
 }
 
 /** Ordered list of every visible page slot in the book. */
@@ -45,6 +47,7 @@ export function SpreadCanvas({
   wordIndex,
   selectedId,
   onSelect,
+  onFocus,
 }: SpreadCanvasProps) {
   const slots = buildSlots(book);
   const spreads = buildSpreads(slots);
@@ -92,13 +95,13 @@ export function SpreadCanvas({
       if (page.kind === "content") return <ContentPageView config={page.config} />;
       return (
         <BookPageFrame>
-          <div className="flex-1 flex items-center justify-center p-6 overflow-hidden">
+          <div className="flex-1 flex items-center justify-center p-3 overflow-hidden">
             <GridPageView
               page={page}
               index={gridNumberByPage.get(page.pageId) ?? 0}
               interactive={selectedId === id}
-              maxWidth={330}
-              maxHeight={450}
+              maxWidth={390}
+              maxHeight={545}
             />
           </div>
         </BookPageFrame>
@@ -108,6 +111,8 @@ export function SpreadCanvas({
     return (
       <div
         onClick={() => onSelect(id)}
+        onDoubleClick={() => onFocus?.(id)}
+        title="Double-clic pour agrandir"
         className={cn(
           "block w-full max-w-[420px] text-left transition-shadow cursor-pointer",
           selectedId === id && "ring-4 ring-primary ring-offset-2",

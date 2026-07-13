@@ -63,6 +63,7 @@ export async function POST(
     const config = {
       ...(gridParams.gridColor ? { gridColor: gridParams.gridColor } : {}),
       ...(gridParams.hiddenWord ? { hiddenWord: gridParams.hiddenWord } : {}),
+      ...(gridParams.difficulty ? { difficulty: gridParams.difficulty } : {}),
     };
 
     const createdPageIds: string[] = [];

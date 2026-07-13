@@ -40,19 +40,29 @@ export function GridPageView({
   const gridH = page.height * CELL_SIZE;
   const cleanHidden = normalizeHiddenWord(hidden);
   const hasHiddenStrip = !!highlightedCells && highlightedCells.size > 0;
-  // Vertical space taken by the title and hidden-word strip around the grid.
-  const chromeH = 48 + (hasHiddenStrip ? 76 : 0);
+  // Vertical space taken by the title band and hidden-word strip around the grid.
+  const chromeH = 40 + (hasHiddenStrip ? 68 : 0);
   const scale = Math.min(
     1,
     maxWidth / gridW,
     maxHeight ? Math.max(0.1, (maxHeight - chromeH) / gridH) : 1,
   );
 
+  /* Magazine composition: thin editorial title band, grid edge-to-edge,
+     hidden-word band at the bottom — the grid is the page. */
   return (
-    <div className="flex flex-col items-center gap-3" style={{ width: gridW * scale }}>
-      <h3 className="font-heading text-2xl uppercase text-foreground self-start">
-        Grille {index}
-      </h3>
+    <div className="flex flex-col gap-2" style={{ width: gridW * scale }}>
+      <div className="flex items-baseline justify-between border-b-2 border-ink pb-1">
+        <h3 className="font-heading text-xl uppercase leading-none text-foreground">
+          Grille <span className="text-primary">N°{index}</span>
+        </h3>
+        <span className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+          {page.width}×{page.height}
+          {page.config.difficulty && page.config.difficulty !== "balanced"
+            ? ` · ${page.config.difficulty}`
+            : ""}
+        </span>
+      </div>
 
       <div style={{ width: gridW * scale, height: gridH * scale }}>
         <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: gridW, height: gridH }}>
@@ -68,10 +78,10 @@ export function GridPageView({
         </div>
       </div>
 
-      {/* Hidden word strip: write-in boxes, part of the printed grid block. */}
+      {/* Hidden word band: write-in boxes, part of the printed grid block. */}
       {hasHiddenStrip && (
-        <div className="w-full border-2 border-black bg-card px-4 py-3 flex items-center gap-3 flex-wrap">
-          <span className="text-xs font-bold uppercase tracking-[0.2em]">Mot caché</span>
+        <div className="w-full border-2 border-ink bg-card px-3 py-2 flex items-center gap-3 flex-wrap">
+          <span className="text-[10px] font-bold uppercase tracking-[0.25em]">Mot caché</span>
           <div className="flex items-center gap-1 flex-wrap">
             {Array.from({ length: highlightedCells.size }, (_, i) => (
               <div

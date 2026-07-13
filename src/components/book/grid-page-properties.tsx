@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Field, TextField, ColorPicker } from "@/components/book/field";
+import { DifficultyPicker } from "@/components/book/difficulty-picker";
 import { Button } from "@/components/ui/button";
 import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
 import type { GridPage, GridPageConfig } from "@/types/book";
@@ -63,6 +64,14 @@ export function GridPageProperties({
           onChange={(c) => onConfigChange({ gridColor: c })}
         />
       </Field>
+
+      <DifficultyPicker
+        value={page.config.difficulty ?? "balanced"}
+        onChange={(difficulty) => onConfigChange({ difficulty })}
+      />
+      <p className="text-xs text-muted-foreground -mt-2">
+        Appliquée à la prochaine régénération de cette grille.
+      </p>
 
       <Field label="Mot caché">
         <TextField

@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DifficultyPicker } from "@/components/book/difficulty-picker";
 import { cn } from "@/lib/utils";
-import type { ContentLayout } from "@/types/book";
+import type { ContentLayout, GridDifficulty } from "@/types/book";
 
 const PRESETS = [
   { w: 11, h: 17, label: "11×17" },
@@ -14,13 +15,19 @@ const PRESETS = [
 
 interface AddPageProps {
   busy: boolean;
-  onAddGrids: (opts: { width: number; height: number; count: number }) => void;
+  onAddGrids: (opts: {
+    width: number;
+    height: number;
+    count: number;
+    difficulty: GridDifficulty;
+  }) => void;
   onAddContent: (layout: ContentLayout) => void;
 }
 
 export function AddPage({ busy, onAddGrids, onAddContent }: AddPageProps) {
   const [preset, setPreset] = useState(PRESETS[0]);
   const [count, setCount] = useState(1);
+  const [difficulty, setDifficulty] = useState<GridDifficulty>("balanced");
 
   return (
     <div className="space-y-4">
@@ -59,10 +66,12 @@ export function AddPage({ busy, onAddGrids, onAddContent }: AddPageProps) {
         </div>
       </div>
 
+      <DifficultyPicker value={difficulty} onChange={setDifficulty} />
+
       <Button
         className="w-full"
         disabled={busy}
-        onClick={() => onAddGrids({ width: preset.w, height: preset.h, count })}
+        onClick={() => onAddGrids({ width: preset.w, height: preset.h, count, difficulty })}
       >
         {busy ? "Génération…" : count > 1 ? `+ ${count} grilles` : "+ Une grille"}
       </Button>
