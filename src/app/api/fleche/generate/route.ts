@@ -199,6 +199,7 @@ export async function POST(request: Request) {
       clue: w.clueText,
       direction: w.slot.direction === "horizontal" ? "right" : "down",
       isCustom: w.isCustom,
+      difficulty: w.difficulty,
     }));
 
     // Auto-save to DB

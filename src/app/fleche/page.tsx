@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
 import { GenerationProgress } from "@/components/fleche/generation-progress";
 import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
+import { ClueList } from "@/components/fleche/clue-list";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import {
@@ -20,12 +21,15 @@ import {
   computeFlechePrintScale,
 } from "@/components/fleche/fleche-print-chrome";
 
-// Example clues at each level — same answer (CHAT), increasingly indirect —
-// to show the *style* difference, not just a label.
+// Example clues at each level — same answer (AVOCAT), increasingly indirect — to
+// show the *style* difference, not just a label. These are REAL clues from the
+// corpus at difficulty 1 / 2 / 3 (see the `clues` table), not invented ones.
+// AVOCAT is chosen because it genuinely spans all three: a direct definition, the
+// lawyer/avocado misdirection, then a cultural leap (Thémis = déesse de la justice).
 const CLUE_EXAMPLES = {
-  facile: { label: "Facile", clue: "Félin domestique", answer: "CHAT" },
-  moyen: { label: "Moyen", clue: "Compagnon à moustaches", answer: "CHAT" },
-  difficile: { label: "Difficile", clue: "Il retombe sur ses pattes", answer: "CHAT" },
+  facile: { label: "Facile", clue: "Il plaide", answer: "AVOCAT" },
+  moyen: { label: "Moyen", clue: "Base du guacamole", answer: "AVOCAT" },
+  difficile: { label: "Difficile", clue: "Champion de Thémis", answer: "AVOCAT" },
 } as const;
 
 type ExampleLevel = keyof typeof CLUE_EXAMPLES;
@@ -83,7 +87,13 @@ interface FlecheData {
   height: number;
   hiddenWordSatisfied?: boolean;
   cells: FlecheCell[][];
-  words: { answer: string; clue: string; direction: string; isCustom: boolean }[];
+  words: {
+    answer: string;
+    clue: string;
+    direction: string;
+    isCustom: boolean;
+    difficulty?: number | null;
+  }[];
 }
 
 export default function FlechePage() {
@@ -511,6 +521,9 @@ export default function FlechePage() {
                 <> dont {grid.words.filter((w) => w.isCustom).length} personnalise(s)</>
               )}
             </p>
+
+            {/* List of clues added, with per-clue difficulty. Screen only. */}
+            <ClueList words={grid.words} />
 
             {/* Grid title — editable after generation; shows on the printed sheet */}
             <div className="flex flex-wrap items-center gap-2">
