@@ -24,6 +24,25 @@ export function normalizeAnswer(word: string): string {
 }
 
 /**
+ * Normalize a clue's casing to sentence case for display.
+ *
+ * The corpus mixes styles: some clues are screaming ALL CAPS ("IL AIME SON
+ * HERBE"), others are lowercase ("petit félin"). We fold both to sentence case —
+ * first letter uppercase, the rest as-is — so a generated grid reads
+ * consistently. All-caps clues are lowercased first (they also lost their
+ * accents in the corpus, which we can't recover); mixed/lowercase clues keep
+ * their internal capitals so proper nouns survive ("médecin de Molière").
+ */
+export function normalizeClueText(clue: string): string {
+  const trimmed = clue.trim();
+  if (!trimmed) return trimmed;
+  const hasLower = /[a-zà-ÿ]/.test(trimmed);
+  const isAllCaps = !hasLower; // no lowercase letter at all → screaming caps
+  const base = isAllCaps ? trimmed.toLowerCase() : trimmed;
+  return base.charAt(0).toUpperCase() + base.slice(1);
+}
+
+/**
  * Word-break offsets for a multi-word answer (e.g. "BON ANNIVERSAIRE").
  *
  * Returns the letter indices at which a new word begins in the folded answer —

@@ -8,6 +8,7 @@ import { placedWords } from "@/db/schema/placed-words";
 import { generateCrosswordCode } from "@/lib/code";
 import { checkCapacity } from "@/lib/crossword/check-capacity";
 import { normalizeAnswer, answerBreaks } from "@/lib/crossword/normalize";
+import { auth } from "@/lib/auth";
 import type { Coord } from "@/lib/crossword/fleche-math";
 
 export const maxDuration = 120;
@@ -198,6 +199,7 @@ export async function POST(request: Request) {
       clue: w.clueText,
       direction: w.slot.direction === "horizontal" ? "right" : "down",
       isCustom: w.isCustom,
+      difficulty: w.difficulty,
     }));
 
     // Auto-save to DB
@@ -214,11 +216,16 @@ export async function POST(request: Request) {
         }
       }
 
+      // Attach to the signed-in user if there is one (anonymous otherwise).
+      const authSession = await auth.api.getSession({ headers: request.headers });
+      const ownerId = authSession?.user.id ?? null;
+
       gridCode = generateCrosswordCode();
       const [saved] = await db
         .insert(crosswords)
         .values({
           code: gridCode,
+          ownerId,
           language: "fr",
           title: params.title?.trim() || null,
           width: grid.width,

@@ -1,13 +1,14 @@
 import Link from "next/link";
-import { ShuffledImage } from "@/components/shared/shuffled-image";
+import { HeroCarousel } from "@/components/shared/hero-carousel";
 import { CreateBookLink } from "@/components/shared/create-book-link";
+import { WORD_IDEAS } from "@/lib/word-ideas";
 
 // The three things you can make/offer with Les Flèches.
 const PRODUCTS = [
   {
     kicker: "À encadrer",
     title: "Un poster",
-    body: "Une grille unique, imprimée grand format — à encadrer, à accrocher, à offrir.",
+    body: "Une grille unique, imprimée grand format, à encadrer, à accrocher, à offrir.",
     cta: "Créer un poster",
     href: "/fleche?intent=poster",
   },
@@ -33,19 +34,8 @@ export default function Home() {
     <main className="flex-1">
       {/* ── Hero: photo recomposed as a shuffled crossword grid ── */}
       <section className="border-b-2 border-ink">
-        <div className="relative h-[62vh] min-h-[460px] w-full overflow-hidden bg-ink">
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2">
-            <ShuffledImage
-              src="/demo-car.png"
-              cols={14}
-              rows={13}
-              intensity={0.3}
-              seed={11}
-              gap={2}
-              className="w-full !bg-ink"
-            />
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-b from-ink/60 via-ink/15 to-ink/35" />
+        <div className="relative h-[88vw] min-h-0 w-full overflow-hidden bg-ink sm:h-[62vh] sm:min-h-[460px]">
+          <HeroCarousel className="absolute inset-0" />
           <div className="absolute inset-x-0 top-0 px-4 pt-10 text-center sm:pt-14">
             <h1 className="mx-auto max-w-4xl text-5xl leading-[0.9] text-paper drop-shadow-[0_2px_0_rgba(0,0,0,0.35)] sm:text-6xl lg:text-7xl">
               Des grilles <span className="text-brand-foreground">à</span>{" "}
@@ -60,7 +50,7 @@ export default function Home() {
         <div className="bg-paper">
           <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-4 py-8 sm:flex-row sm:justify-between">
             <p className="font-serif-accent max-w-md text-center text-lg italic text-ink/80 sm:text-left">
-              Créez des mots fléchés personnalisés avec vos propres mots — un
+              Créez des mots fléchés personnalisés avec vos propres mots, un
               message caché, un vrai cadeau, imprimé et offert.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -108,6 +98,44 @@ export default function Home() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Word-idea inspiration: solve the blank-page problem ── */}
+      <section className="border-b-2 border-ink bg-paper">
+        <div className="mx-auto max-w-5xl px-4 py-16">
+          <div className="text-center">
+            <p className="font-display text-xs uppercase tracking-[0.3em] text-brand">
+              Inspiration
+            </p>
+            <h2 className="mt-3 text-4xl text-ink sm:text-5xl">Quels mots choisir ?</h2>
+            <p className="font-serif-accent mx-auto mt-4 max-w-2xl text-lg italic text-ink/70">
+              Le plus dur, c&apos;est la page blanche. Trouvez les mots à glisser dans votre
+              grille selon la personne à qui vous l&apos;offrez.
+            </p>
+          </div>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {WORD_IDEAS.map((r) => (
+              <Link
+                key={r.slug}
+                href={`/idees-de-mots/${r.slug}`}
+                className="frame group bg-paper p-5 text-center text-ink"
+              >
+                <h3 className="text-2xl group-hover:text-brand">Pour {r.label}</h3>
+                <span className="font-display mt-3 inline-block text-xs uppercase tracking-[0.2em] text-brand">
+                  Voir les idées
+                </span>
+              </Link>
+            ))}
+          </div>
+          <div className="mt-8 text-center">
+            <Link
+              href="/idees-de-mots"
+              className="font-serif-accent text-lg italic text-ink/70 underline underline-offset-4 hover:text-brand"
+            >
+              Toutes les idées de mots
+            </Link>
           </div>
         </div>
       </section>

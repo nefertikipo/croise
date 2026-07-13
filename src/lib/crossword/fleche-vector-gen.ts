@@ -34,7 +34,7 @@ import {
   LEFT_COMB_OFFSET,
 } from "./fleche-math";
 import type { WordList } from "./word-list";
-import { normalizeAnswer } from "@/lib/crossword/normalize";
+import { normalizeAnswer, normalizeClueText } from "@/lib/crossword/normalize";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -89,7 +89,18 @@ export interface VectorGenResult {
   success: boolean;
   grid: Grid;
   slots: Slot[];
-  words: { slot: Slot; word: string; clueText: string; isCustom: boolean }[];
+  words: {
+    slot: Slot;
+    word: string;
+    clueText: string;
+    isCustom: boolean;
+    /**
+     * Difficulty of the chosen clue: 1 = facile, 2 = moyen, 3 = difficile.
+     * `null` for custom clues (user-written, unscored) or words with no scored
+     * clue in the corpus.
+     */
+    difficulty: number | null;
+  }[];
   attempts: number;
   /**
    * Whether the returned grid's letters cover the requested hidden word. `true`
@@ -1295,9 +1306,9 @@ function pickClue(
   clueDifficulty?: Map<string, number>,
   mode: DifficultyMode = "balanced",
   usedClues?: Set<string>,
-): string {
+): { text: string; difficulty: number | null } {
   const clues = clueDb.get(word.toUpperCase());
-  if (!clues || clues.length === 0) return "?";
+  if (!clues || clues.length === 0) return { text: "?", difficulty: null };
 
   // Filter out clues containing the word itself
   const filtered = clues.filter(
@@ -1336,7 +1347,12 @@ function pickClue(
     const atTarget = pick.filter((c) => dist(c) === best);
     if (atTarget.length > 0) pick = atTarget;
   }
-  return pick[Math.floor(Math.random() * pick.length)];
+  const text = pick[Math.floor(Math.random() * pick.length)];
+  const difficulty =
+    clueDifficulty?.get(word.toUpperCase() + "" + text) ?? null;
+  // `text` was looked up raw above (difficulty keys use raw corpus casing);
+  // normalize only the display text so grid + list read consistently.
+  return { text: normalizeClueText(text), difficulty };
 }
 
 // ---------------------------------------------------------------------------
@@ -1563,14 +1579,28 @@ export function generateFlecheVector(
         }
       }
 
-      // Find clue text
+      // Find clue text (+ its scored difficulty). Custom clues are user-written
+      // and unscored, so their difficulty is null.
       const isCustom = customAssignment.has(slot.id);
-      const clueText = isCustom
-        ? customClues.find(
-            (c) => normalizeAnswer(c.answer) === word,
-          )?.clue ??
-          pickClue(word, clueDb, clueDifficulty, params.difficulty, usedClues)
-        : pickClue(word, clueDb, clueDifficulty, params.difficulty, usedClues);
+      const customClue = isCustom
+        ? customClues.find((c) => normalizeAnswer(c.answer) === word)?.clue
+        : undefined;
+      let clueText: string;
+      let difficulty: number | null;
+      if (customClue !== undefined) {
+        clueText = customClue;
+        difficulty = null;
+      } else {
+        const picked = pickClue(
+          word,
+          clueDb,
+          clueDifficulty,
+          params.difficulty,
+          usedClues,
+        );
+        clueText = picked.text;
+        difficulty = picked.difficulty;
+      }
       usedClues.add(clueText.toUpperCase());
 
       // Write clue text into the blue cell
@@ -1580,7 +1610,7 @@ export function generateFlecheVector(
         blueCell.clues[slot.clueIndex].text = clueText;
       }
 
-      words.push({ slot, word, clueText, isCustom });
+      words.push({ slot, word, clueText, isCustom, difficulty });
     }
 
     // Validate: every word's letters must match the grid cells

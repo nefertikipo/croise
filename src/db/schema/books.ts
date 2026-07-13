@@ -1,16 +1,20 @@
 import { pgTable, serial, text, integer, timestamp, uuid, jsonb } from "drizzle-orm/pg-core";
 import { crosswords } from "@/db/schema/crosswords";
+import { user } from "@/db/schema/auth";
 
 export const books = pgTable("books", {
   id: uuid("id").defaultRandom().primaryKey(),
   code: text("code").notNull().unique(),
-  ownerId: uuid("owner_id"),
+  // Owner when created while signed in; null for anonymous books.
+  ownerId: text("owner_id").references(() => user.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   description: text("description"),
   language: text("language").notNull().default("en"),
   dedicationText: text("dedication_text"),
   coverConfig: jsonb("cover_config"),
   status: text("status").notNull().default("draft"),
+  // When we last emailed the owner a "finish your book" reminder (null = never).
+  reminderSentAt: timestamp("reminder_sent_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
