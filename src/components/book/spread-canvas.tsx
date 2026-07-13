@@ -1,6 +1,7 @@
 "use client";
 
 import { BookPageFrame } from "@/components/book/book-page-frame";
+import { useElementSize } from "@/components/book/use-element-size";
 import { CoverPage } from "@/components/book/cover-page";
 import { DedicationPage } from "@/components/book/dedication-page";
 import { ContentPageView } from "@/components/book/content-page";
@@ -38,6 +39,65 @@ export function buildSpreads(slots: SlotId[]): (SlotId | null)[][] {
     spreads.push([slots[i], slots[i + 1] ?? null]);
   }
   return spreads;
+}
+
+/**
+ * A grid page inside a spread frame. The whole magazine block (title band +
+ * grid + hidden-word strip) is laid out at a fixed design width, measured,
+ * then uniformly transform-scaled to fit the frame — a true page thumbnail,
+ * immune to content wrapping.
+ */
+const GRID_DESIGN_WIDTH = 420;
+
+function SpreadGridPage({
+  page,
+  index,
+  interactive,
+}: {
+  page: GridPage;
+  index: number;
+  interactive: boolean;
+}) {
+  const { ref: frameRef, size: avail } = useElementSize<HTMLDivElement>();
+  const { ref: blockRef, size: natural } = useElementSize<HTMLDivElement>();
+
+  const scale =
+    avail.width > 0 && natural.height > 0
+      ? Math.min(avail.width / GRID_DESIGN_WIDTH, avail.height / natural.height, 1)
+      : 0;
+
+  return (
+    <BookPageFrame>
+      <div
+        ref={frameRef}
+        className="flex-1 flex items-center justify-center p-3 overflow-hidden"
+      >
+        <div
+          style={{
+            width: GRID_DESIGN_WIDTH * scale,
+            height: natural.height * scale,
+            visibility: scale > 0 ? "visible" : "hidden",
+          }}
+        >
+          <div
+            ref={blockRef}
+            style={{
+              width: GRID_DESIGN_WIDTH,
+              transform: `scale(${scale || 1})`,
+              transformOrigin: "top left",
+            }}
+          >
+            <GridPageView
+              page={page}
+              index={index}
+              interactive={interactive}
+              maxWidth={GRID_DESIGN_WIDTH}
+            />
+          </div>
+        </div>
+      </div>
+    </BookPageFrame>
+  );
 }
 
 export function SpreadCanvas({
@@ -94,17 +154,11 @@ export function SpreadCanvas({
       if (!page) return null;
       if (page.kind === "content") return <ContentPageView config={page.config} />;
       return (
-        <BookPageFrame>
-          <div className="flex-1 flex items-center justify-center p-3 overflow-hidden">
-            <GridPageView
-              page={page}
-              index={gridNumberByPage.get(page.pageId) ?? 0}
-              interactive={selectedId === id}
-              maxWidth={390}
-              maxHeight={545}
-            />
-          </div>
-        </BookPageFrame>
+        <SpreadGridPage
+          page={page}
+          index={gridNumberByPage.get(page.pageId) ?? 0}
+          interactive={selectedId === id}
+        />
       );
     })();
 

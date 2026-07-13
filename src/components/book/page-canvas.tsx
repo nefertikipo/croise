@@ -1,5 +1,6 @@
 "use client";
 
+import { useElementSize } from "@/components/book/use-element-size";
 import { CoverPage } from "@/components/book/cover-page";
 import { DedicationPage } from "@/components/book/dedication-page";
 import { ContentPageView } from "@/components/book/content-page";
@@ -28,36 +29,40 @@ export function PageCanvas({
   wordIndex,
   selectedId,
 }: PageCanvasProps) {
+  const { ref, size } = useElementSize<HTMLDivElement>();
   const page = book.pages.find((p) => p.pageId === selectedId);
 
   if (page?.kind === "grid") {
     return (
-      <div className="overflow-x-auto">
-        <GridPageView
-          page={page}
-          index={gridNumberByPage.get(page.pageId) ?? 0}
-          interactive
-          maxWidth={720}
-        />
+      <div ref={ref} className="w-full">
+        {size.width > 0 && (
+          <GridPageView
+            page={page}
+            index={gridNumberByPage.get(page.pageId) ?? 0}
+            interactive
+            maxWidth={size.width}
+          />
+        )}
       </div>
     );
   }
 
   if (selectedId === "solutions") {
     return (
-      <div className="space-y-10">
+      <div ref={ref} className="w-full space-y-10">
         {gridPages.length === 0 && (
           <p className="text-muted-foreground italic">Aucune grille.</p>
         )}
-        {gridPages.map((p) => (
-          <GridPageView
-            key={p.pageId}
-            page={p}
-            index={gridNumberByPage.get(p.pageId) ?? 0}
-            showSolution
-            maxWidth={620}
-          />
-        ))}
+        {size.width > 0 &&
+          gridPages.map((p) => (
+            <GridPageView
+              key={p.pageId}
+              page={p}
+              index={gridNumberByPage.get(p.pageId) ?? 0}
+              showSolution
+              maxWidth={Math.min(size.width, 620)}
+            />
+          ))}
       </div>
     );
   }

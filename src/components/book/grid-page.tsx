@@ -14,8 +14,6 @@ interface GridPageViewProps {
   interactive?: boolean;
   /** Max rendered width in px; the grid scales down to fit. */
   maxWidth?: number;
-  /** Optional max height for the whole block (title + grid + hidden-word strip). */
-  maxHeight?: number;
 }
 
 /** Renders one grid page: title, scaled fléchés grid, and hidden-word strip. */
@@ -25,7 +23,6 @@ export function GridPageView({
   showSolution = false,
   interactive = false,
   maxWidth = 600,
-  maxHeight,
 }: GridPageViewProps) {
   const hidden = page.config.hiddenWord ?? "";
   const highlightedCells = useMemo(
@@ -40,13 +37,7 @@ export function GridPageView({
   const gridH = page.height * CELL_SIZE;
   const cleanHidden = normalizeHiddenWord(hidden);
   const hasHiddenStrip = !!highlightedCells && highlightedCells.size > 0;
-  // Vertical space taken by the title band and hidden-word strip around the grid.
-  const chromeH = 40 + (hasHiddenStrip ? 68 : 0);
-  const scale = Math.min(
-    1,
-    maxWidth / gridW,
-    maxHeight ? Math.max(0.1, (maxHeight - chromeH) / gridH) : 1,
-  );
+  const scale = Math.min(1, maxWidth / gridW);
 
   /* Magazine composition: thin editorial title band, grid edge-to-edge,
      hidden-word band at the bottom — the grid is the page. */
