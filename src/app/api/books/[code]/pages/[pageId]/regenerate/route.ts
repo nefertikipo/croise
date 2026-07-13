@@ -20,6 +20,7 @@ const requestSchema = z.object({
   customClues: z
     .array(z.object({ answer: z.string(), clue: z.string() }))
     .default([]),
+  difficulty: z.enum(["facile", "moyen", "difficile", "balanced"]).optional(),
 });
 
 /** Regenerate a grid page's puzzle in place, keeping its position in the spine. */
@@ -67,6 +68,7 @@ export async function POST(
       height: input.height,
       title: `Grille ${page.position + 1}`,
       customClues: input.customClues,
+      difficulty: input.difficulty,
       usedClues,
     });
 
@@ -82,6 +84,7 @@ export async function POST(
       ...prevConfig,
       ...(input.gridColor !== undefined ? { gridColor: input.gridColor } : {}),
       ...(input.hiddenWord !== undefined ? { hiddenWord: input.hiddenWord } : {}),
+      ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
     };
 
     const oldCrosswordId = page.crosswordId;

@@ -37,10 +37,14 @@ export interface CoverConfig {
   titleBold?: boolean;
 }
 
+export type GridDifficulty = "facile" | "moyen" | "difficile" | "balanced";
+
 /** Persisted shape of a grid page's `config`. */
 export interface GridPageConfig {
   gridColor?: string;
   hiddenWord?: string;
+  /** Clue difficulty used when (re)generating this grid. Default "balanced". */
+  difficulty?: GridDifficulty;
 }
 
 export type ContentLayout = "note" | "quote" | "photo";

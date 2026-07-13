@@ -204,7 +204,9 @@ const CELL_SIZE = 70;
 const INK = "#2f2a26";
 const PAPER = "#fffcf5";
 const EMPTY_BG = "#ece3d3";
-const DEFAULT_ACCENT = "#1f9e94";
+/* The brand's "clue-cell blue" token; resolved at paint time so the grid
+   follows any future rebrand automatically. */
+const DEFAULT_ACCENT = "var(--blueprint)";
 const CUSTOM_BG = "#dbe6fb";
 
 interface ArrowSpec {

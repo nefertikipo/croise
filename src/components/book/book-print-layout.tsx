@@ -41,7 +41,7 @@ export function BookPrintLayout({
       {book.pages.map((p) => (
         <PrintPage key={p.pageId}>
           {p.kind === "grid" ? (
-            <GridPageView page={p} index={gridNumberByPage.get(p.pageId) ?? 0} maxWidth={640} />
+            <GridPageView page={p} index={gridNumberByPage.get(p.pageId) ?? 0} maxWidth={700} />
           ) : (
             <ContentPageView config={p.config} />
           )}
@@ -58,7 +58,7 @@ export function BookPrintLayout({
             <h2 className="font-heading text-2xl uppercase mb-4">
               Solution — Grille {gridNumberByPage.get(p.pageId)}
             </h2>
-            <GridPageView page={p} index={gridNumberByPage.get(p.pageId) ?? 0} showSolution maxWidth={640} />
+            <GridPageView page={p} index={gridNumberByPage.get(p.pageId) ?? 0} showSolution maxWidth={700} />
           </div>
         </PrintPage>
       ))}

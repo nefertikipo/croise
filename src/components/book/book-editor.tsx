@@ -8,7 +8,9 @@ import { DedicationEditor } from "@/components/book/dedication-editor";
 import { GridPageProperties } from "@/components/book/grid-page-properties";
 import { ContentPageEditor } from "@/components/book/content-page-editor";
 import { SpreadCanvas } from "@/components/book/spread-canvas";
+import { PageCanvas } from "@/components/book/page-canvas";
 import { AddPage } from "@/components/book/add-page";
+import { cn } from "@/lib/utils";
 import { BookPrintLayout } from "@/components/book/book-print-layout";
 import { buildWordIndex } from "@/lib/crossword/word-index";
 import type {
@@ -16,6 +18,7 @@ import type {
   ContentLayout,
   ContentPageConfig,
   CoverConfig,
+  GridDifficulty,
   GridPage,
   GridPageConfig,
 } from "@/types/book";
@@ -28,6 +31,8 @@ interface BookEditorProps {
 export function BookEditor({ code, initialBook }: BookEditorProps) {
   const [book, setBook] = useState<BookData>(initialBook);
   const [selectedId, setSelectedId] = useState<string>("cover");
+  // "spread" = facing pages for arranging; "page" = one page big, for editing grids.
+  const [view, setView] = useState<"spread" | "page">("spread");
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
@@ -107,7 +112,12 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
   }
 
   // --- Structural mutations -------------------------------------------------
-  async function addGrids(opts: { width: number; height: number; count: number }) {
+  async function addGrids(opts: {
+    width: number;
+    height: number;
+    count: number;
+    difficulty: GridDifficulty;
+  }) {
     setBusy(true);
     try {
       const res = await fetch(`/api/books/${code}/grids`, {
@@ -166,6 +176,7 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
           customClues,
           hiddenWord: page.config.hiddenWord,
           gridColor: page.config.gridColor,
+          difficulty: page.config.difficulty,
         }),
       });
       if (!res.ok) throw new Error("Regen failed");
@@ -284,7 +295,7 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
           />
         </aside>
 
-        {/* Canvas: facing-page spreads */}
+        {/* Canvas: spread (arrange) or single page (edit) */}
         <section className="min-w-0">
           {selectedId === "cover" ? (
             <CoverStudio
@@ -298,14 +309,55 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
               Choisissez une page à ajouter →
             </div>
           ) : (
-            <SpreadCanvas
-              book={book}
-              gridPages={gridPages}
-              gridNumberByPage={gridNumberByPage}
-              wordIndex={wordIndex}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-            />
+            <>
+              <div className="mb-4 flex justify-center">
+                <div className="inline-flex border-2 border-ink" role="tablist">
+                  {(
+                    [
+                      { key: "spread", label: "Planche" },
+                      { key: "page", label: "Page" },
+                    ] as const
+                  ).map((v) => (
+                    <button
+                      key={v.key}
+                      role="tab"
+                      aria-selected={view === v.key}
+                      onClick={() => setView(v.key)}
+                      className={cn(
+                        "px-4 py-1 font-display text-xs uppercase tracking-[0.2em] transition-colors",
+                        view === v.key
+                          ? "bg-ink text-paper"
+                          : "bg-background text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {view === "spread" ? (
+                <SpreadCanvas
+                  book={book}
+                  gridPages={gridPages}
+                  gridNumberByPage={gridNumberByPage}
+                  wordIndex={wordIndex}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onFocus={(id) => {
+                    setSelectedId(id);
+                    setView("page");
+                  }}
+                />
+              ) : (
+                <PageCanvas
+                  book={book}
+                  gridPages={gridPages}
+                  gridNumberByPage={gridNumberByPage}
+                  wordIndex={wordIndex}
+                  selectedId={selectedId}
+                />
+              )}
+            </>
           )}
         </section>
 
