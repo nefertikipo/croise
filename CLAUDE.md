@@ -13,6 +13,12 @@ A French mots fleches/mots croises generator that creates personalized crossword
 - Vercel AI SDK + AI Gateway (for clue personalization, not yet active)
 - pnpm
 
+## LLM / AI Rules
+
+- **App runtime code (`src/`)** routes all LLM calls through the Vercel AI SDK + AI Gateway (`gateway()` helper). One interface, swap models from config. This is the rule for anything that ships in the product.
+- **Data-pipeline scripts (`scripts/`)** MAY call the Anthropic SDK (`@anthropic-ai/sdk`) directly with `ANTHROPIC_API_KEY`, bypassing the gateway. These are one-off, manually-run batch jobs (clue/word scoring, tagging) — not runtime product code — so the gateway indirection buys nothing. Keep them scoped to `scripts/`, out of `src/`.
+- For bulk scoring jobs, prefer the **Batch API** (50% cheaper, latency doesn't matter) and default to **Sonnet-tier** for judgment quality (Haiku underperforms on recognizability/difficulty calls; see the clue-scoring precedent).
+
 ## Key Architecture
 
 ### Database (Neon Postgres)

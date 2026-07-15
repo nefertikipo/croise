@@ -41,8 +41,15 @@ export const words = pgTable(
     frequency: integer("frequency").notNull().default(1),
     /** Whether this word is valid for grid generation. */
     active: boolean("active").notNull().default(true),
-    /** Rough familiarity/commonness signal (0-1). */
+    /** Rough familiarity/commonness signal (0-1). Corpus-frequency based. */
     familiarity: real("familiarity"),
+    /**
+     * Recognizability 1-5: does an average French adult KNOW this word?
+     * Judges recognition (Napoleon = 5 even though rare in text), NOT corpus
+     * frequency. Populated by scripts/score-known.ts. 5 = everyone knows it,
+     * 1 = obscure/specialist. See the LLM/AI Rules note in CLAUDE.md.
+     */
+    knownScore: integer("known_score"),
   },
   (table) => [
     uniqueIndex("words_word_lang_idx").on(table.word, table.language),
