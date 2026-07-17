@@ -5,6 +5,7 @@ import { desc, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
+import { GridCard } from "@/components/mes-grilles/grid-card";
 
 export const metadata = {
   title: "Mes grilles - Les Flèches",
@@ -33,7 +34,7 @@ export default async function MesGrillesPage() {
     .orderBy(desc(crosswords.createdAt));
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-12">
+    <main className="mx-auto max-w-6xl px-6 py-12">
       <header className="mb-8 border-b-2 border-ink pb-4">
         <h1 className="font-display text-4xl uppercase tracking-wide text-brand">
           Mes grilles
@@ -58,33 +59,23 @@ export default async function MesGrillesPage() {
           </Link>
         </div>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {grids.map((g) => {
             const href =
               g.language === "fr" ? `/grille/${g.code}` : `/crossword/${g.code}`;
             return (
               <li key={g.code}>
-                <Link
+                <GridCard
+                  code={g.code}
+                  title={g.title?.trim() || "Grille sans titre"}
+                  size={`${g.width}×${g.height}`}
                   href={href}
-                  className="block border-2 border-ink bg-paper p-4 shadow-[4px_4px_0_0_var(--ink)] transition-transform hover:-translate-y-0.5"
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="font-display text-lg uppercase tracking-wide text-ink">
-                      {g.title?.trim() || "Grille sans titre"}
-                    </span>
-                    <span className="shrink-0 font-display text-xs uppercase tracking-wide text-ink/50">
-                      {g.width}×{g.height}
-                    </span>
-                  </div>
-                  <p className="mt-1 font-mono text-xs text-brand">{g.code}</p>
-                  <p className="mt-2 font-serif text-xs italic text-ink/60">
-                    {g.createdAt.toLocaleDateString("fr-FR", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </p>
-                </Link>
+                  dateLabel={g.createdAt.toLocaleDateString("fr-FR", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                />
               </li>
             );
           })}

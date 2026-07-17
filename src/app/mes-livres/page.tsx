@@ -5,6 +5,7 @@ import { desc, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { books } from "@/db/schema/books";
+import { BookCard } from "@/components/mes-livres/book-card";
 
 export const metadata = {
   title: "Mes livres - Les Flèches",
@@ -37,7 +38,7 @@ export default async function MesLivresPage() {
     .orderBy(desc(books.createdAt));
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-12">
+    <main className="mx-auto max-w-6xl px-6 py-12">
       <header className="mb-8 border-b-2 border-ink pb-4">
         <h1 className="font-display text-4xl uppercase tracking-wide text-brand">
           Mes livres
@@ -62,30 +63,19 @@ export default async function MesLivresPage() {
           </Link>
         </div>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {list.map((b) => (
             <li key={b.code}>
-              <Link
-                href={`/book/${b.code}`}
-                className="block border-2 border-ink bg-paper p-4 shadow-[4px_4px_0_0_var(--ink)] transition-transform hover:-translate-y-0.5"
-              >
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-display text-lg uppercase tracking-wide text-ink">
-                    {b.title?.trim() || "Livre sans titre"}
-                  </span>
-                  <span className="shrink-0 font-display text-xs uppercase tracking-wide text-ink/50">
-                    {STATUS_LABELS[b.status] ?? b.status}
-                  </span>
-                </div>
-                <p className="mt-1 font-mono text-xs text-brand">{b.code}</p>
-                <p className="mt-2 font-serif text-xs italic text-ink/60">
-                  {b.createdAt.toLocaleDateString("fr-FR", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </p>
-              </Link>
+              <BookCard
+                code={b.code}
+                title={b.title?.trim() || "Livre sans titre"}
+                statusLabel={STATUS_LABELS[b.status] ?? b.status}
+                dateLabel={b.createdAt.toLocaleDateString("fr-FR", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              />
             </li>
           ))}
         </ul>
