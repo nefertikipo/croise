@@ -9,7 +9,11 @@ import { GridPageProperties } from "@/components/book/grid-page-properties";
 import { ContentPageEditor } from "@/components/book/content-page-editor";
 import { SpreadCanvas } from "@/components/book/spread-canvas";
 import { PageCanvas } from "@/components/book/page-canvas";
-import { AddPage } from "@/components/book/add-page";
+import {
+  AddPage,
+  type AttachGridConflict,
+  type AttachGridResult,
+} from "@/components/book/add-page";
 import { cn } from "@/lib/utils";
 import { BookPrintLayout } from "@/components/book/book-print-layout";
 import { buildWordIndex } from "@/lib/crossword/word-index";
@@ -192,6 +196,33 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
     }
   }
 
+  async function attachGrid(
+    crosswordCode: string,
+    opts?: { regenerateToFit?: boolean; force?: boolean },
+  ): Promise<AttachGridResult | null> {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/books/${code}/pages/attach-grid`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ crosswordCode, ...opts }),
+      });
+      if (!res.ok) throw new Error("Attach failed");
+      const data = (await res.json()) as
+        | GridPage
+        | { conflict: AttachGridConflict };
+      if ("conflict" in data) return { conflict: data.conflict };
+      setBook((b) => ({ ...b, pages: [...b.pages, data] }));
+      setSelectedId(data.pageId);
+      return { page: data };
+    } catch (err) {
+      console.error(err);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function movePage(pageId: string, dir: -1 | 1) {
     const order = book.pages.map((p) => p.pageId);
     const idx = order.indexOf(pageId);
@@ -368,7 +399,12 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
             <DedicationEditor text={book.dedicationText ?? ""} onChange={updateDedication} />
           )}
           {selectedId === "add" && (
-            <AddPage busy={busy} onAddGrids={addGrids} onAddContent={addContent} />
+            <AddPage
+              busy={busy}
+              onAddGrids={addGrids}
+              onAddContent={addContent}
+              onAttachGrid={attachGrid}
+            />
           )}
           {selectedId === "index" && (
             <p className="text-sm text-muted-foreground">
