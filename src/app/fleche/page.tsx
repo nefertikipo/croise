@@ -225,6 +225,16 @@ export default function FlechePage() {
                 <p className="text-sm text-muted-foreground">
                   Prénoms, dates, clins d&apos;œil — ils seront placés dans la grille.
                 </p>
+                <p className="mt-1 text-sm font-medium">
+                  Grille {gridWidth}×{gridHeight} : jusqu&apos;à {capacity.recommendedMax}{" "}
+                  {capacity.recommendedMax > 1 ? "mots" : "mot"} recommandé
+                  {capacity.recommendedMax > 1 ? "s" : ""}
+                  {validCustomCount > 0 && (
+                    <span className={validCustomCount > capacity.recommendedMax ? "text-amber-600" : "text-muted-foreground"}>
+                      {" "}· {validCustomCount} ajouté{validCustomCount > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </p>
               </div>
 
               {customClues.map((cc, i) => (
@@ -277,7 +287,14 @@ export default function FlechePage() {
               {capacity.message && (
                 <p className="text-sm font-medium text-destructive">⚠ {capacity.message}</p>
               )}
-              {!capacity.message && capacity.tight && (
+              {!capacity.message && capacity.overRecommended && (
+                <p className="text-sm text-amber-600">
+                  Au-delà de {capacity.recommendedMax} mots, la génération peut être plus
+                  longue, voire échouer sur cette grille. Retirez un mot ou choisissez une
+                  grille plus grande pour un résultat fiable.
+                </p>
+              )}
+              {!capacity.message && !capacity.overRecommended && capacity.tight && (
                 <p className="text-sm text-amber-600">
                   Grille bien remplie — la génération peut être plus longue, voire
                   échouer. Si c&apos;est le cas, agrandissez la grille ou retirez un mot.
@@ -407,6 +424,16 @@ export default function FlechePage() {
             {/* Add custom words + regenerate */}
             <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
               <p className="text-sm font-medium">Ajouter des mots et regenerer</p>
+              <p className="text-sm text-muted-foreground">
+                Grille {gridWidth}×{gridHeight} : jusqu&apos;à {capacity.recommendedMax}{" "}
+                {capacity.recommendedMax > 1 ? "mots" : "mot"} recommandé
+                {capacity.recommendedMax > 1 ? "s" : ""}
+                {validCustomCount > 0 && (
+                  <span className={validCustomCount > capacity.recommendedMax ? "text-amber-600" : ""}>
+                    {" "}· {validCustomCount} ajouté{validCustomCount > 1 ? "s" : ""}
+                  </span>
+                )}
+              </p>
               <div className="space-y-2">
                 {customClues.map((cc, i) => (
                   <div key={i} className="space-y-1">
@@ -452,7 +479,13 @@ export default function FlechePage() {
               {capacity.message && (
                 <p className="text-sm font-medium text-destructive">⚠ {capacity.message}</p>
               )}
-              {!capacity.message && capacity.tight && (
+              {!capacity.message && capacity.overRecommended && (
+                <p className="text-sm text-amber-600">
+                  Au-delà de {capacity.recommendedMax} mots, la génération peut être plus
+                  longue, voire échouer sur cette grille.
+                </p>
+              )}
+              {!capacity.message && !capacity.overRecommended && capacity.tight && (
                 <p className="text-sm text-amber-600">
                   Grille bien remplie — la génération peut être plus longue, voire échouer.
                 </p>

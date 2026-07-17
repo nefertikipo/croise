@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { generateFlecheVector } from "@/lib/crossword/fleche-vector-gen";
+import { generateFlecheVector, type VectorGenResult } from "@/lib/crossword/fleche-vector-gen";
 import { getFrenchWordList, getFrenchClueDb, getFrenchClueDifficulty, ensureLoaded } from "@/lib/crossword/load-french-clues";
+import { getFlechePool } from "@/lib/crossword/fleche-pool-singleton";
 import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
@@ -46,43 +47,61 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: capacityError }, { status: 400 });
     }
 
-    await ensureLoaded();
-    const wordList = getFrenchWordList();
-    const rawClueDb = getFrenchClueDb();
-    const clueDifficulty = getFrenchClueDifficulty();
+    const genParams = {
+      width: params.width,
+      height: params.height,
+      customClues: params.customClues,
+      hiddenWord: params.hiddenWord,
+      difficulty: params.difficulty,
+    };
 
-    // Filter out excluded clues and answers
-    let clueDb = rawClueDb;
-    const excludedClues = new Set(params.excludeClues);
-    const excludedAnswers = new Set(params.excludeAnswers.map((a) => a.toUpperCase()));
-
-    if (excludedClues.size > 0 || excludedAnswers.size > 0) {
-      clueDb = new Map();
-      for (const [word, clues] of rawClueDb) {
-        if (excludedAnswers.has(word)) continue; // skip entire word
-        const filtered = excludedClues.size > 0
-          ? clues.filter((c) => !excludedClues.has(c))
-          : clues;
-        if (filtered.length > 0) {
-          clueDb.set(word, filtered);
-        }
+    // Prefer the warm worker pool (races layouts across cores → higher success
+    // on dense custom-word grids). Its workers hold their own corpus copy and
+    // apply the excludes themselves, so the main thread only loads the corpus
+    // when it actually has to fall back. Fall back to single-threaded only when
+    // the pool ERRORS — a pool that ran and found no solution is a real failure,
+    // so re-running single-threaded would just waste another budget and fail again.
+    let result: VectorGenResult | null = null;
+    let handledByPool = false;
+    const pool = await getFlechePool();
+    if (pool) {
+      try {
+        const r = await pool.generate(genParams, {
+          excludeAnswers: params.excludeAnswers,
+          excludeClues: params.excludeClues,
+          maxWaitMs: 118000,
+        });
+        result = r.result;
+        handledByPool = true;
+      } catch (poolErr) {
+        console.error("[fleche] pool error, single-threaded fallback:", poolErr);
       }
     }
+    if (!handledByPool) {
+      await ensureLoaded();
+      const wordList = getFrenchWordList();
+      const rawClueDb = getFrenchClueDb();
+      const clueDifficulty = getFrenchClueDifficulty();
 
-    const result = generateFlecheVector(
-      {
-        width: params.width,
-        height: params.height,
-        customClues: params.customClues,
-        hiddenWord: params.hiddenWord,
-        difficulty: params.difficulty,
-      },
-      wordList,
-      clueDb,
-      clueDifficulty,
-    );
+      // Filter out excluded clues and answers (regeneration variety).
+      let clueDb = rawClueDb;
+      const excludedClues = new Set(params.excludeClues);
+      const excludedAnswers = new Set(params.excludeAnswers.map((a) => a.toUpperCase()));
+      if (excludedClues.size > 0 || excludedAnswers.size > 0) {
+        clueDb = new Map();
+        for (const [word, clues] of rawClueDb) {
+          if (excludedAnswers.has(word)) continue; // skip entire word
+          const filtered = excludedClues.size > 0
+            ? clues.filter((c) => !excludedClues.has(c))
+            : clues;
+          if (filtered.length > 0) clueDb.set(word, filtered);
+        }
+      }
 
-    if (!result.success) {
+      result = generateFlecheVector(genParams, wordList, clueDb, clueDifficulty);
+    }
+
+    if (!result || !result.success) {
       const customWords = (params.customClues ?? [])
         .map((c) => c.answer.toUpperCase().replace(/[^A-Z]/g, ""))
         .filter((a) => a.length >= 2);

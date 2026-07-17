@@ -27,6 +27,28 @@ export interface CapacityAnalysis {
   tight: boolean;
   /** First user-facing blocking error, or null if the request can be attempted. */
   message: string | null;
+  /** Measured reliable custom-word count for this grid — the "up to N" figure. */
+  recommendedMax: number;
+  /** Count of usable custom words currently requested. */
+  wordCount: number;
+  /** More words requested than the grid reliably fits (still attemptable). */
+  overRecommended: boolean;
+}
+
+/**
+ * Measured reliable custom-word capacity per grid: the most realistic (French
+ * given-name) custom words that still generate at ~100% on the single-threaded
+ * engine. Small grids choke well below their raw fill-ratio limit, so this is a
+ * measured lookup keyed to the offered formats, not a formula. Off-menu sizes
+ * fall back to a gentle, capped extrapolation. Source: scripts/capacity-guidance.ts.
+ */
+export function recommendedCustomWords(width: number, height: number): number {
+  const area = width * height;
+  if (area <= 40) return 1; // 5×7
+  if (area <= 88) return 6; // 8×11
+  if (area <= 117) return 8; // 9×13
+  if (area <= 187) return 9; // 11×15, 11×17
+  return Math.min(14, Math.round(area / 18)); // larger than any offered format
 }
 
 export function analyzeCapacity(
@@ -52,12 +74,16 @@ export function analyzeCapacity(
     message = `Trop de mots personnalisés pour une grille ${width}×${height}. Choisissez une grille plus grande ou retirez quelques mots.`;
   }
 
+  const recommendedMax = recommendedCustomWords(width, height);
   return {
     tooLong,
     overCapacity,
     fillRatio,
     tight: message === null && fillRatio > TIGHT_FILL_RATIO,
     message,
+    recommendedMax,
+    wordCount: words.length,
+    overRecommended: message === null && words.length > recommendedMax,
   };
 }
 
