@@ -10,18 +10,13 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * ⚠️ TWO SEPARATE CORPORA LIVE IN THIS FILE — SPLIT BY LANGUAGE, NOT BY "OLD vs NEW".
+ * FRENCH crossword corpus — the data behind the /fleche mots fléchés generator.
  *
- * `words` + `clues` = the FRENCH pipeline (the /fleche mots fléchés generator).
- *   Normalized, scored (familiarity + quality), ~83K words / ~476K clues. All `fr`.
+ * `words` = one row per unique French answer, scored (familiarity, quality,
+ *   known_score). `clues` = multiple clues per word, each with difficulty/vibe.
  *
- * `clue_entries` = the ENGLISH pipeline (the /create mots croisés generator).
- *   Flat, unscored, ~341K English rows (+ a ~30K leftover French chunk). Mostly `en`.
- *
- * These are NOT two copies of the same data. `words` is French; `clue_entries` is
- * mostly English; they overlap by only ~36K strings, mostly by coincidence. Do NOT
- * "migrate clue_entries into words/clues and drop it" — that deletes the English corpus.
- * See docs/db-corpora.md for the full picture.
+ * (The old English `clue_entries` corpus and the /create mots croisés generator
+ * were removed — the app is French-only. See docs/db-corpora.md for history.)
  */
 
 /**
@@ -119,33 +114,5 @@ export const clues = pgTable(
     index("clues_language_idx").on(table.language),
     index("clues_difficulty_idx").on(table.difficulty),
     index("clues_vibe_idx").on(table.vibe),
-  ]
-);
-
-/**
- * ENGLISH corpus — the live data source for the /create mots croisés generator.
- *
- * NOT a legacy version of `words`/`clues` (those are French). This flat table holds
- * ~341K English clues (+ ~30K leftover French) and is unscored (no difficulty/vibe).
- * It stays until/unless the English pipeline is normalized into words/clues the way
- * French already is. Dropping it deletes the entire English corpus. See docs/db-corpora.md.
- */
-export const clueEntries = pgTable(
-  "clue_entries",
-  {
-    id: serial("id").primaryKey(),
-    answer: text("answer").notNull(),
-    answerLength: integer("answer_length").notNull(),
-    clue: text("clue").notNull(),
-    language: text("language").notNull().default("en"),
-    source: text("source"),
-    difficulty: integer("difficulty"),
-    year: integer("year"),
-    tags: text("tags").array(),
-  },
-  (table) => [
-    index("clue_answer_idx").on(table.answer),
-    index("clue_length_idx").on(table.answerLength),
-    index("clue_language_idx").on(table.language),
   ]
 );
