@@ -7,7 +7,7 @@ import { ContentPageView } from "@/components/book/content-page";
 import { GridPageView } from "@/components/book/grid-page";
 import { WordIndexPage } from "@/components/book/word-index-page";
 import type { BookData, GridPage, WordIndexEntry } from "@/types/book";
-import type { SlotId } from "@/components/book/spread-canvas";
+import type { SlotId } from "@/components/book/page-slot";
 
 interface PageCanvasProps {
   book: BookData;

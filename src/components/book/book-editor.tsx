@@ -8,6 +8,7 @@ import { DedicationEditor } from "@/components/book/dedication-editor";
 import { GridPageProperties } from "@/components/book/grid-page-properties";
 import { ContentPageEditor } from "@/components/book/content-page-editor";
 import { SpreadCanvas } from "@/components/book/spread-canvas";
+import { GalleryCanvas } from "@/components/book/gallery-canvas";
 import { PageCanvas } from "@/components/book/page-canvas";
 import { AddPage } from "@/components/book/add-page";
 import { cn } from "@/lib/utils";
@@ -31,8 +32,9 @@ interface BookEditorProps {
 export function BookEditor({ code, initialBook }: BookEditorProps) {
   const [book, setBook] = useState<BookData>(initialBook);
   const [selectedId, setSelectedId] = useState<string>("cover");
-  // "spread" = facing pages for arranging; "page" = one page big, for editing grids.
-  const [view, setView] = useState<"spread" | "page">("spread");
+  // "gallery" = zoom-out overview of every page; "spread" = facing pages for
+  // arranging; "page" = one page big, for editing grids.
+  const [view, setView] = useState<"gallery" | "spread" | "page">("gallery");
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
@@ -192,19 +194,33 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
     }
   }
 
-  function movePage(pageId: string, dir: -1 | 1) {
-    const order = book.pages.map((p) => p.pageId);
-    const idx = order.indexOf(pageId);
-    const target = idx + dir;
-    if (idx < 0 || target < 0 || target >= order.length) return;
-    const reordered = [...book.pages];
-    [reordered[idx], reordered[target]] = [reordered[target], reordered[idx]];
-    setBook((b) => ({ ...b, pages: reordered }));
+  function persistOrder(pages: BookData["pages"]) {
+    setBook((b) => ({ ...b, pages }));
     fetch(`/api/books/${code}/pages/reorder`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pageIds: reordered.map((p) => p.pageId) }),
+      body: JSON.stringify({ pageIds: pages.map((p) => p.pageId) }),
     });
+  }
+
+  /**
+   * Drag-and-drop reorder: drop the dragged page before `beforeId`, or at the
+   * end when `beforeId` is null.
+   */
+  function reorderPages(dragId: string, beforeId: string | null) {
+    const moved = book.pages.find((p) => p.pageId === dragId);
+    if (!moved) return;
+    const pages = book.pages.filter((p) => p.pageId !== dragId);
+    if (beforeId === null) {
+      pages.push(moved);
+    } else {
+      const i = pages.findIndex((p) => p.pageId === beforeId);
+      if (i < 0) return;
+      pages.splice(i, 0, moved);
+    }
+    // Skip the write when nothing actually changed.
+    if (pages.every((p, idx) => p.pageId === book.pages[idx]?.pageId)) return;
+    persistOrder(pages);
   }
 
   function copyLink() {
@@ -230,17 +246,13 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
       p.kind === "grid"
         ? {
             id: p.pageId,
-            pageId: p.pageId,
             kind: "grid",
-            label: `Grille ${gridNumberByPage.get(p.pageId)}`,
-            sub: `${p.width}×${p.height}`,
+            label: p.config.title || `Grille ${gridNumberByPage.get(p.pageId)}`,
           }
         : {
             id: p.pageId,
-            pageId: p.pageId,
             kind: "content",
             label: p.config.title || (p.config.layout === "quote" ? "Citation" : "Note"),
-            sub: "Page libre",
           },
     ),
     { id: "index", kind: "index", label: "Index des mots" },
@@ -248,10 +260,18 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
     { id: "add", kind: "add", label: "+ Ajouter une page" },
   ];
 
-  const firstSpineIndex = 2;
-  const lastSpineIndex = 1 + book.pages.length;
-
   const selectedPage = book.pages.find((p) => p.pageId === selectedId);
+
+  // The properties panel only shows when editing a single non-cover page. The
+  // gallery/spread overviews and the full-width cover studio take the whole width.
+  const showProps =
+    selectedId === "add"
+      ? true
+      : view === "gallery"
+        ? false
+        : selectedId === "cover"
+          ? false
+          : true;
 
   return (
     <div className="flex-1">
@@ -280,7 +300,7 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
       {/* Editor body */}
       <div
         className={`max-w-7xl mx-auto grid grid-cols-1 gap-6 px-4 py-6 print:hidden ${
-          selectedId === "cover" ? "lg:grid-cols-[220px_1fr]" : "lg:grid-cols-[220px_1fr_320px]"
+          showProps ? "lg:grid-cols-[220px_1fr_320px]" : "lg:grid-cols-[220px_1fr]"
         }`}
       >
         {/* Rail */}
@@ -289,22 +309,12 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
             items={railItems}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            onMove={movePage}
-            firstSpineIndex={firstSpineIndex}
-            lastSpineIndex={lastSpineIndex}
           />
         </aside>
 
-        {/* Canvas: spread (arrange) or single page (edit) */}
+        {/* Canvas: gallery (overview) · spread (arrange) · page (edit one page) */}
         <section className="min-w-0">
-          {selectedId === "cover" ? (
-            <CoverStudio
-              title={book.title}
-              cover={book.coverConfig ?? {}}
-              onTitleChange={updateTitle}
-              onCoverChange={updateCover}
-            />
-          ) : selectedId === "add" ? (
+          {selectedId === "add" ? (
             <div className="text-muted-foreground italic pt-20 text-center">
               Choisissez une page à ajouter →
             </div>
@@ -314,6 +324,7 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
                 <div className="inline-flex border-2 border-ink" role="tablist">
                   {(
                     [
+                      { key: "gallery", label: "Vue d'ensemble" },
                       { key: "spread", label: "Planche" },
                       { key: "page", label: "Page" },
                     ] as const
@@ -335,7 +346,21 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
                   ))}
                 </div>
               </div>
-              {view === "spread" ? (
+              {view === "gallery" ? (
+                <GalleryCanvas
+                  book={book}
+                  gridPages={gridPages}
+                  gridNumberByPage={gridNumberByPage}
+                  wordIndex={wordIndex}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onReorder={reorderPages}
+                  onFocus={(id) => {
+                    setSelectedId(id);
+                    setView("page");
+                  }}
+                />
+              ) : view === "spread" ? (
                 <SpreadCanvas
                   book={book}
                   gridPages={gridPages}
@@ -347,6 +372,13 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
                     setSelectedId(id);
                     setView("page");
                   }}
+                />
+              ) : selectedId === "cover" ? (
+                <CoverStudio
+                  title={book.title}
+                  cover={book.coverConfig ?? {}}
+                  onTitleChange={updateTitle}
+                  onCoverChange={updateCover}
                 />
               ) : (
                 <PageCanvas
@@ -361,8 +393,8 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
           )}
         </section>
 
-        {/* Properties panel (hidden for the cover — it uses the full-width studio) */}
-        {selectedId !== "cover" && (
+        {/* Properties panel (hidden for the cover and the full-width gallery) */}
+        {showProps && (
         <aside className="lg:max-h-[80vh] lg:overflow-auto">
           {selectedId === "dedication" && (
             <DedicationEditor text={book.dedicationText ?? ""} onChange={updateDedication} />
