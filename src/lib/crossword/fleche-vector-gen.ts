@@ -1427,6 +1427,10 @@ export function generateFlecheVector(
   wordList: WordList,
   clueDb: Map<string, string[]>,
   clueDifficulty?: Map<string, number>,
+  // Optional cooperative-abort hook, checked once per layout attempt. Lets a
+  // parallel racer stop this (synchronous) run the moment a sibling worker wins,
+  // without terminating the thread. Unset in the normal single-threaded path.
+  shouldAbort?: () => boolean,
 ): VectorGenResult {
   const { width, height } = params;
   const customClues = (params.customClues ?? []).filter(
@@ -1540,6 +1544,7 @@ export function generateFlecheVector(
 
   for (let attempt = 1; attempt <= MAX_LAYOUT_ATTEMPTS; attempt++) {
     if (Date.now() > totalDeadline) break;
+    if (shouldAbort && shouldAbort()) break;
 
     // Phase 1 + 2: Generate and optimize layout
     const interiorArea = (width - 1) * (height - 1);
