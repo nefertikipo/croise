@@ -26,6 +26,7 @@ export function GridPageProperties({
 }: GridPagePropertiesProps) {
   const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>([]);
   const [hiddenWord, setHiddenWord] = useState(page.config.hiddenWord ?? "");
+  const [title, setTitle] = useState(page.config.title ?? "");
 
   const validCustom = customClues.filter(
     (c) => c.answer.trim().length >= 2 && c.clue.trim().length > 0,
@@ -57,6 +58,15 @@ export function GridPageProperties({
           {page.words.length} mots · {page.width}×{page.height}
         </span>
       </div>
+
+      <Field label="Nom de la grille">
+        <TextField
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={() => onConfigChange({ title: title.trim() || undefined })}
+          placeholder={`Grille ${index}`}
+        />
+      </Field>
 
       <Field label="Couleur de la grille">
         <ColorPicker

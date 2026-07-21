@@ -207,7 +207,6 @@ async function copyCrossword(sourceId: string): Promise<string> {
         startRow: w.startRow,
         startCol: w.startCol,
         length: w.length,
-        originalClueId: w.originalClueId,
         clueText: w.clueText,
         isCustom: w.isCustom,
         breaks: w.breaks,
