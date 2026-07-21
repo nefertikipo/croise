@@ -7,6 +7,7 @@ import { FlecheGrid } from "@/components/fleche/fleche-grid";
 import { GenerationProgress } from "@/components/fleche/generation-progress";
 import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { ClueList } from "@/components/fleche/clue-list";
+import { AddToBook } from "@/components/fleche/add-to-book";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import {
@@ -565,6 +566,9 @@ export default function FlechePage() {
               <Button variant="outline" className="rounded-none" onClick={createBook}>
                 Creer un livre
               </Button>
+              {grid.code && (
+                <AddToBook crosswordCode={grid.code} difficulty={difficulty} />
+              )}
             </div>
 
             {/* Add custom words + regenerate */}
