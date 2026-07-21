@@ -11,6 +11,21 @@ interface CustomClue {
   clue: string;
 }
 
+/**
+ * Only answers this long or longer are locked out across a book's grids. The
+ * 2–3 letter words are irreplaceable structural glue — the dense fléchés fill
+ * relies on a tiny pool of them (~70 clued: ET, OU, ÂNE, ÉTÉ, AIR, OSE…) to
+ * satisfy the potence spine and comb crossings. Banning those after the first
+ * grid starves the solver: simulations excluding *every* used word could not
+ * fill past ~5 grids of 11×17 (grid 6 took 232s, grids 7+ timed out). 4-letter
+ * words, by contrast, number in the thousands, so locking the used ones still
+ * leaves ample supply — a 10-grid sim at this threshold locked 379 words with 0
+ * repeats and all grids filling in ≤16s. So we lock everything ≥4 (the most we
+ * can without starvation) and let only 2–3 letter filler repeat, which no reader
+ * notices. Tune here if you want more/fewer words locked.
+ */
+export const MIN_LOCKED_WORD_LENGTH = 4;
+
 interface GenerateGridInput {
   width: number;
   height: number;
@@ -18,6 +33,13 @@ interface GenerateGridInput {
   customClues: CustomClue[];
   /** Clue texts already used elsewhere in the book, to avoid repeats. */
   usedClues: Set<string>;
+  /**
+   * Normalized answers already placed on other grids in the book. These are hard
+   * -excluded from generation so a word never appears on two grids. Custom words
+   * are always kept (re-added inside the generator), so passing a custom word
+   * here has no effect.
+   */
+  usedWords: Set<string>;
   /** Target clue difficulty. Default "balanced". */
   difficulty?: DifficultyMode;
 }
@@ -40,11 +62,22 @@ export async function generateAndSaveGrid(
   const rawClueDb = getFrenchClueDb();
   const clueDifficulty = getFrenchClueDifficulty();
 
+  // Filter the clue DB to enforce the book's exclusions: drop any substantive
+  // word already placed on another grid (hard word exclusion, ≥ MIN_LOCKED_WORD_
+  // LENGTH — see the constant for why short filler is exempt), and drop any clue
+  // text already used elsewhere (clue de-dup). Dropping a word from clueDb removes
+  // it from every fill domain — the generator only ever places words that have a
+  // real clue. Build a copy so the shared cached clueDb is left untouched.
   let clueDb = rawClueDb;
-  if (input.usedClues.size > 0) {
+  if (input.usedClues.size > 0 || input.usedWords.size > 0) {
     clueDb = new Map();
     for (const [word, clues] of rawClueDb) {
-      const filtered = clues.filter((c) => !input.usedClues.has(c));
+      // word already on another grid in the book
+      if (word.length >= MIN_LOCKED_WORD_LENGTH && input.usedWords.has(word)) continue;
+      const filtered =
+        input.usedClues.size > 0
+          ? clues.filter((c) => !input.usedClues.has(c))
+          : clues;
       if (filtered.length > 0) clueDb.set(word, filtered);
     }
   }

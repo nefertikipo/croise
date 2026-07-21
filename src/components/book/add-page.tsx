@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DifficultyPicker } from "@/components/book/difficulty-picker";
 import { cn } from "@/lib/utils";
-import type { ContentLayout, GridDifficulty } from "@/types/book";
+import type { ContentLayout, GridDifficulty, GridPage } from "@/types/book";
 
 const PRESETS = [
   { w: 11, h: 17, label: "11×17" },
@@ -12,6 +12,23 @@ const PRESETS = [
   { w: 9, h: 13, label: "9×13" },
   { w: 8, h: 11, label: "8×11" },
 ];
+
+/** Words/clues an incoming standalone grid shares with the book already. */
+export interface AttachGridConflict {
+  words: string[];
+  clues: string[];
+}
+
+export type AttachGridResult =
+  | { page: GridPage }
+  | { conflict: AttachGridConflict };
+
+/** Reduce a pasted grid code or full URL to just the code. */
+function extractCode(input: string): string {
+  const trimmed = input.trim();
+  const lastSegment = trimmed.split(/[/?#]/).filter(Boolean).pop() ?? trimmed;
+  return lastSegment.toUpperCase();
+}
 
 interface AddPageProps {
   busy: boolean;
@@ -22,12 +39,37 @@ interface AddPageProps {
     difficulty: GridDifficulty;
   }) => void;
   onAddContent: (layout: ContentLayout) => void;
+  onAttachGrid: (
+    crosswordCode: string,
+    opts?: { regenerateToFit?: boolean; force?: boolean },
+  ) => Promise<AttachGridResult | null>;
 }
 
-export function AddPage({ busy, onAddGrids, onAddContent }: AddPageProps) {
+export function AddPage({ busy, onAddGrids, onAddContent, onAttachGrid }: AddPageProps) {
   const [preset, setPreset] = useState(PRESETS[0]);
   const [count, setCount] = useState(1);
   const [difficulty, setDifficulty] = useState<GridDifficulty>("balanced");
+  const [attachCode, setAttachCode] = useState("");
+  const [conflict, setConflict] = useState<AttachGridConflict | null>(null);
+  const [attachError, setAttachError] = useState<string | null>(null);
+
+  async function submitAttach(opts?: { regenerateToFit?: boolean; force?: boolean }) {
+    const code = extractCode(attachCode);
+    if (!code) return;
+    setAttachError(null);
+    const result = await onAttachGrid(code, opts);
+    if (!result) {
+      setAttachError("Grille introuvable ou impossible à ajouter.");
+      return;
+    }
+    if ("conflict" in result) {
+      setConflict(result.conflict);
+      return;
+    }
+    // Attached successfully — reset the panel.
+    setAttachCode("");
+    setConflict(null);
+  }
 
   return (
     <div className="space-y-4">
@@ -91,6 +133,76 @@ export function AddPage({ busy, onAddGrids, onAddContent }: AddPageProps) {
         <Button variant="outline" className="w-full" disabled={busy} onClick={() => onAddContent("photo")}>
           + Photos
         </Button>
+      </div>
+
+      <div className="border-t-2 border-black/10 pt-4 space-y-2">
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">
+          Grille existante
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Collez le code d&apos;une grille déjà créée pour l&apos;ajouter à ce livre.
+        </p>
+        <div className="flex gap-2">
+          <input
+            placeholder="Code de la grille"
+            value={attachCode}
+            onChange={(e) => {
+              setAttachCode(e.target.value);
+              setConflict(null);
+              setAttachError(null);
+            }}
+            className="flex-1 border-2 border-black px-2 py-1 text-sm uppercase font-mono"
+          />
+          <Button
+            variant="outline"
+            disabled={busy || attachCode.trim().length === 0}
+            onClick={() => submitAttach()}
+          >
+            Ajouter
+          </Button>
+        </div>
+        {attachError && <p className="text-xs text-destructive">{attachError}</p>}
+
+        {conflict && (
+          <div className="border-2 border-destructive/40 bg-destructive/5 p-3 space-y-2">
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-destructive">
+              Doublons détectés
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Cette grille réutilise déjà{" "}
+              {conflict.words.length > 0 && (
+                <>
+                  {conflict.words.length} mot{conflict.words.length > 1 ? "s" : ""} (
+                  {conflict.words.join(", ")})
+                </>
+              )}
+              {conflict.words.length > 0 && conflict.clues.length > 0 && " et "}
+              {conflict.clues.length > 0 && (
+                <>
+                  {conflict.clues.length} indice{conflict.clues.length > 1 ? "s" : ""}
+                </>
+              )}{" "}
+              présent{conflict.words.length + conflict.clues.length > 1 ? "s" : ""} dans le livre.
+            </p>
+            <div className="flex flex-col gap-2">
+              <Button
+                className="w-full"
+                disabled={busy}
+                onClick={() => submitAttach({ regenerateToFit: true })}
+              >
+                {busy ? "Régénération…" : "Régénérer pour ce livre"}
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+                disabled={busy}
+                onClick={() => submitAttach({ force: true })}
+              >
+                Ajouter quand même
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
