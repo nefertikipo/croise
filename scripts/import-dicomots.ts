@@ -10,7 +10,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { words, clues, clueEntries } from "../src/db/schema/clue-entries";
+import { words, clues } from "../src/db/schema/clue-entries";
 import { sql } from "drizzle-orm";
 import "dotenv/config";
 import { normalizeAnswer } from "../src/lib/crossword/normalize";
@@ -74,7 +74,6 @@ async function main() {
   console.log("\nClearing existing French words/clues...");
   await db.delete(clues).where(sql`${clues.language} = 'fr'`);
   await db.delete(words).where(sql`${words.language} = 'fr'`);
-  await db.delete(clueEntries).where(sql`${clueEntries.language} = 'fr'`);
   console.log("Cleared.");
 
   // Insert words
@@ -149,37 +148,8 @@ async function main() {
   }
   console.log(`\nInserted ${clueCount} clues`);
 
-  // Also populate legacy clue_entries (pick best clue per word)
-  console.log("\nPopulating legacy clue_entries...");
-  let legacyCount = 0;
-  let legacyBatch: (typeof clueEntries.$inferInsert)[] = [];
-
-  for (const [word, clueSet] of wordClues) {
-    const firstClue = [...clueSet][0];
-    if (!firstClue) continue;
-
-    legacyBatch.push({
-      answer: word,
-      answerLength: word.length,
-      clue: firstClue,
-      language: "fr",
-      source: "dico-mots",
-    });
-
-    if (legacyBatch.length >= BATCH_SIZE) {
-      await db.insert(clueEntries).values(legacyBatch);
-      legacyCount += legacyBatch.length;
-      legacyBatch = [];
-    }
-  }
-  if (legacyBatch.length > 0) {
-    await db.insert(clueEntries).values(legacyBatch);
-    legacyCount += legacyBatch.length;
-  }
-  console.log(`Inserted ${legacyCount} legacy entries`);
-
   console.log("\nDone!");
-  console.log(`Summary: ${wordCount} words, ${clueCount} clues, ${legacyCount} legacy entries`);
+  console.log(`Summary: ${wordCount} words, ${clueCount} clues`);
 }
 
 main().catch((err) => {

@@ -153,40 +153,6 @@ async function main() {
   }
 
   console.log(`\nInserted ${clueCount} clues`);
-
-  // Also populate legacy clue_entries table for backward compat
-  console.log("\nPopulating legacy clue_entries...");
-  const { clueEntries } = await import("../src/db/schema/clue-entries");
-  let legacyCount = 0;
-  let legacyBatch: (typeof clueEntries.$inferInsert)[] = [];
-
-  for (const [word, entry] of wordClues) {
-    // Take the first clue for each word for legacy table
-    const firstClue = [...entry.clues][0];
-    if (!firstClue) continue;
-
-    legacyBatch.push({
-      answer: word,
-      answerLength: word.length,
-      clue: firstClue,
-      language: "fr",
-      source: "cruciverbe",
-    });
-
-    if (legacyBatch.length >= BATCH_SIZE) {
-      await db.insert(clueEntries).values(legacyBatch);
-      legacyCount += legacyBatch.length;
-      process.stdout.write(`\rLegacy: ${legacyCount}`);
-      legacyBatch = [];
-    }
-  }
-
-  if (legacyBatch.length > 0) {
-    await db.insert(clueEntries).values(legacyBatch);
-    legacyCount += legacyBatch.length;
-  }
-
-  console.log(`\nInserted ${legacyCount} legacy clue entries`);
   console.log("\nDone!");
 }
 
