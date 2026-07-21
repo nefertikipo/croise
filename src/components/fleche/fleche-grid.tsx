@@ -184,6 +184,20 @@ interface FlecheGridProps {
   height: number;
   showSolution?: boolean;
   interactive?: boolean;
+  /**
+   * When true, tints filled cells green/red against the solution — the on-demand
+   * "Vérifier" check. Off by default so the solver never reveals correctness as
+   * you type; you only find out when you ask.
+   */
+  revealErrors?: boolean;
+  /**
+   * NYT-app-style solving layout (screen only): scales the grid down to fit the
+   * container width so a full mots fléchés grid fits a phone, and shows the
+   * selected word's clue in a bar directly under the grid (mobile) since the
+   * in-cell clue text is unreadable at that size. Opt-in — the book canvas does
+   * its own scaling and must NOT get this.
+   */
+  solverLayout?: boolean;
   className?: string;
   /** Map of "row,col" -> position number for hidden word highlighting */
   highlightedCells?: Map<string, number>;
@@ -326,6 +340,8 @@ export function FlecheGrid({
   height,
   showSolution = false,
   interactive = false,
+  revealErrors = false,
+  solverLayout = false,
   className,
   highlightedCells,
   accentColor,
@@ -345,15 +361,53 @@ export function FlecheGrid({
     else inputRefs.current.delete(key);
   }, []);
 
+  // Fit-to-width scaling for the solver layout: the grid's intrinsic size is
+  // fixed (CELL_SIZE px per cell), so we measure the container and scale down to
+  // fit (never up). On a phone a full grid ends up small; on desktop it stays 1.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [fitScale, setFitScale] = useState(1);
+  const gridPxW = width * CELL_SIZE + 4; // +4 for the 2px grid border each side
+  const gridPxH = height * CELL_SIZE + 4;
+
+  useIsomorphicLayoutEffect(() => {
+    if (!solverLayout) return;
+    const el = containerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const avail = el.clientWidth;
+      if (avail <= 0) return;
+      setFitScale(Math.min(1, avail / gridPxW));
+    };
+    measure();
+    const ro =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measure)
+        : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [solverLayout, gridPxW]);
+
   function handleCellClick(r: number, c: number) {
     if (!interactive) return;
     if (cells[r][c].type !== "letter") return;
 
+    const hasRight = wordCells(r, c, "right").length > 1;
+    const hasDown = wordCells(r, c, "down").length > 1;
+
     if (selectedCell?.r === r && selectedCell?.c === c) {
-      // Toggle direction on second click
-      setDirection((d) => (d === "right" ? "down" : "right"));
+      // Second click toggles direction — but only if the other axis has a word.
+      setDirection((d) => {
+        const other = d === "right" ? "down" : "right";
+        return (other === "right" ? hasRight : hasDown) ? other : d;
+      });
     } else {
       setSelectedCell({ r, c });
+      // Land on a direction that actually has a word here (like the NYT app):
+      // keep the current one if it works, else switch to the axis that does.
+      setDirection((d) => {
+        if ((d === "right" && hasRight) || (d === "down" && hasDown)) return d;
+        return hasRight ? "right" : "down";
+      });
     }
 
     const key = `${r},${c}`;
@@ -392,10 +446,12 @@ export function FlecheGrid({
       return;
     }
 
-    if (e.key === "ArrowRight") { e.preventDefault(); moveTo(r, c + 1); return; }
-    if (e.key === "ArrowLeft") { e.preventDefault(); moveTo(r, c - 1); return; }
-    if (e.key === "ArrowDown") { e.preventDefault(); moveTo(r + 1, c); return; }
-    if (e.key === "ArrowUp") { e.preventDefault(); moveTo(r - 1, c); return; }
+    // Arrow keys move one letter cell, skipping over clue/empty cells, and set
+    // the typing direction to match — so pressing ↓ then typing continues down.
+    if (e.key === "ArrowRight") { e.preventDefault(); setDirection("right"); moveStep(r, c, 0, 1); return; }
+    if (e.key === "ArrowLeft") { e.preventDefault(); setDirection("right"); moveStep(r, c, 0, -1); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); setDirection("down"); moveStep(r, c, 1, 0); return; }
+    if (e.key === "ArrowUp") { e.preventDefault(); setDirection("down"); moveStep(r, c, -1, 0); return; }
     if (e.key === "Tab") {
       e.preventDefault();
       setDirection((d) => (d === "right" ? "down" : "right"));
@@ -405,29 +461,86 @@ export function FlecheGrid({
     const letter = e.key.toUpperCase();
     if (/^[A-Z]$/.test(letter)) {
       e.preventDefault();
-      const key = `${r},${c}`;
-      setUserInput((prev) => {
-        const next = new Map(prev);
-        next.set(key, letter);
-        return next;
-      });
-      // Move to next cell
-      const nextR = direction === "right" ? r : r + 1;
-      const nextC = direction === "right" ? c + 1 : c;
-      moveTo(nextR, nextC);
+      commitLetter(r, c, letter);
     }
   }
 
-  function moveTo(r: number, c: number) {
-    // Find next letter cell in direction
-    while (r >= 0 && r < height && c >= 0 && c < width) {
-      if (cells[r][c].type === "letter") {
-        setSelectedCell({ r, c });
-        inputRefs.current.get(`${r},${c}`)?.focus();
+  // Write a letter and advance. The state update is functional so composed
+  // keystrokes never overwrite each other (React batches them); the local
+  // `nextInput` is only a best-effort hint for the advance's skip logic.
+  function commitLetter(r: number, c: number, letter: string) {
+    const key = `${r},${c}`;
+    setUserInput((prev) => {
+      const merged = new Map(prev);
+      merged.set(key, letter);
+      return merged;
+    });
+    const nextInput = new Map(userInput);
+    nextInput.set(key, letter);
+    advanceInWord(r, c, nextInput);
+  }
+
+  // Ordered letter cells of the word running through (r,c) in `dir`.
+  function wordCells(r: number, c: number, dir: "right" | "down") {
+    let sr = r, sc = c;
+    if (dir === "right") {
+      while (sc > 0 && cells[sr][sc - 1].type === "letter") sc--;
+    } else {
+      while (sr > 0 && cells[sr - 1][sc].type === "letter") sr--;
+    }
+    const run: { r: number; c: number }[] = [];
+    let cr = sr, cc = sc;
+    while (cr < height && cc < width && cells[cr][cc].type === "letter") {
+      run.push({ r: cr, c: cc });
+      if (dir === "right") cc++;
+      else cr++;
+    }
+    return run;
+  }
+
+  // After typing at (r,c), jump to the next still-empty cell of the same word,
+  // skipping cells already filled by crossing answers (NYT-style). Wraps back to
+  // an earlier gap if the tail is full; stays put once the whole word is filled.
+  function advanceInWord(r: number, c: number, input: Map<string, string>) {
+    const run = wordCells(r, c, direction);
+    const idx = run.findIndex((p) => p.r === r && p.c === c);
+    if (idx === -1) return;
+    for (let step = 1; step <= run.length; step++) {
+      const p = run[(idx + step) % run.length];
+      if (p.r === r && p.c === c) break;
+      if (!input.get(`${p.r},${p.c}`)) {
+        setSelectedCell({ r: p.r, c: p.c });
+        inputRefs.current.get(`${p.r},${p.c}`)?.focus();
         return;
       }
-      return; // Hit a clue cell, stop
     }
+  }
+
+  // Step from (r,c) along (dr,dc) to the next letter cell, skipping non-letters.
+  function moveStep(r: number, c: number, dr: number, dc: number) {
+    let nr = r + dr, nc = c + dc;
+    while (nr >= 0 && nr < height && nc >= 0 && nc < width) {
+      if (cells[nr][nc].type === "letter") {
+        setSelectedCell({ r: nr, c: nc });
+        inputRefs.current.get(`${nr},${nc}`)?.focus();
+        return;
+      }
+      nr += dr;
+      nc += dc;
+    }
+  }
+
+  // Mobile soft keyboards don't fire reliable keydown for letters — they fire an
+  // input event. The cell's <input> is kept empty (the letter shows in a span),
+  // so it can always accept a fresh character here. Desktop letters go through
+  // handleKeyDown, which preventDefaults and so never triggers this.
+  function handleInput(r: number, c: number, e: React.ChangeEvent<HTMLInputElement>) {
+    if (!interactive) return;
+    const raw = e.target.value;
+    e.target.value = "";
+    const letter = raw.slice(-1).toUpperCase();
+    if (!/^[A-Z]$/.test(letter)) return;
+    commitLetter(r, c, letter);
   }
 
   // Check if a letter cell is correct
@@ -483,7 +596,79 @@ export function FlecheGrid({
     }
   }
 
-  return (
+  // Every answer as an ordered list (reading order), each tied to its clue text —
+  // powers the mobile clue bar and its prev/next navigation.
+  interface WordEntry {
+    text: string;
+    dir: "right" | "down";
+    sr: number;
+    sc: number;
+    len: number;
+    isCustom: boolean;
+  }
+  const wordEntries: WordEntry[] = [];
+  for (let ar = 0; ar < cells.length; ar++) {
+    for (let ac = 0; ac < cells[ar].length; ac++) {
+      const acell = cells[ar][ac];
+      if (acell.type !== "clue" || !acell.clues?.length) continue;
+      for (const cl of acell.clues) {
+        wordEntries.push({
+          text: cl.text,
+          dir: cl.direction,
+          sr: cl.answerRow,
+          sc: cl.answerCol,
+          len: cl.answerLength,
+          isCustom: cl.isCustom ?? false,
+        });
+      }
+    }
+  }
+  wordEntries.sort((a, b) => a.sr - b.sr || a.sc - b.sc);
+
+  // Which word is selected (scan back to its start), and its clue.
+  let currentStart: { r: number; c: number } | null = null;
+  if (selectedCell) {
+    let { r: sr, c: sc } = selectedCell;
+    if (direction === "right") {
+      while (sc > 0 && cells[sr][sc - 1].type === "letter") sc--;
+    } else {
+      while (sr > 0 && cells[sr - 1][sc].type === "letter") sr--;
+    }
+    currentStart = { r: sr, c: sc };
+  }
+  const currentIdx = currentStart
+    ? wordEntries.findIndex(
+        (w) => w.dir === direction && w.sr === currentStart!.r && w.sc === currentStart!.c,
+      )
+    : -1;
+  const currentClue = currentIdx >= 0 ? wordEntries[currentIdx] : null;
+
+  // Select a whole word: land on its first empty cell (or its start), match its
+  // reading direction, and focus so the keyboard follows.
+  function selectWord(w: WordEntry) {
+    let target = { r: w.sr, c: w.sc };
+    let cr = w.sr, cc = w.sc;
+    for (let i = 0; i < w.len; i++) {
+      if (cells[cr]?.[cc]?.type === "letter" && !userInput.get(`${cr},${cc}`)) {
+        target = { r: cr, c: cc };
+        break;
+      }
+      if (w.dir === "right") cc++;
+      else cr++;
+    }
+    setDirection(w.dir);
+    setSelectedCell(target);
+    inputRefs.current.get(`${target.r},${target.c}`)?.focus();
+  }
+
+  function stepClue(delta: number) {
+    if (wordEntries.length === 0) return;
+    const base = currentIdx >= 0 ? currentIdx : 0;
+    const next = (base + delta + wordEntries.length) % wordEntries.length;
+    selectWord(wordEntries[next]);
+  }
+
+  const gridInner = (
     <div
       className={cn("relative inline-grid gap-0 border-2", className)}
       style={{
@@ -570,7 +755,9 @@ export function FlecheGrid({
             const isSelected = selectedCell?.r === r && selectedCell?.c === c;
             const isHighlighted = highlighted.has(key);
             const inputVal = userInput.get(key) ?? "";
-            const correct = isCorrect(r, c);
+            // Only judge letters when the solver explicitly asks (Vérifier);
+            // otherwise the grid never reveals correctness as you type.
+            const correct = revealErrors ? isCorrect(r, c) : null;
             const hiddenNum = highlightedCells?.get(key);
             const isHiddenCell = hiddenNum !== undefined;
 
@@ -606,13 +793,23 @@ export function FlecheGrid({
                       {hiddenNum}
                     </span>
                   )}
+                  {/* The typed letter is shown here, not in the input — that
+                      keeps the input empty so mobile keyboards can always fire a
+                      fresh input event (see handleInput). */}
+                  {inputVal && (
+                    <span className="pointer-events-none text-xl font-bold uppercase">
+                      {inputVal}
+                    </span>
+                  )}
                   <input
                     ref={(el) => setRef(key, el)}
-                    className="absolute inset-0 w-full h-full text-center text-xl font-bold uppercase bg-transparent outline-none caret-transparent cursor-pointer"
-                    value={inputVal}
+                    className="absolute inset-0 w-full h-full text-center text-xl font-bold uppercase bg-transparent text-transparent outline-none caret-transparent cursor-pointer"
+                    value=""
                     onKeyDown={(e) => handleKeyDown(r, c, e)}
-                    onChange={() => {}}
+                    onChange={(e) => handleInput(r, c, e)}
                     maxLength={1}
+                    inputMode="text"
+                    autoCapitalize="characters"
                     autoComplete="off"
                     autoCorrect="off"
                     spellCheck={false}
@@ -695,6 +892,103 @@ export function FlecheGrid({
             <GridArrow key={i} {...a} size={CELL_SIZE} color={INK} />
           ))}
         </svg>
+      )}
+    </div>
+  );
+
+  // Default: just the grid (print, book canvas, non-solver screens).
+  if (!solverLayout) return gridInner;
+
+  // Solver layout: fit-to-width scaled grid + (mobile) a clue bar underneath.
+  // The grid keeps its intrinsic pixel size; `transform: scale` shrinks it
+  // visually, and the outer box takes the scaled footprint so following content
+  // flows right below. In print, CSS resets the transform (the print `zoom`
+  // path handles sizing instead) and the clue bar is hidden.
+  return (
+    <div ref={containerRef} className="w-full">
+      <div
+        className="solver-scale-box"
+        style={{
+          width: gridPxW * fitScale,
+          height: gridPxH * fitScale,
+          // Clip the child's LAYOUT overflow — `transform: scale` shrinks the
+          // grid visually but not its layout box, so without this the unscaled
+          // height leaves phantom hit/scroll areas below the grid that swallow
+          // taps meant for the fixed clue bar.
+          overflow: "hidden",
+        }}
+      >
+        <div
+          className="solver-scale-inner"
+          style={{
+            width: gridPxW,
+            height: gridPxH,
+            transform: `scale(${fitScale})`,
+            transformOrigin: "top left",
+          }}
+        >
+          {gridInner}
+        </div>
+      </div>
+
+      {/* Mobile clue bar — pinned to the bottom of the viewport (NYT-app style)
+          so it stays visible above the on-screen keyboard while the small grid
+          scrolls behind it. Hidden on desktop (clues are readable in-cell) and
+          in print. `position: fixed` is viewport-relative here because no
+          on-screen ancestor is transformed (the grid's own scale transform is on
+          a sibling, not an ancestor of this bar). */}
+      {interactive && (
+        <div
+          className="md:hidden print:hidden fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t-2 shadow-[0_-2px_10px_rgba(0,0,0,0.08)]"
+          style={{
+            borderColor: INK,
+            backgroundColor: PAPER,
+            paddingBottom: "env(safe-area-inset-bottom)",
+          }}
+        >
+          <button
+            type="button"
+            aria-label="Indice précédent"
+            onClick={() => stepClue(-1)}
+            className="flex w-12 shrink-0 items-center justify-center border-r text-2xl leading-none"
+            style={{ borderColor: `rgba(47,42,38,0.2)`, color: INK }}
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              selectedCell &&
+              inputRefs.current.get(`${selectedCell.r},${selectedCell.c}`)?.focus()
+            }
+            className="flex-1 px-3 py-3 text-left"
+            style={{ backgroundColor: `color-mix(in oklab, ${accent} 12%, ${PAPER})` }}
+          >
+            {currentClue ? (
+              <span className="flex items-center gap-2">
+                <span className="text-lg leading-none" aria-hidden>
+                  {currentClue.dir === "right" ? "→" : "↓"}
+                </span>
+                <span className="text-sm font-medium uppercase leading-tight" style={{ color: INK }}>
+                  {currentClue.text}
+                </span>
+              </span>
+            ) : (
+              <span className="text-sm italic" style={{ color: "rgba(47,42,38,0.55)" }}>
+                Touchez une case pour voir sa définition
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            aria-label="Indice suivant"
+            onClick={() => stepClue(1)}
+            className="flex w-12 shrink-0 items-center justify-center border-l text-2xl leading-none"
+            style={{ borderColor: `rgba(47,42,38,0.2)`, color: INK }}
+          >
+            ›
+          </button>
+        </div>
       )}
     </div>
   );

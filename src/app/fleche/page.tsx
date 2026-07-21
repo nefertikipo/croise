@@ -101,6 +101,7 @@ export default function FlechePage() {
   const [grid, setGrid] = useState<FlecheData | null>(null);
   const [loading, setLoading] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
+  const [checkErrors, setCheckErrors] = useState(false);
   const [gridWidth, setGridWidth] = useState(11);
   const [gridHeight, setGridHeight] = useState(15);
   const [difficulty, setDifficulty] = useState<
@@ -229,7 +230,7 @@ export default function FlechePage() {
   }
 
   return (
-    <main className="flex-1 px-4 py-10">
+    <main className="flex-1 px-4 pt-10 pb-28 md:pb-10">
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="space-y-1">
           <h1 className="text-5xl text-ink">
@@ -465,6 +466,8 @@ export default function FlechePage() {
                       height={grid.height}
                       showSolution={showSolution}
                       interactive={!showSolution}
+                      revealErrors={checkErrors}
+                      solverLayout
                       highlightedCells={hiddenCells}
                     />
                   </div>
@@ -547,6 +550,11 @@ export default function FlechePage() {
               <Button variant="outline" className="rounded-none" onClick={() => setShowSolution(!showSolution)}>
                 {showSolution ? "Cacher solution" : "Voir solution"}
               </Button>
+              {!showSolution && (
+                <Button variant="outline" className="rounded-none" onClick={() => setCheckErrors((v) => !v)}>
+                  {checkErrors ? "Masquer les erreurs" : "Vérifier"}
+                </Button>
+              )}
               <Button variant="outline" className="rounded-none" onClick={() => window.print()}>
                 Imprimer / PDF
               </Button>
