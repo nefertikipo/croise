@@ -7,6 +7,7 @@ import { FlecheGrid } from "@/components/fleche/fleche-grid";
 import { GenerationProgress } from "@/components/fleche/generation-progress";
 import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { ClueList } from "@/components/fleche/clue-list";
+import { AddToBook } from "@/components/fleche/add-to-book";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import {
@@ -101,6 +102,7 @@ export default function FlechePage() {
   const [grid, setGrid] = useState<FlecheData | null>(null);
   const [loading, setLoading] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
+  const [checkErrors, setCheckErrors] = useState(false);
   const [gridWidth, setGridWidth] = useState(11);
   const [gridHeight, setGridHeight] = useState(15);
   const [difficulty, setDifficulty] = useState<
@@ -229,7 +231,7 @@ export default function FlechePage() {
   }
 
   return (
-    <main className="flex-1 px-4 py-10">
+    <main className="flex-1 px-4 pt-10 pb-28 md:pb-10">
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="space-y-1">
           <h1 className="text-5xl text-ink">
@@ -342,6 +344,16 @@ export default function FlechePage() {
                 <p className="text-sm text-muted-foreground">
                   Prénoms, dates, clins d&apos;œil, ils seront placés dans la grille.
                 </p>
+                <p className="mt-1 text-sm font-medium">
+                  Grille {gridWidth}×{gridHeight} : jusqu&apos;à {capacity.recommendedMax}{" "}
+                  {capacity.recommendedMax > 1 ? "mots" : "mot"} recommandé
+                  {capacity.recommendedMax > 1 ? "s" : ""}
+                  {validCustomCount > 0 && (
+                    <span className={validCustomCount > capacity.recommendedMax ? "text-amber-600" : "text-muted-foreground"}>
+                      {" "}· {validCustomCount} ajouté{validCustomCount > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </p>
               </div>
 
               {customClues.map((cc, i) => (
@@ -394,7 +406,14 @@ export default function FlechePage() {
               {capacity.message && (
                 <p className="text-sm font-medium text-destructive">⚠ {capacity.message}</p>
               )}
-              {!capacity.message && capacity.tight && (
+              {!capacity.message && capacity.overRecommended && (
+                <p className="text-sm text-amber-600">
+                  Au-delà de {capacity.recommendedMax} mots, la génération peut être plus
+                  longue, voire échouer sur cette grille. Retirez un mot ou choisissez une
+                  grille plus grande pour un résultat fiable.
+                </p>
+              )}
+              {!capacity.message && !capacity.overRecommended && capacity.tight && (
                 <p className="text-sm text-amber-600">
                   Grille bien remplie, la génération peut être plus longue, voire
                   échouer. Si c&apos;est le cas, agrandissez la grille ou retirez un mot.
@@ -465,6 +484,8 @@ export default function FlechePage() {
                       height={grid.height}
                       showSolution={showSolution}
                       interactive={!showSolution}
+                      revealErrors={checkErrors}
+                      solverLayout
                       highlightedCells={hiddenCells}
                     />
                   </div>
@@ -547,6 +568,11 @@ export default function FlechePage() {
               <Button variant="outline" className="rounded-none" onClick={() => setShowSolution(!showSolution)}>
                 {showSolution ? "Cacher solution" : "Voir solution"}
               </Button>
+              {!showSolution && (
+                <Button variant="outline" className="rounded-none" onClick={() => setCheckErrors((v) => !v)}>
+                  {checkErrors ? "Masquer les erreurs" : "Vérifier"}
+                </Button>
+              )}
               <Button variant="outline" className="rounded-none" onClick={() => window.print()}>
                 Imprimer / PDF
               </Button>
@@ -565,11 +591,24 @@ export default function FlechePage() {
               <Button variant="outline" className="rounded-none" onClick={createBook}>
                 Creer un livre
               </Button>
+              {grid.code && (
+                <AddToBook crosswordCode={grid.code} difficulty={difficulty} />
+              )}
             </div>
 
             {/* Add custom words + regenerate */}
             <div className="border rounded-none p-4 space-y-3 bg-muted/30">
               <p className="text-sm font-medium">Ajouter des mots et regenerer</p>
+              <p className="text-sm text-muted-foreground">
+                Grille {gridWidth}×{gridHeight} : jusqu&apos;à {capacity.recommendedMax}{" "}
+                {capacity.recommendedMax > 1 ? "mots" : "mot"} recommandé
+                {capacity.recommendedMax > 1 ? "s" : ""}
+                {validCustomCount > 0 && (
+                  <span className={validCustomCount > capacity.recommendedMax ? "text-amber-600" : ""}>
+                    {" "}· {validCustomCount} ajouté{validCustomCount > 1 ? "s" : ""}
+                  </span>
+                )}
+              </p>
               <div className="space-y-2">
                 {customClues.map((cc, i) => (
                   <div key={i} className="space-y-1">
@@ -615,7 +654,13 @@ export default function FlechePage() {
               {capacity.message && (
                 <p className="text-sm font-medium text-destructive">⚠ {capacity.message}</p>
               )}
-              {!capacity.message && capacity.tight && (
+              {!capacity.message && capacity.overRecommended && (
+                <p className="text-sm text-amber-600">
+                  Au-delà de {capacity.recommendedMax} mots, la génération peut être plus
+                  longue, voire échouer sur cette grille.
+                </p>
+              )}
+              {!capacity.message && !capacity.overRecommended && capacity.tight && (
                 <p className="text-sm text-amber-600">
                   Grille bien remplie, la génération peut être plus longue, voire échouer.
                 </p>
