@@ -6,6 +6,7 @@ import { CoverPage } from "@/components/book/cover-page";
 import { DedicationPage } from "@/components/book/dedication-page";
 import { ContentPageView } from "@/components/book/content-page";
 import { GridPageView } from "@/components/book/grid-page";
+import { SolutionTile } from "@/components/book/solution-tile";
 import { WordIndexPage } from "@/components/book/word-index-page";
 import { cn } from "@/lib/utils";
 import type { BookData, GridPage, WordIndexEntry } from "@/types/book";
@@ -97,7 +98,7 @@ function GridSlot({
   );
 }
 
-/** Back-of-book solutions section: every grid, filled, small. */
+/** Back-of-book solutions section: tiled plain answer-key mini grids. */
 function SolutionsPage({
   gridPages,
   gridNumberByPage,
@@ -109,17 +110,16 @@ function SolutionsPage({
     <BookPageFrame>
       <div className="flex-1 flex flex-col px-10 py-10 overflow-auto">
         <h2 className="font-heading text-3xl uppercase mb-4">Solutions</h2>
-        <div className="space-y-6">
-          {gridPages.length === 0 && (
-            <p className="text-muted-foreground italic">Aucune grille.</p>
-          )}
+        {gridPages.length === 0 && (
+          <p className="text-muted-foreground italic">Aucune grille.</p>
+        )}
+        <div className="flex flex-wrap gap-x-3 gap-y-3">
           {gridPages.map((p) => (
-            <GridPageView
+            <SolutionTile
               key={p.pageId}
               page={p}
               index={gridNumberByPage.get(p.pageId) ?? 0}
-              showSolution
-              maxWidth={300}
+              cellPx={10}
             />
           ))}
         </div>
