@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
-import { GenerationProgress } from "@/components/fleche/generation-progress";
+import { GenerationProgress } from "@/components/shared/generation-progress";
 import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { ClueList } from "@/components/fleche/clue-list";
 import { AddToBook } from "@/components/fleche/add-to-book";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
+import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import {
   findHiddenWordCells,
@@ -133,7 +134,11 @@ export default function FlechePage() {
   const validCustomCount = customClues.filter(
     (c) => c.answer.trim().length >= 2 && c.clue.trim().length > 0,
   ).length;
-  const estimatedMs = validCustomCount > 0 ? 45000 : 12000;
+  const estimatedMs = estimateGenerationMs({
+    width: gridWidth,
+    height: gridHeight,
+    customCount: validCustomCount,
+  });
 
   // Live feasibility flagging: warn before the user hits generate when the
   // custom words can't fit (too long / too many) rather than after a long wait.

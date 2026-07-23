@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Field, TextField, ColorPicker } from "@/components/book/field";
 import { DifficultyPicker } from "@/components/book/difficulty-picker";
 import { Button } from "@/components/ui/button";
+import { GenerationProgress } from "@/components/shared/generation-progress";
+import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
 import type { GridPage, GridPageConfig } from "@/types/book";
 
@@ -153,9 +155,19 @@ export function GridPageProperties({
           + Ajouter un mot
         </button>
 
-        <Button onClick={() => onRegenerate(validCustom)} disabled={regenerating} className="w-full">
-          {regenerating ? "Régénération…" : "Régénérer la grille"}
-        </Button>
+        {regenerating ? (
+          <GenerationProgress
+            estimatedMs={estimateGenerationMs({
+              width: page.width,
+              height: page.height,
+              customCount: validCustom.length,
+            })}
+          />
+        ) : (
+          <Button onClick={() => onRegenerate(validCustom)} className="w-full">
+            Régénérer la grille
+          </Button>
+        )}
       </div>
 
       <Button variant="outline" onClick={onDelete} className="w-full">
