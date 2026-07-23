@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DifficultyPicker } from "@/components/book/difficulty-picker";
+import { GenerationProgress } from "@/components/shared/generation-progress";
+import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { cn } from "@/lib/utils";
 import type { ContentLayout, GridDifficulty, GridPage } from "@/types/book";
 
@@ -32,6 +34,8 @@ function extractCode(input: string): string {
 
 interface AddPageProps {
   busy: boolean;
+  /** Per-grid progress while a batch add is running; null when idle. */
+  genBatch: { current: number; total: number } | null;
   onAddGrids: (opts: {
     width: number;
     height: number;
@@ -45,19 +49,31 @@ interface AddPageProps {
   ) => Promise<AttachGridResult | null>;
 }
 
-export function AddPage({ busy, onAddGrids, onAddContent, onAttachGrid }: AddPageProps) {
+export function AddPage({ busy, genBatch, onAddGrids, onAddContent, onAttachGrid }: AddPageProps) {
   const [preset, setPreset] = useState(PRESETS[0]);
   const [count, setCount] = useState(1);
   const [difficulty, setDifficulty] = useState<GridDifficulty>("balanced");
   const [attachCode, setAttachCode] = useState("");
   const [conflict, setConflict] = useState<AttachGridConflict | null>(null);
   const [attachError, setAttachError] = useState<string | null>(null);
+  // Only the regenerate-to-fit path re-solves a grid (slow); a plain attach is
+  // a quick DB copy, so we show the progress bar only for the former.
+  const [regenerating, setRegenerating] = useState(false);
+
+  // Per-grid estimate for the batch progress bar (batch add has no custom words).
+  const gridEstimateMs = estimateGenerationMs({
+    width: preset.w,
+    height: preset.h,
+    customCount: 0,
+  });
 
   async function submitAttach(opts?: { regenerateToFit?: boolean; force?: boolean }) {
     const code = extractCode(attachCode);
     if (!code) return;
     setAttachError(null);
+    setRegenerating(opts?.regenerateToFit ?? false);
     const result = await onAttachGrid(code, opts);
+    setRegenerating(false);
     if (!result) {
       setAttachError("Grille introuvable ou impossible à ajouter.");
       return;
@@ -110,13 +126,25 @@ export function AddPage({ busy, onAddGrids, onAddContent, onAttachGrid }: AddPag
 
       <DifficultyPicker value={difficulty} onChange={setDifficulty} />
 
-      <Button
-        className="w-full"
-        disabled={busy}
-        onClick={() => onAddGrids({ width: preset.w, height: preset.h, count, difficulty })}
-      >
-        {busy ? "Génération…" : count > 1 ? `+ ${count} grilles` : "+ Une grille"}
-      </Button>
+      {genBatch ? (
+        <div className="space-y-2">
+          {genBatch.total > 1 && (
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">
+              Grille {genBatch.current} sur {genBatch.total}
+            </p>
+          )}
+          {/* Remount per grid so the bar restarts its timeline each time. */}
+          <GenerationProgress key={genBatch.current} estimatedMs={gridEstimateMs} />
+        </div>
+      ) : (
+        <Button
+          className="w-full"
+          disabled={busy}
+          onClick={() => onAddGrids({ width: preset.w, height: preset.h, count, difficulty })}
+        >
+          {count > 1 ? `+ ${count} grilles` : "+ Une grille"}
+        </Button>
+      )}
 
       <div className="border-t-2 border-black/10 pt-4 space-y-2">
         <p className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">
@@ -184,23 +212,33 @@ export function AddPage({ busy, onAddGrids, onAddContent, onAttachGrid }: AddPag
               )}{" "}
               présent{conflict.words.length + conflict.clues.length > 1 ? "s" : ""} dans le livre.
             </p>
-            <div className="flex flex-col gap-2">
-              <Button
-                className="w-full"
-                disabled={busy}
-                onClick={() => submitAttach({ regenerateToFit: true })}
-              >
-                {busy ? "Régénération…" : "Régénérer pour ce livre"}
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full"
-                disabled={busy}
-                onClick={() => submitAttach({ force: true })}
-              >
-                Ajouter quand même
-              </Button>
-            </div>
+            {regenerating ? (
+              <GenerationProgress
+                estimatedMs={estimateGenerationMs({
+                  width: 11,
+                  height: 17,
+                  customCount: 1,
+                })}
+              />
+            ) : (
+              <div className="flex flex-col gap-2">
+                <Button
+                  className="w-full"
+                  disabled={busy}
+                  onClick={() => submitAttach({ regenerateToFit: true })}
+                >
+                  Régénérer pour ce livre
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={busy}
+                  onClick={() => submitAttach({ force: true })}
+                >
+                  Ajouter quand même
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>

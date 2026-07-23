@@ -41,6 +41,11 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
   const [view, setView] = useState<"gallery" | "spread" | "page">("gallery");
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Live per-grid progress for a batch add ("Grille 2 sur 5"). Null when idle.
+  const [genBatch, setGenBatch] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -130,20 +135,40 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
     difficulty: GridDifficulty;
   }) {
     setBusy(true);
+    setGenBatch({ current: 1, total: opts.count });
+    let selectedFirst = false;
     try {
-      const res = await fetch(`/api/books/${code}/grids`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(opts),
-      });
-      if (!res.ok) throw new Error("Generation failed");
-      const { pages } = (await res.json()) as { pages: BookData["pages"] };
-      setBook((b) => ({ ...b, pages: [...b.pages, ...pages] }));
-      if (pages[0]) setSelectedId(pages[0].pageId);
+      // Generate one grid per request so each returns quickly (well under the
+      // serverless timeout), grids appear in the book as they land, and the
+      // progress bar can report "Grille X sur N". The endpoint recomputes the
+      // book's used-word/clue exclusions per call, so sequential requests stay
+      // free of repeats exactly like a server-side batch would.
+      for (let i = 0; i < opts.count; i++) {
+        setGenBatch({ current: i + 1, total: opts.count });
+        const res = await fetch(`/api/books/${code}/grids`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...opts, count: 1 }),
+        });
+        if (!res.ok) {
+          // Nothing generated yet — surface the failure. Otherwise keep the
+          // partial batch and stop quietly.
+          if (!selectedFirst) throw new Error("Generation failed");
+          break;
+        }
+        const { pages } = (await res.json()) as { pages: BookData["pages"] };
+        if (pages.length === 0) break;
+        setBook((b) => ({ ...b, pages: [...b.pages, ...pages] }));
+        if (!selectedFirst && pages[0]) {
+          setSelectedId(pages[0].pageId);
+          selectedFirst = true;
+        }
+      }
     } catch (err) {
       console.error(err);
     } finally {
       setBusy(false);
+      setGenBatch(null);
     }
   }
 
@@ -441,6 +466,7 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
           {selectedId === "add" && (
             <AddPage
               busy={busy}
+              genBatch={genBatch}
               onAddGrids={addGrids}
               onAddContent={addContent}
               onAttachGrid={attachGrid}
