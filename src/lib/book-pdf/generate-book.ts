@@ -9,6 +9,7 @@ import { PDFDocument } from "pdf-lib";
 import { embedBookFonts } from "@/lib/book-pdf/fonts";
 import { composeGridPage } from "@/lib/book-pdf/compose-grid-page";
 import { composeIndexPages } from "@/lib/book-pdf/compose-index-page";
+import { composeSolutionsPages } from "@/lib/book-pdf/compose-solutions-page";
 import { pageGeometry, PAGE_SPECS, drawCropMarks, type PageSize } from "@/lib/book-pdf/geometry";
 import type { BookData, GridPage } from "@/types/book";
 
@@ -38,20 +39,9 @@ export async function generateBookInteriorPdf(book: BookData, size: PageSize = "
   // 2) Word index.
   composeIndexPages({ doc, g, fonts, entries: book.wordIndex });
 
-  // 3) Solutions, same order.
-  grids.forEach((grid, i) => {
-    const page = doc.addPage([g.pageW, g.pageH]);
-    composeGridPage({
-      page,
-      g,
-      fonts,
-      grid,
-      gridNumber: i + 1,
-      mode: "solution",
-      headingOverride: `Solution — ${grid.config.title ?? `Grille N°${i + 1}`}`,
-    });
-    drawCropMarks(page, g);
-  });
+  // 3) Solutions — tiled plain answer-key mini grids (real mots fléchés look),
+  //    several per page, same order as the puzzles.
+  composeSolutionsPages({ doc, g, fonts, grids });
 
   return doc.save();
 }
