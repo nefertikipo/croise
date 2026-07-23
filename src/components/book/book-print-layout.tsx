@@ -2,6 +2,7 @@ import { CoverPage } from "@/components/book/cover-page";
 import { DedicationPage } from "@/components/book/dedication-page";
 import { ContentPageView } from "@/components/book/content-page";
 import { GridPageView } from "@/components/book/grid-page";
+import { SolutionTile } from "@/components/book/solution-tile";
 import { WordIndexPage } from "@/components/book/word-index-page";
 import type { BookData, GridPage, WordIndexEntry } from "@/types/book";
 
@@ -52,16 +53,21 @@ export function BookPrintLayout({
         <WordIndexPage entries={wordIndex} />
       </PrintPage>
 
-      {gridPages.map((p) => (
-        <PrintPage key={`sol-${p.pageId}`}>
-          <div>
-            <h2 className="font-heading text-2xl uppercase mb-4">
-              Solution — Grille {gridNumberByPage.get(p.pageId)}
-            </h2>
-            <GridPageView page={p} index={gridNumberByPage.get(p.pageId) ?? 0} showSolution maxWidth={700} />
+      {gridPages.length > 0 && (
+        <PrintPage>
+          <h2 className="font-heading text-2xl uppercase mb-6">Solutions</h2>
+          <div className="flex flex-wrap gap-x-3 gap-y-3">
+            {gridPages.map((p) => (
+              <SolutionTile
+                key={`sol-${p.pageId}`}
+                page={p}
+                index={gridNumberByPage.get(p.pageId) ?? 0}
+                cellPx={10}
+              />
+            ))}
           </div>
         </PrintPage>
-      ))}
+      )}
     </div>
   );
 }

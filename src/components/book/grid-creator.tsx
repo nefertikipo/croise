@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { GenerationProgress } from "@/components/fleche/generation-progress";
+import { GenerationProgress } from "@/components/shared/generation-progress";
 import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { CustomWordsEditor } from "@/components/book/custom-words-editor";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
+import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { CLUE_EXAMPLES, DIFFICULTY_INFO } from "@/lib/fleche/difficulty-guide";
 import type { GridDifficulty } from "@/types/book";
 
@@ -33,6 +34,8 @@ export interface CreateGridOptions {
 
 interface GridCreatorProps {
   busy: boolean;
+  /** Per-grid progress while a batch add is running; null when idle. */
+  genBatch: { current: number; total: number } | null;
   onCreate: (opts: CreateGridOptions) => Promise<string | null> | void;
   onClose: () => void;
 }
@@ -45,7 +48,7 @@ interface GridCreatorProps {
  * it makes exactly one grid (a personalized grid is one-of-a-kind); otherwise it
  * can batch several.
  */
-export function GridCreator({ busy, onCreate, onClose }: GridCreatorProps) {
+export function GridCreator({ busy, genBatch, onCreate, onClose }: GridCreatorProps) {
   const [width, setWidth] = useState(11);
   const [height, setHeight] = useState(17);
   const [count, setCount] = useState(1);
@@ -61,9 +64,13 @@ export function GridCreator({ busy, onCreate, onClose }: GridCreatorProps) {
   const effectiveCount = hasCustom ? 1 : count;
   const capacity = analyzeCapacity(width, height, customClues);
   const canCreate = !busy && capacity.message === null;
-  // Same honest pacing as /fleche: custom-word fills take longer; multiple
-  // automatic grids run back-to-back.
-  const estimatedMs = hasCustom ? 45000 : 12000 * effectiveCount;
+  // Per-grid estimate: the batch runs one grid per request and the bar remounts
+  // for each (keyed on genBatch.current), so it paces a single grid, not the sum.
+  const gridEstimateMs = estimateGenerationMs({
+    width,
+    height,
+    customCount: validCustom.length,
+  });
 
   async function create() {
     setError(null);
@@ -106,7 +113,15 @@ export function GridCreator({ busy, onCreate, onClose }: GridCreatorProps) {
 
       <div className="mx-auto max-w-5xl px-4 py-8">
         {busy ? (
-          <GenerationProgress estimatedMs={estimatedMs} />
+          <div className="space-y-2">
+            {genBatch && genBatch.total > 1 && (
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">
+                Grille {genBatch.current} sur {genBatch.total}
+              </p>
+            )}
+            {/* Remount per grid so the bar restarts its timeline each time. */}
+            <GenerationProgress key={genBatch?.current ?? 0} estimatedMs={gridEstimateMs} />
+          </div>
         ) : (
           <div className="space-y-6 rounded-none border-2 border-ink bg-card p-6 shadow-[4px_4px_0_0] shadow-ink/80">
             {/* Format */}

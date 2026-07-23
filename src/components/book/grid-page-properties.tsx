@@ -5,6 +5,8 @@ import { Field, TextField, ColorPicker } from "@/components/book/field";
 import { DifficultyPicker } from "@/components/book/difficulty-picker";
 import { CustomWordsEditor } from "@/components/book/custom-words-editor";
 import { Button } from "@/components/ui/button";
+import { GenerationProgress } from "@/components/shared/generation-progress";
+import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
 import type { GridPage, GridPageConfig } from "@/types/book";
 
@@ -27,6 +29,7 @@ export function GridPageProperties({
 }: GridPagePropertiesProps) {
   const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>([]);
   const [hiddenWord, setHiddenWord] = useState(page.config.hiddenWord ?? "");
+  const [title, setTitle] = useState(page.config.title ?? "");
 
   const validCustom = customClues.filter(
     (c) => c.answer.trim().length >= 2 && c.clue.trim().length > 0,
@@ -58,6 +61,15 @@ export function GridPageProperties({
           {page.words.length} mots · {page.width}×{page.height}
         </span>
       </div>
+
+      <Field label="Nom de la grille">
+        <TextField
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={() => onConfigChange({ title: title.trim() || undefined })}
+          placeholder={`Grille ${index}`}
+        />
+      </Field>
 
       <Field label="Couleur de la grille">
         <ColorPicker
@@ -110,9 +122,19 @@ export function GridPageProperties({
           onChange={setCustomClues}
         />
 
-        <Button onClick={() => onRegenerate(validCustom)} disabled={regenerating} className="w-full">
-          {regenerating ? "Régénération…" : "Régénérer la grille"}
-        </Button>
+        {regenerating ? (
+          <GenerationProgress
+            estimatedMs={estimateGenerationMs({
+              width: page.width,
+              height: page.height,
+              customCount: validCustom.length,
+            })}
+          />
+        ) : (
+          <Button onClick={() => onRegenerate(validCustom)} className="w-full">
+            Régénérer la grille
+          </Button>
+        )}
       </div>
 
       <Button variant="outline" onClick={onDelete} className="w-full">

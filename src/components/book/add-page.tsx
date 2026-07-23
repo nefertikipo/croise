@@ -7,11 +7,13 @@ import type { ContentLayout } from "@/types/book";
 
 interface AddPageProps {
   busy: boolean;
+  /** Per-grid progress while a batch add is running; null when idle. */
+  genBatch: { current: number; total: number } | null;
   onAddGrids: (opts: CreateGridOptions) => Promise<string | null> | void;
   onAddContent: (layout: ContentLayout) => void;
 }
 
-export function AddPage({ busy, onAddGrids, onAddContent }: AddPageProps) {
+export function AddPage({ busy, genBatch, onAddGrids, onAddContent }: AddPageProps) {
   const [creating, setCreating] = useState(false);
 
   return (
@@ -51,6 +53,7 @@ export function AddPage({ busy, onAddGrids, onAddContent }: AddPageProps) {
       {creating && (
         <GridCreator
           busy={busy}
+          genBatch={genBatch}
           onCreate={onAddGrids}
           onClose={() => setCreating(false)}
         />

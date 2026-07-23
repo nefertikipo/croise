@@ -5,9 +5,10 @@ import { CoverPage } from "@/components/book/cover-page";
 import { DedicationPage } from "@/components/book/dedication-page";
 import { ContentPageView } from "@/components/book/content-page";
 import { GridPageView } from "@/components/book/grid-page";
+import { SolutionTile } from "@/components/book/solution-tile";
 import { WordIndexPage } from "@/components/book/word-index-page";
 import type { BookData, GridPage, WordIndexEntry } from "@/types/book";
-import type { SlotId } from "@/components/book/spread-canvas";
+import type { SlotId } from "@/components/book/page-slot";
 
 interface PageCanvasProps {
   book: BookData;
@@ -49,20 +50,20 @@ export function PageCanvas({
 
   if (selectedId === "solutions") {
     return (
-      <div ref={ref} className="w-full space-y-10">
+      <div ref={ref} className="w-full">
         {gridPages.length === 0 && (
           <p className="text-muted-foreground italic">Aucune grille.</p>
         )}
-        {size.width > 0 &&
-          gridPages.map((p) => (
-            <GridPageView
+        <div className="flex flex-wrap gap-x-3 gap-y-3">
+          {gridPages.map((p) => (
+            <SolutionTile
               key={p.pageId}
               page={p}
               index={gridNumberByPage.get(p.pageId) ?? 0}
-              showSolution
-              maxWidth={Math.min(size.width, 620)}
+              cellPx={10}
             />
           ))}
+        </div>
       </div>
     );
   }
