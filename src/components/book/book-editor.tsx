@@ -89,6 +89,11 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
     window.open(`/api/books/${code}/cover.pdf`, "_blank");
   }
 
+  /** Open the print-ready interior (grids → index → solutions) at A5 or A4. */
+  function downloadBook(size: "a5" | "a4" = "a5") {
+    window.open(`/api/books/${code}/book.pdf?size=${size}`, "_blank");
+  }
+
   function updateDedication(text: string) {
     setBook((b) => ({ ...b, dedicationText: text }));
     debounce("book-dedication", () => patchBook({ dedicationText: text }));
@@ -316,10 +321,13 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
           </span>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="outline" onClick={previewCover}>
-              Aperçu couverture
+              Couverture
             </Button>
-            <Button variant="outline" onClick={() => window.print()}>
-              Imprimer / PDF
+            <Button variant="outline" onClick={() => window.open(`/api/books/${code}/back-cover.pdf`, "_blank")}>
+              Dos
+            </Button>
+            <Button variant="outline" onClick={() => downloadBook("a5")}>
+              Livre (PDF)
             </Button>
             <Button variant="outline" onClick={copyLink}>
               {copied ? "Lien copié !" : "Partager"}
