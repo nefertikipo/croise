@@ -9,11 +9,8 @@ import { GridPageProperties } from "@/components/book/grid-page-properties";
 import { ContentPageEditor } from "@/components/book/content-page-editor";
 import { SpreadCanvas } from "@/components/book/spread-canvas";
 import { PageCanvas } from "@/components/book/page-canvas";
-import {
-  AddPage,
-  type AttachGridConflict,
-  type AttachGridResult,
-} from "@/components/book/add-page";
+import { AddPage } from "@/components/book/add-page";
+import type { CreateGridOptions } from "@/components/book/grid-creator";
 import { cn } from "@/lib/utils";
 import { BookPrintLayout } from "@/components/book/book-print-layout";
 import { buildWordIndex } from "@/lib/crossword/word-index";
@@ -22,7 +19,6 @@ import type {
   ContentLayout,
   ContentPageConfig,
   CoverConfig,
-  GridDifficulty,
   GridPage,
   GridPageConfig,
 } from "@/types/book";
@@ -116,12 +112,7 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
   }
 
   // --- Structural mutations -------------------------------------------------
-  async function addGrids(opts: {
-    width: number;
-    height: number;
-    count: number;
-    difficulty: GridDifficulty;
-  }) {
+  async function addGrids(opts: CreateGridOptions): Promise<string | null> {
     setBusy(true);
     try {
       const res = await fetch(`/api/books/${code}/grids`, {
@@ -129,12 +120,17 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(opts),
       });
-      if (!res.ok) throw new Error("Generation failed");
+      if (!res.ok) {
+        const { error } = (await res.json().catch(() => ({}))) as { error?: string };
+        return error ?? "La génération de la grille a échoué. Réessayez.";
+      }
       const { pages } = (await res.json()) as { pages: BookData["pages"] };
       setBook((b) => ({ ...b, pages: [...b.pages, ...pages] }));
       if (pages[0]) setSelectedId(pages[0].pageId);
+      return null;
     } catch (err) {
       console.error(err);
+      return "La génération de la grille a échoué. Réessayez.";
     } finally {
       setBusy(false);
     }
@@ -193,33 +189,6 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
       console.error(err);
     } finally {
       setRegeneratingId(null);
-    }
-  }
-
-  async function attachGrid(
-    crosswordCode: string,
-    opts?: { regenerateToFit?: boolean; force?: boolean },
-  ): Promise<AttachGridResult | null> {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/books/${code}/pages/attach-grid`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ crosswordCode, ...opts }),
-      });
-      if (!res.ok) throw new Error("Attach failed");
-      const data = (await res.json()) as
-        | GridPage
-        | { conflict: AttachGridConflict };
-      if ("conflict" in data) return { conflict: data.conflict };
-      setBook((b) => ({ ...b, pages: [...b.pages, data] }));
-      setSelectedId(data.pageId);
-      return { page: data };
-    } catch (err) {
-      console.error(err);
-      return null;
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -403,7 +372,6 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
               busy={busy}
               onAddGrids={addGrids}
               onAddContent={addContent}
-              onAttachGrid={attachGrid}
             />
           )}
           {selectedId === "index" && (

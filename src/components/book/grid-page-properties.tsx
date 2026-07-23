@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Field, TextField, ColorPicker } from "@/components/book/field";
 import { DifficultyPicker } from "@/components/book/difficulty-picker";
+import { CustomWordsEditor } from "@/components/book/custom-words-editor";
 import { Button } from "@/components/ui/button";
 import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
 import type { GridPage, GridPageConfig } from "@/types/book";
@@ -98,50 +99,16 @@ export function GridPageProperties({
       )}
 
       <div className="border-t-2 border-black/10 pt-4 space-y-3">
-        <p className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">
-          Mots personnalisés
-        </p>
         <p className="text-xs text-muted-foreground">
           Ajoutez vos mots, puis régénérez la grille pour les intégrer.
         </p>
 
-        {customClues.map((cc, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <input
-              placeholder="Mot"
-              value={cc.answer}
-              onChange={(e) => {
-                const next = [...customClues];
-                next[i] = { ...next[i], answer: e.target.value };
-                setCustomClues(next);
-              }}
-              className="w-28 border-2 border-black px-2 py-1 text-sm uppercase font-mono"
-            />
-            <input
-              placeholder="Indice"
-              value={cc.clue}
-              onChange={(e) => {
-                const next = [...customClues];
-                next[i] = { ...next[i], clue: e.target.value };
-                setCustomClues(next);
-              }}
-              className="flex-1 border-2 border-black px-2 py-1 text-sm"
-            />
-            <button
-              onClick={() => setCustomClues(customClues.filter((_, j) => j !== i))}
-              className="text-sm text-muted-foreground hover:text-destructive"
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-
-        <button
-          onClick={() => setCustomClues([...customClues, { answer: "", clue: "" }])}
-          className="text-sm border-2 border-black px-3 py-1 hover:bg-muted"
-        >
-          + Ajouter un mot
-        </button>
+        <CustomWordsEditor
+          width={page.width}
+          height={page.height}
+          value={customClues}
+          onChange={setCustomClues}
+        />
 
         <Button onClick={() => onRegenerate(validCustom)} disabled={regenerating} className="w-full">
           {regenerating ? "Régénération…" : "Régénérer la grille"}
