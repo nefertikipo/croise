@@ -35,7 +35,7 @@ async function loadFromDatabase(): Promise<{
 
   // Load all words + clues in one query
   const rows = await sql`
-    SELECT w.word, w.familiarity, c.clue, c.difficulty
+    SELECT w.word, w.known_score, c.clue, c.difficulty
     FROM words w
     JOIN clues c ON c.word_id = w.id
     WHERE w.language = 'fr'
@@ -47,11 +47,13 @@ async function loadFromDatabase(): Promise<{
   for (const row of rows) {
     const word = row.word as string;
     const clue = row.clue as string;
-    // Use corpus familiarity (0–~7.4) as the word score so generation can
-    // prefer recognizable fill over obscure crosswordese. addWord dedupes, so
-    // the first row's familiarity wins (it is constant per word).
-    const familiarity = (row.familiarity as number | null) ?? 0;
-    wl.addWord(word, familiarity);
+    // Word score = recognizability (known_score, 1–5): does an average French
+    // adult KNOW this word? This drives the weighted-shuffle bias in the fill so
+    // generation prefers well-known words over obscure crosswordese. NOT corpus
+    // frequency (see scripts/score-known.ts). Unscored words → neutral 3.
+    // addWord dedupes, so the first row's score wins (constant per word).
+    const score = (row.known_score as number | null) ?? 3;
+    wl.addWord(word, score);
     if (!clueDb.has(word)) clueDb.set(word, []);
     clueDb.get(word)!.push(clue);
     // Difficulty per clue (unlabeled → medium). Parallel to clueDb.
@@ -133,8 +135,11 @@ function addBuiltinWords(wl: WordList, clueDb: Map<string, string[]>) {
     ["MI", "note de musique"], ["UT", "ancienne note"], ["AS", "champion"],
     ["OS", "partie du squelette"], ["IF", "conifere"], ["US", "coutumes"],
   ];
+  // Scores are on the known_score recognizability scale (1–5), same as DB words.
+  // Only added when the word is MISSING from the DB (wl.has === false), i.e. a
+  // fallback glue word. Real short words: 4. Crosswordese/abbreviations: 2.
   for (const [word, clue] of twoLetterWords) {
-    if (!wl.has(word)) wl.addWord(word, 80);
+    if (!wl.has(word)) wl.addWord(word, 4);
     if (!clueDb.has(word)) clueDb.set(word, []);
     if (!clueDb.get(word)!.includes(clue)) clueDb.get(word)!.push(clue);
   }
@@ -155,7 +160,7 @@ function addBuiltinWords(wl: WordList, clueDb: Map<string, string[]>) {
     ["USE", "fatigue"], ["NEE", "de naissance"], ["IRE", "colere poetique"],
   ];
   for (const [word, clue] of fillerWords) {
-    if (!wl.has(word)) wl.addWord(word, 70);
+    if (!wl.has(word)) wl.addWord(word, 2);
     if (!clueDb.has(word)) clueDb.set(word, []);
     if (!clueDb.get(word)!.includes(clue)) clueDb.get(word)!.push(clue);
   }

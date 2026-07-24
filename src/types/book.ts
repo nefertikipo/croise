@@ -37,10 +37,16 @@ export interface CoverConfig {
   titleBold?: boolean;
 }
 
+export type GridDifficulty = "facile" | "moyen" | "difficile" | "balanced";
+
 /** Persisted shape of a grid page's `config`. */
 export interface GridPageConfig {
+  /** Custom name for this grid; falls back to "Grille N" when unset. */
+  title?: string;
   gridColor?: string;
   hiddenWord?: string;
+  /** Clue difficulty used when (re)generating this grid. Default "balanced". */
+  difficulty?: GridDifficulty;
 }
 
 export type ContentLayout = "note" | "quote" | "photo";
@@ -83,6 +89,9 @@ export interface BookWord {
   clue: string;
   direction: string;
   isCustom: boolean;
+  /** Chosen clue's difficulty: 1 = facile, 2 = moyen, 3 = difficile. Null for
+   * custom/unscored clues or grids generated before difficulty was persisted. */
+  difficulty?: number | null;
 }
 
 /** A grid page as returned by the book API and rendered in the editor. */
@@ -109,9 +118,9 @@ export interface ContentPage {
 
 export type BookPageData = GridPage | ContentPage;
 
-/** One grid's contribution to the word index. */
+/** One length-group of the word index: all words of a given length, alphabetical. */
 export interface WordIndexEntry {
-  grid: number;
+  length: number;
   words: string[];
 }
 

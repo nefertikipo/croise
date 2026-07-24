@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
+import { bookPages } from "@/db/schema/books";
 import { eq } from "drizzle-orm";
+import { auth } from "@/lib/auth";
 
 export async function GET(
   request: Request,
@@ -49,4 +51,49 @@ export async function GET(
       isCustom: w.isCustom,
     })),
   });
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ code: string }> }
+) {
+  const { code } = await params;
+
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session) {
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  }
+
+  const [grid] = await db
+    .select({ id: crosswords.id, ownerId: crosswords.ownerId })
+    .from(crosswords)
+    .where(eq(crosswords.code, code))
+    .limit(1);
+
+  if (!grid) {
+    return NextResponse.json({ error: "Grille introuvable" }, { status: 404 });
+  }
+
+  if (grid.ownerId !== session.user.id) {
+    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  }
+
+  // A grid used inside a book can't be deleted on its own; remove the book first.
+  const [inBook] = await db
+    .select({ id: bookPages.id })
+    .from(bookPages)
+    .where(eq(bookPages.crosswordId, grid.id))
+    .limit(1);
+
+  if (inBook) {
+    return NextResponse.json(
+      { error: "Cette grille fait partie d'un livre." },
+      { status: 409 }
+    );
+  }
+
+  await db.delete(placedWords).where(eq(placedWords.crosswordId, grid.id));
+  await db.delete(crosswords).where(eq(crosswords.id, grid.id));
+
+  return NextResponse.json({ success: true });
 }

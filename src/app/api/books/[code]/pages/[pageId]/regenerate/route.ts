@@ -6,7 +6,7 @@ import { crosswords } from "@/db/schema/crosswords";
 import { eq } from "drizzle-orm";
 import { serializePage } from "@/lib/books/serialize";
 import { generateAndSaveGrid } from "@/lib/books/generate-grid";
-import { collectUsedClues } from "@/lib/books/used-clues";
+import { collectUsedWordsAndClues } from "@/lib/books/used-clues";
 import { checkCapacity } from "@/lib/crossword/check-capacity";
 import type { GridPageConfig } from "@/types/book";
 
@@ -20,6 +20,7 @@ const requestSchema = z.object({
   customClues: z
     .array(z.object({ answer: z.string(), clue: z.string() }))
     .default([]),
+  difficulty: z.enum(["facile", "moyen", "difficile", "balanced"]).optional(),
 });
 
 /** Regenerate a grid page's puzzle in place, keeping its position in the spine. */
@@ -61,13 +62,21 @@ export async function POST(
       return NextResponse.json({ error: "Grid page not found" }, { status: 404 });
     }
 
-    const usedClues = await collectUsedClues(book.id, page.crosswordId ?? undefined);
+    // Exclude words/clues from every *other* grid in the book. Passing this
+    // page's own crosswordId frees its current words so the regenerated grid can
+    // reuse them; they re-lock as soon as the new grid is saved.
+    const { words: usedWords, clues: usedClues } = await collectUsedWordsAndClues(
+      book.id,
+      page.crosswordId ?? undefined,
+    );
     const grid = await generateAndSaveGrid({
       width: input.width,
       height: input.height,
       title: `Grille ${page.position + 1}`,
       customClues: input.customClues,
+      difficulty: input.difficulty,
       usedClues,
+      usedWords,
     });
 
     if (!grid) {
@@ -82,6 +91,7 @@ export async function POST(
       ...prevConfig,
       ...(input.gridColor !== undefined ? { gridColor: input.gridColor } : {}),
       ...(input.hiddenWord !== undefined ? { hiddenWord: input.hiddenWord } : {}),
+      ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
     };
 
     const oldCrosswordId = page.crosswordId;

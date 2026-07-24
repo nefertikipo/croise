@@ -51,6 +51,7 @@ async function serializeGridPage(page: PageRow): Promise<GridPage | null> {
       clue: w.clueText,
       direction: w.direction,
       isCustom: w.isCustom,
+      difficulty: w.difficulty,
     })),
     config: (page.config as GridPageConfig) ?? {},
   };

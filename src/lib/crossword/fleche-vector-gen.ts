@@ -1094,6 +1094,17 @@ function solveFill(
   // already pruned the domains (arc consistency), start from those — the search
   // space is far smaller. Otherwise compute once per length and reuse (slots of
   // the same length share an identical initial domain).
+  // Length-aware recognizability floor: in slots this long or longer, keep only
+  // words with known_score ≥ the threshold (the longer obscure eyesores —
+  // LORICAIRE, KRISS, UTINET — live here, and long slots have plenty of known
+  // alternatives). Short slots (2–3) are exempt: their crosswordese glue is
+  // unavoidable and acceptable. pruneDomain falls back to the full set only when
+  // NO known word fits, so grids still complete. Set KNOWN_FLOOR_MIN_LEN=99 to
+  // disable. Default known_score ≥ 2 removes the score-1 "eyesores" (obscure
+  // conjugations, jargon) that motivated this; raise to 3 for extra cleanliness.
+  const floorMinLen = Number(process.env.KNOWN_FLOOR_MIN_LEN ?? 4);
+  const floorMinKnown = Number(process.env.KNOWN_FLOOR_MIN_SCORE ?? 2);
+
   const domainByLength = new Map<number, string[]>();
   const domains = new Map<number, string[]>();
   // For fast membership tests when intersecting getByConstraint results.
@@ -1174,6 +1185,17 @@ function solveFill(
     // Only keep words that have real clues
     candidates = candidates.filter((w) => clueDb.has(w) && clueDb.get(w)!.length > 0);
 
+    // Length-aware recognizability floor: in longer slots, keep ONLY well-known
+    // words — no fallback. If no known word fits the current crossings this
+    // branch is a dead end; the solver backtracks and picks different crossing
+    // letters that DO admit a known long word. A fallback here would re-admit the
+    // obscure words this floor exists to remove. Default ≥2 removes every score-1
+    // "eyesore" while keeping big grids fast (10/10 @ ~3s on the 11×15 generic);
+    // book/batch generation can set KNOWN_FLOOR_MIN_SCORE=3 for extra cleanliness.
+    if (slot.length >= floorMinLen) {
+      candidates = candidates.filter((w) => wordList.getScore(w) >= floorMinKnown);
+    }
+
     // Filter out already-used words
     if (usedWords.size > 0) {
       candidates = candidates.filter((w) => !usedWords.has(w));
@@ -1219,7 +1241,12 @@ function solveFill(
     // so some less-familiar words mix in — difficulty also comes from clue choice.
     // Weighted shuffle uses Efraimidis–Spirakis so rare words stay reachable on
     // backtrack (keeps grids solvable). A high bias slows generation.
-    const bias = Number(process.env.FAMILIARITY_BIAS ?? 0);
+    // Default ON: prefer well-known words (known_score 1–5) in the fill. 2.0 is
+    // empirically best (scripts/compare-known-bias.ts): vs uniform it cuts obscure
+    // fill ~55%→42% and RAISES success/speed (common words connect better, fewer
+    // dead ends), with no loss of variety. A weak bias (~1) is worst — it thrashes.
+    // Override per-run via FAMILIARITY_BIAS (0 = uniform, for deliberately hard grids).
+    const bias = Number(process.env.FAMILIARITY_BIAS ?? 2.0);
     if (bias > 0) {
       const keyed = candidates.map((w) => ({
         w,
@@ -1400,6 +1427,10 @@ export function generateFlecheVector(
   wordList: WordList,
   clueDb: Map<string, string[]>,
   clueDifficulty?: Map<string, number>,
+  // Optional cooperative-abort hook, checked once per layout attempt. Lets a
+  // parallel racer stop this (synchronous) run the moment a sibling worker wins,
+  // without terminating the thread. Unset in the normal single-threaded path.
+  shouldAbort?: () => boolean,
 ): VectorGenResult {
   const { width, height } = params;
   const customClues = (params.customClues ?? []).filter(
@@ -1472,6 +1503,13 @@ export function generateFlecheVector(
     .map((c) => normalizeAnswer(c.answer).length)
     .filter((len) => len >= 2);
 
+  // Length-aware recognizability floor (must match solveFill): apply it here at
+  // domain construction so the AC-3 pre-check reasons over the floored pool and
+  // prunes infeasible layouts up front — otherwise the solver only discovers the
+  // constraint deep in the search and thrashes.
+  const floorMinLen = Number(process.env.KNOWN_FLOOR_MIN_LEN ?? 4);
+  const floorMinKnown = Number(process.env.KNOWN_FLOOR_MIN_SCORE ?? 2);
+
   // Shared cache of clued words per length, for the AC-3 pre-check.
   const _domCache = new Map<number, string[]>();
   const domainByLength = (len: number): string[] => {
@@ -1481,6 +1519,9 @@ export function generateFlecheVector(
         .getByLength(len)
         .map((e) => e.word)
         .filter((w) => (clueDb.get(w)?.length ?? 0) > 0);
+      if (len >= floorMinLen) {
+        words = words.filter((w) => wordList.getScore(w) >= floorMinKnown);
+      }
       _domCache.set(len, words);
     }
     return words;
@@ -1503,6 +1544,7 @@ export function generateFlecheVector(
 
   for (let attempt = 1; attempt <= MAX_LAYOUT_ATTEMPTS; attempt++) {
     if (Date.now() > totalDeadline) break;
+    if (shouldAbort && shouldAbort()) break;
 
     // Phase 1 + 2: Generate and optimize layout
     const interiorArea = (width - 1) * (height - 1);

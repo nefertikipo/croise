@@ -10,12 +10,28 @@ export interface ClueListItem {
   difficulty?: number | null;
 }
 
-/** Round + clamp a raw score (1-5 in the schema, 1-3 in practice) to a label. */
-function difficultyLabel(d?: number | null, isCustom?: boolean): string {
-  if (isCustom) return "Perso";
-  if (d == null) return "—";
+/** Coarse difficulty band for a placed word, used for labels and distributions. */
+export type DifficultyBand = "facile" | "moyen" | "difficile" | "perso";
+
+/** Bucket a raw score (1-5 in the schema, 1-3 in practice) into a band. */
+export function difficultyBand(d?: number | null, isCustom?: boolean): DifficultyBand {
+  if (isCustom) return "perso";
+  if (d == null) return "perso";
   const r = Math.round(d);
-  return r <= 1 ? "Facile" : r >= 3 ? "Difficile" : "Moyen";
+  return r <= 1 ? "facile" : r >= 3 ? "difficile" : "moyen";
+}
+
+const BAND_LABELS: Record<DifficultyBand, string> = {
+  facile: "Facile",
+  moyen: "Moyen",
+  difficile: "Difficile",
+  perso: "Perso",
+};
+
+/** Round + clamp a raw score (1-5 in the schema, 1-3 in practice) to a label. */
+export function difficultyLabel(d?: number | null, isCustom?: boolean): string {
+  if (!isCustom && d == null) return "—";
+  return BAND_LABELS[difficultyBand(d, isCustom)];
 }
 
 /** Sort key: hardest first, custom/unscored clues last. */

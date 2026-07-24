@@ -5,7 +5,8 @@ import { books, bookPages } from "@/db/schema/books";
 import { eq } from "drizzle-orm";
 import { serializePage } from "@/lib/books/serialize";
 import { generateAndSaveGrid } from "@/lib/books/generate-grid";
-import { collectUsedClues } from "@/lib/books/used-clues";
+import { collectUsedWordsAndClues } from "@/lib/books/used-clues";
+import { normalizeAnswer } from "@/lib/crossword/normalize";
 import { checkCapacity } from "@/lib/crossword/check-capacity";
 import { placedWords } from "@/db/schema/placed-words";
 import type { BookPageData } from "@/types/book";
@@ -59,10 +60,12 @@ export async function POST(
     let nextPosition =
       existing.length > 0 ? Math.max(...existing.map((p) => p.position)) + 1 : 0;
 
-    const usedClues = await collectUsedClues(book.id);
+    const { words: usedWords, clues: usedClues } =
+      await collectUsedWordsAndClues(book.id);
     const config = {
       ...(gridParams.gridColor ? { gridColor: gridParams.gridColor } : {}),
       ...(gridParams.hiddenWord ? { hiddenWord: gridParams.hiddenWord } : {}),
+      ...(gridParams.difficulty ? { difficulty: gridParams.difficulty } : {}),
     };
 
     const createdPageIds: string[] = [];
@@ -75,6 +78,7 @@ export async function POST(
         customClues: gridParams.customClues,
         difficulty: gridParams.difficulty,
         usedClues,
+        usedWords,
       });
 
       if (!grid) {
@@ -87,12 +91,16 @@ export async function POST(
         break;
       }
 
-      // Fold this grid's clues into usedClues so batched grids don't repeat.
+      // Fold this grid's words + clues into the exclusion sets so the next grid
+      // in this batch neither repeats a word nor a clue.
       const newWords = await db
-        .select({ clueText: placedWords.clueText })
+        .select({ answer: placedWords.answer, clueText: placedWords.clueText })
         .from(placedWords)
         .where(eq(placedWords.crosswordId, grid.crosswordId));
-      for (const w of newWords) usedClues.add(w.clueText);
+      for (const w of newWords) {
+        usedWords.add(normalizeAnswer(w.answer));
+        usedClues.add(w.clueText);
+      }
 
       const [page] = await db
         .insert(bookPages)

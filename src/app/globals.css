@@ -326,6 +326,18 @@
   .fleche-print-area * {
     visibility: visible;
   }
+  /* The on-screen solver scales the grid to fit the viewport (JS transform).
+     For print, undo it so the print `zoom` path owns sizing — otherwise the two
+     scales compound and the grid prints at the wrong size. */
+  .solver-scale-box {
+    width: auto !important;
+    height: auto !important;
+  }
+  .solver-scale-inner {
+    transform: none !important;
+    width: auto !important;
+    height: auto !important;
+  }
   .book-print-area,
   .book-print-area * {
     visibility: visible;
