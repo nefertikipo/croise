@@ -5,7 +5,7 @@ interface WordIndexPageProps {
   entries: WordIndexEntry[];
 }
 
-/** Back-of-book word index: every word used, alphabetical, grouped by grid. */
+/** Back-of-book word index: every word used, grouped by length, alphabetical. */
 export function WordIndexPage({ entries }: WordIndexPageProps) {
   const total = entries.reduce((n, e) => n + e.words.length, 0);
   return (
@@ -20,9 +20,9 @@ export function WordIndexPage({ entries }: WordIndexPageProps) {
         )}
         <div className="columns-2 gap-6 [column-fill:balance]">
           {entries.map((entry) => (
-            <div key={entry.grid} className="mb-3 break-inside-avoid">
+            <div key={entry.length} className="mb-3 break-inside-avoid">
               <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-0.5">
-                Grille {entry.grid}
+                {entry.length} lettres
               </h3>
               <p className="text-xs leading-snug text-foreground font-mono">
                 {entry.words.join(" · ") || "—"}

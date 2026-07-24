@@ -115,9 +115,9 @@ export interface ContentPage {
 
 export type BookPageData = GridPage | ContentPage;
 
-/** One grid's contribution to the word index. */
+/** One length-group of the word index: all words of a given length, alphabetical. */
 export interface WordIndexEntry {
-  grid: number;
+  length: number;
   words: string[];
 }
 
