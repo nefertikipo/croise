@@ -1,7 +1,8 @@
 /**
- * Compose the back-of-book word index: every answer, alphabetical, grouped by
- * grid, flowed into two balanced columns and paginated across as many pages as
- * needed. Mirrors the on-screen WordIndexPage.
+ * Compose the back-of-book word index: every answer, grouped by word length
+ * (shortest first) and alphabetical within each group, flowed into two balanced
+ * columns and paginated across as many pages as needed. Mirrors the on-screen
+ * WordIndexPage.
  */
 
 import { type PDFDocument, type PDFPage } from "pdf-lib";
@@ -59,7 +60,7 @@ export function composeIndexPages({ doc, g, fonts, entries, accentHex }: IndexPa
   // Flatten to a list of drawable lines.
   const lines: Line[] = [];
   entries.forEach((entry, idx) => {
-    lines.push({ text: `GRILLE ${entry.grid}`, size: headerSize, font: fonts.bold, colorHex: accent, gapBefore: idx === 0 ? 0 : 9 });
+    lines.push({ text: `${entry.length} LETTRES`, size: headerSize, font: fonts.bold, colorHex: accent, gapBefore: idx === 0 ? 0 : 9 });
     const body = wrapWordList(fonts.letter, entry.words, bodySize, colW);
     body.forEach((t, i) => lines.push({ text: t, size: bodySize, font: fonts.letter, colorHex: INK, gapBefore: i === 0 ? 2 : 0 }));
   });
