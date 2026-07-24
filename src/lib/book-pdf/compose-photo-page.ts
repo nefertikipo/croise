@@ -8,9 +8,13 @@
  * matching the references; photo pages carry no text, so raster is fine.
  */
 
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { PDFDocument, rgb, type PDFPage } from "pdf-lib";
 import sharp, { type OverlayOptions } from "sharp";
 import type { PhotoLayout, LayoutSlot } from "@/lib/book-pdf/photo-layouts";
+import { graphicInner, HAND_IMAGE_DIR } from "@/lib/book-pdf/graphic-motifs";
+import type { HandDir } from "@/lib/book-pdf/graphic-motifs";
 
 const DPI = 300;
 const MM = 25.4;
@@ -18,7 +22,6 @@ const TRIM_W = 148;
 const TRIM_H = 210;
 const BLEED = 3;
 const CREAM = "#fff6ec";
-const LENS = "#f4ede0";
 
 const mm2px = (mm: number) => Math.round((mm / MM) * DPI);
 const mm2pt = (mm: number) => (mm * 72) / MM;
@@ -55,26 +58,32 @@ export interface PhotoPageContent {
   photos: (PhotoFill | null)[];
 }
 
-/** A crisp horizontal vesica (two circular arcs). */
-function vesica(cx: number, cy: number, w: number, h: number): string {
-  const r = (h * h + w * w) / (4 * h);
-  const x0 = cx - w / 2;
-  const x1 = cx + w / 2;
-  return `M ${x0} ${cy} A ${r} ${r} 0 0 1 ${x1} ${cy} A ${r} ${r} 0 0 1 ${x0} ${cy} Z`;
+const handAssets = new Map<HandDir, Buffer | null>();
+async function loadHandAsset(dir: HandDir): Promise<Buffer | null> {
+  if (handAssets.has(dir)) return handAssets.get(dir) ?? null;
+  let buf: Buffer | null = null;
+  try {
+    if (HAND_IMAGE_DIR) buf = await readFile(join(process.cwd(), "public", HAND_IMAGE_DIR, `hand-${dir}.png`));
+  } catch {
+    buf = null;
+  }
+  handAssets.set(dir, buf);
+  return buf;
 }
 
-function graphicTile(color: string, w: number, h: number): Promise<Buffer> {
-  const cx = w / 2;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-    <rect width="${w}" height="${h}" fill="${color}"/>
-    <path d="${vesica(cx, h * 0.29, w * 0.86, h * 0.34)}" fill="${LENS}"/>
-    <path d="${vesica(cx, h * 0.71, w * 0.86, h * 0.34)}" fill="${LENS}"/>
-  </svg>`;
+async function graphicTile(slot: LayoutSlot, w: number, h: number): Promise<Buffer> {
+  if (slot.motif === "hand") {
+    const asset = await loadHandAsset(slot.dir ?? "right");
+    // The cut-out already carries its paper ground; cover-fit it to the cell.
+    if (asset) return sharp(asset).resize(w, h, { fit: "cover" }).png().toBuffer();
+  }
+  const inner = graphicInner(w, h, slot.color ?? "#1f7a4d", slot.motif, slot.dir);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${inner}</svg>`;
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-/** Crop, cover-fit to the slot, and apply a subtle vintage grade. */
-async function gradePhoto(fill: PhotoFill, w: number, h: number): Promise<Buffer> {
+/** Crop, cover-fit to the slot, and apply a subtle vintage grade (or mono). */
+async function gradePhoto(fill: PhotoFill, w: number, h: number, mono = false): Promise<Buffer> {
   let buf = fill.photo;
   if (fill.crop) {
     const meta = await sharp(buf).metadata();
@@ -86,12 +95,10 @@ async function gradePhoto(fill: PhotoFill, w: number, h: number): Promise<Buffer
     const height = Math.max(1, Math.min(H - top, Math.round(fill.crop.h * H)));
     buf = await sharp(buf).extract({ left, top, width, height }).toBuffer();
   }
-  return sharp(buf)
-    .rotate()
-    .resize(w, h, { fit: "cover" })
-    .modulate({ saturation: 0.82, brightness: 1.02 })
-    .jpeg({ quality: 92 })
-    .toBuffer();
+  const pipe = sharp(buf).rotate().resize(w, h, { fit: "cover" });
+  if (mono) pipe.grayscale().modulate({ brightness: 1.04 }).linear(1.12, -12);
+  else pipe.modulate({ saturation: 0.82, brightness: 1.02 });
+  return pipe.jpeg({ quality: 92 }).toBuffer();
 }
 
 /** RGBA mid-grey noise for an "overlay"-blend film grain. */
@@ -128,14 +135,15 @@ function drawCropMarks(page: PDFPage) {
 
 export async function composePhotoPage(layout: PhotoLayout, content: PhotoPageContent): Promise<Uint8Array> {
   const composites: OverlayOptions[] = [];
+  const mono = layout.id === "hermes";
   let photoIdx = 0;
   for (const slot of layout.slots) {
     const box = resolveBox(slot);
     if (slot.kind === "graphic") {
-      composites.push({ input: await graphicTile(slot.color ?? "#1f7a4d", box.width, box.height), left: box.left, top: box.top });
+      composites.push({ input: await graphicTile(slot, box.width, box.height), left: box.left, top: box.top });
     } else {
       const fill = content.photos[photoIdx++];
-      if (fill) composites.push({ input: await gradePhoto(fill, box.width, box.height), left: box.left, top: box.top });
+      if (fill) composites.push({ input: await gradePhoto(fill, box.width, box.height, mono), left: box.left, top: box.top });
     }
   }
   composites.push({ input: await grain(), blend: "overlay" });

@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   // Ship the embedded cover fonts into the API function bundle. (sharp's native
   // binary is bundled correctly by the webpack build — see the --webpack flag.)
   outputFileTracingIncludes: {
-    "/api/**": ["./public/fonts/**"],
+    "/api/**": ["./public/fonts/**", "./public/motifs/**"],
   },
   images: {
     remotePatterns: [
