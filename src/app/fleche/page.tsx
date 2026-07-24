@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
+import { ShareGridButton } from "@/components/fleche/share-grid-button";
 import { GenerationProgress } from "@/components/fleche/generation-progress";
 import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { ClueList } from "@/components/fleche/clue-list";
@@ -111,7 +112,6 @@ export default function FlechePage() {
   const [usedAnswers, setUsedAnswers] = useState<Set<string>>(new Set());
   const [hiddenWord, setHiddenWord] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [poster, setPoster] = useState(false);
   const [title, setTitle] = useState("");
   const gridTitle = title.trim();
@@ -551,16 +551,12 @@ export default function FlechePage() {
                 Imprimer / PDF
               </Button>
               {grid.code && (
-                <Button
+                <ShareGridButton
+                  url={`/grille/${grid.code}`}
+                  title={title}
                   variant="outline"
-                  onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/grille/${grid.code}`);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                >
-                  {copied ? "Lien copie!" : "Copier le lien"}
-                </Button>
+                  className="rounded-none"
+                />
               )}
               <Button variant="outline" className="rounded-none" onClick={createBook}>
                 Creer un livre

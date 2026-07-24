@@ -195,9 +195,28 @@ interface FlecheGridProps {
    * solution page (no color, no clues needed to check answers).
    */
   plain?: boolean;
+  /**
+   * When set, the solver's typed letters are persisted to localStorage under
+   * this key so progress survives a page reload. Only meaningful with
+   * `interactive`. Typically the grid's share code.
+   */
+  persistKey?: string;
 }
 
 const CELL_SIZE = 70;
+
+/** Serialize/restore the solver's letter map for localStorage persistence. */
+function loadPersistedInput(key: string | undefined): Map<string, string> {
+  if (!key || typeof window === "undefined") return new Map();
+  try {
+    const raw = window.localStorage.getItem(`fleche-progress:${key}`);
+    if (!raw) return new Map();
+    const entries = JSON.parse(raw) as [string, string][];
+    return new Map(entries);
+  } catch {
+    return new Map();
+  }
+}
 
 /* Vintage editorial grid palette: paper letter cells, tinted clue cells,
    red-tinted custom clues — matching the cream/black/red/turquoise theme. */
@@ -330,15 +349,35 @@ export function FlecheGrid({
   highlightedCells,
   accentColor,
   plain = false,
+  persistKey,
 }: FlecheGridProps) {
   const accent = accentColor || DEFAULT_ACCENT;
   const clueBg = plain ? "#e9e6e0" : `color-mix(in oklab, ${accent} 18%, ${PAPER})`;
   const clueRule = `color-mix(in oklab, ${accent} 45%, ${PAPER})`;
   const wordHighlightBg = `color-mix(in oklab, ${accent} 14%, ${PAPER})`;
-  const [userInput, setUserInput] = useState<Map<string, string>>(new Map());
+  const [userInput, setUserInput] = useState<Map<string, string>>(
+    () => (interactive ? loadPersistedInput(persistKey) : new Map()),
+  );
   const [selectedCell, setSelectedCell] = useState<{ r: number; c: number } | null>(null);
   const [direction, setDirection] = useState<"right" | "down">("right");
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+
+  // Persist solver progress so a reload doesn't wipe a friend's answers.
+  useEffect(() => {
+    if (!interactive || !persistKey || typeof window === "undefined") return;
+    try {
+      if (userInput.size === 0) {
+        window.localStorage.removeItem(`fleche-progress:${persistKey}`);
+      } else {
+        window.localStorage.setItem(
+          `fleche-progress:${persistKey}`,
+          JSON.stringify(Array.from(userInput.entries())),
+        );
+      }
+    } catch {
+      // Ignore quota / privacy-mode failures — persistence is best-effort.
+    }
+  }, [userInput, interactive, persistKey]);
 
   const setRef = useCallback((key: string, el: HTMLInputElement | null) => {
     if (el) inputRefs.current.set(key, el);

@@ -33,6 +33,7 @@ export async function GET(
     return NextResponse.json({
       id: grid.id,
       code: grid.code,
+      ownerId: grid.ownerId,
       title: grid.title,
       width: grid.width,
       height: grid.height,
