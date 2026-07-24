@@ -61,8 +61,7 @@ export default async function MesGrillesPage() {
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {grids.map((g) => {
-            const href =
-              g.language === "fr" ? `/grille/${g.code}` : `/crossword/${g.code}`;
+            const href = `/grille/${g.code}`;
             return (
               <li key={g.code}>
                 <GridCard

@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
 import { ShareGridButton } from "@/components/fleche/share-grid-button";
-import { GenerationProgress } from "@/components/fleche/generation-progress";
+import { GenerationProgress } from "@/components/shared/generation-progress";
 import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { ClueList } from "@/components/fleche/clue-list";
+import { AddToBook } from "@/components/fleche/add-to-book";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
+import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import {
   findHiddenWordCells,
@@ -21,47 +23,7 @@ import {
   FlechePrintFooter,
   computeFlechePrintScale,
 } from "@/components/fleche/fleche-print-chrome";
-
-// Example clues at each level — same answer (AVOCAT), increasingly indirect — to
-// show the *style* difference, not just a label. These are REAL clues from the
-// corpus at difficulty 1 / 2 / 3 (see the `clues` table), not invented ones.
-// AVOCAT is chosen because it genuinely spans all three: a direct definition, the
-// lawyer/avocado misdirection, then a cultural leap (Thémis = déesse de la justice).
-const CLUE_EXAMPLES = {
-  facile: { label: "Facile", clue: "Il plaide", answer: "AVOCAT" },
-  moyen: { label: "Moyen", clue: "Base du guacamole", answer: "AVOCAT" },
-  difficile: { label: "Difficile", clue: "Champion de Thémis", answer: "AVOCAT" },
-} as const;
-
-type ExampleLevel = keyof typeof CLUE_EXAMPLES;
-
-// What each difficulty entails + the actual clue mix. "balanced" realizes
-// ~50/35/15 in generated grids (see pickClue() in fleche-vector-gen.ts).
-const DIFFICULTY_INFO: Record<
-  string,
-  { help: string; mix: string; show: ExampleLevel[] }
-> = {
-  facile: {
-    help: "Mots courants et définitions directes, parfait pour débuter ou pour offrir aux plus jeunes.",
-    mix: "Que des définitions faciles",
-    show: ["facile"],
-  },
-  balanced: {
-    help: "Un mélange de mots familiers et de quelques défis : le bon équilibre pour une grille à offrir.",
-    mix: "≈ 50 % faciles · 35 % moyennes · 15 % difficiles",
-    show: ["facile", "moyen", "difficile"],
-  },
-  moyen: {
-    help: "Vocabulaire plus riche et définitions moins évidentes, pour les amateurs réguliers.",
-    mix: "Que des définitions de niveau moyen",
-    show: ["moyen"],
-  },
-  difficile: {
-    help: "Mots rares et définitions retorses, réservé aux cruciverbistes aguerris.",
-    mix: "Que des définitions difficiles",
-    show: ["difficile"],
-  },
-};
+import { CLUE_EXAMPLES, DIFFICULTY_INFO } from "@/lib/fleche/difficulty-guide";
 
 interface ClueInCell {
   text: string;
@@ -102,6 +64,7 @@ export default function FlechePage() {
   const [grid, setGrid] = useState<FlecheData | null>(null);
   const [loading, setLoading] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
+  const [checkErrors, setCheckErrors] = useState(false);
   const [gridWidth, setGridWidth] = useState(11);
   const [gridHeight, setGridHeight] = useState(15);
   const [difficulty, setDifficulty] = useState<
@@ -131,7 +94,11 @@ export default function FlechePage() {
   const validCustomCount = customClues.filter(
     (c) => c.answer.trim().length >= 2 && c.clue.trim().length > 0,
   ).length;
-  const estimatedMs = validCustomCount > 0 ? 45000 : 12000;
+  const estimatedMs = estimateGenerationMs({
+    width: gridWidth,
+    height: gridHeight,
+    customCount: validCustomCount,
+  });
 
   // Live feasibility flagging: warn before the user hits generate when the
   // custom words can't fit (too long / too many) rather than after a long wait.
@@ -229,7 +196,7 @@ export default function FlechePage() {
   }
 
   return (
-    <main className="flex-1 px-4 py-10">
+    <main className="flex-1 px-4 pt-10 pb-28 md:pb-10">
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="space-y-1">
           <h1 className="text-5xl text-ink">
@@ -342,6 +309,16 @@ export default function FlechePage() {
                 <p className="text-sm text-muted-foreground">
                   Prénoms, dates, clins d&apos;œil, ils seront placés dans la grille.
                 </p>
+                <p className="mt-1 text-sm font-medium">
+                  Grille {gridWidth}×{gridHeight} : jusqu&apos;à {capacity.recommendedMax}{" "}
+                  {capacity.recommendedMax > 1 ? "mots" : "mot"} recommandé
+                  {capacity.recommendedMax > 1 ? "s" : ""}
+                  {validCustomCount > 0 && (
+                    <span className={validCustomCount > capacity.recommendedMax ? "text-amber-600" : "text-muted-foreground"}>
+                      {" "}· {validCustomCount} ajouté{validCustomCount > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </p>
               </div>
 
               {customClues.map((cc, i) => (
@@ -394,7 +371,14 @@ export default function FlechePage() {
               {capacity.message && (
                 <p className="text-sm font-medium text-destructive">⚠ {capacity.message}</p>
               )}
-              {!capacity.message && capacity.tight && (
+              {!capacity.message && capacity.overRecommended && (
+                <p className="text-sm text-amber-600">
+                  Au-delà de {capacity.recommendedMax} mots, la génération peut être plus
+                  longue, voire échouer sur cette grille. Retirez un mot ou choisissez une
+                  grille plus grande pour un résultat fiable.
+                </p>
+              )}
+              {!capacity.message && !capacity.overRecommended && capacity.tight && (
                 <p className="text-sm text-amber-600">
                   Grille bien remplie, la génération peut être plus longue, voire
                   échouer. Si c&apos;est le cas, agrandissez la grille ou retirez un mot.
@@ -465,6 +449,8 @@ export default function FlechePage() {
                       height={grid.height}
                       showSolution={showSolution}
                       interactive={!showSolution}
+                      revealErrors={checkErrors}
+                      solverLayout
                       highlightedCells={hiddenCells}
                     />
                   </div>
@@ -547,6 +533,11 @@ export default function FlechePage() {
               <Button variant="outline" className="rounded-none" onClick={() => setShowSolution(!showSolution)}>
                 {showSolution ? "Cacher solution" : "Voir solution"}
               </Button>
+              {!showSolution && (
+                <Button variant="outline" className="rounded-none" onClick={() => setCheckErrors((v) => !v)}>
+                  {checkErrors ? "Masquer les erreurs" : "Vérifier"}
+                </Button>
+              )}
               <Button variant="outline" className="rounded-none" onClick={() => window.print()}>
                 Imprimer / PDF
               </Button>
@@ -561,11 +552,24 @@ export default function FlechePage() {
               <Button variant="outline" className="rounded-none" onClick={createBook}>
                 Creer un livre
               </Button>
+              {grid.code && (
+                <AddToBook crosswordCode={grid.code} difficulty={difficulty} />
+              )}
             </div>
 
             {/* Add custom words + regenerate */}
             <div className="border rounded-none p-4 space-y-3 bg-muted/30">
               <p className="text-sm font-medium">Ajouter des mots et regenerer</p>
+              <p className="text-sm text-muted-foreground">
+                Grille {gridWidth}×{gridHeight} : jusqu&apos;à {capacity.recommendedMax}{" "}
+                {capacity.recommendedMax > 1 ? "mots" : "mot"} recommandé
+                {capacity.recommendedMax > 1 ? "s" : ""}
+                {validCustomCount > 0 && (
+                  <span className={validCustomCount > capacity.recommendedMax ? "text-amber-600" : ""}>
+                    {" "}· {validCustomCount} ajouté{validCustomCount > 1 ? "s" : ""}
+                  </span>
+                )}
+              </p>
               <div className="space-y-2">
                 {customClues.map((cc, i) => (
                   <div key={i} className="space-y-1">
@@ -611,7 +615,13 @@ export default function FlechePage() {
               {capacity.message && (
                 <p className="text-sm font-medium text-destructive">⚠ {capacity.message}</p>
               )}
-              {!capacity.message && capacity.tight && (
+              {!capacity.message && capacity.overRecommended && (
+                <p className="text-sm text-amber-600">
+                  Au-delà de {capacity.recommendedMax} mots, la génération peut être plus
+                  longue, voire échouer sur cette grille.
+                </p>
+              )}
+              {!capacity.message && !capacity.overRecommended && capacity.tight && (
                 <p className="text-sm text-amber-600">
                   Grille bien remplie, la génération peut être plus longue, voire échouer.
                 </p>

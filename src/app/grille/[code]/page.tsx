@@ -59,6 +59,7 @@ export default function GrillePage() {
   const [grid, setGrid] = useState<GridData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSolution, setShowSolution] = useState(false);
+  const [checkErrors, setCheckErrors] = useState(false);
   const [title, setTitle] = useState("");
 
   const loadGrid = useCallback(async () => {
@@ -122,7 +123,7 @@ export default function GrillePage() {
   }
 
   return (
-    <main className="flex-1 px-4 py-8">
+    <main className="flex-1 px-4 pt-8 pb-28 md:pb-8">
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
           {isOwner ? (
@@ -143,8 +144,8 @@ export default function GrillePage() {
 
         {!isOwner && (
           <p className="font-serif-accent text-lg italic text-ink/70">
-            À toi de jouer : clique sur une case et remplis la grille. Les bonnes
-            réponses passent au vert.
+            À toi de jouer : clique sur une case et remplis la grille, puis
+            touche « Vérifier » pour contrôler tes réponses.
           </p>
         )}
 
@@ -155,6 +156,14 @@ export default function GrillePage() {
               className="btn-lapos rounded-none bg-sun px-4 py-2.5 text-sm text-ink"
             >
               {showSolution ? "Cacher solution" : "Voir solution"}
+            </Button>
+          )}
+          {!showSolution && (
+            <Button
+              onClick={() => setCheckErrors((v) => !v)}
+              className="btn-lapos rounded-none bg-paper px-4 py-2.5 text-sm text-ink"
+            >
+              {checkErrors ? "Masquer les erreurs" : "Vérifier"}
             </Button>
           )}
           <Button
@@ -197,6 +206,8 @@ export default function GrillePage() {
                   height={grid.height}
                   showSolution={showSolution}
                   interactive={!showSolution}
+                  revealErrors={checkErrors}
+                  solverLayout
                   highlightedCells={hiddenCells}
                   persistKey={code}
                 />

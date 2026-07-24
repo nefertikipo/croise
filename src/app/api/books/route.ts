@@ -5,7 +5,7 @@ import { books, bookPages } from "@/db/schema/books";
 import { crosswords } from "@/db/schema/crosswords";
 import { generateBookCode } from "@/lib/code";
 import { auth } from "@/lib/auth";
-import { eq } from "drizzle-orm";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 
 const requestSchema = z.object({
   title: z.string().optional(),
@@ -18,6 +18,46 @@ const requestSchema = z.object({
     .object({ gridColor: z.string().optional(), hiddenWord: z.string().optional() })
     .optional(),
 });
+
+/**
+ * List the signed-in user's books (for the "add this grid to a book" picker on
+ * /fleche). Anonymous callers get an empty list — anonymous books all share a
+ * null owner, so there's no safe way to scope them to "yours".
+ */
+export async function GET(request: Request) {
+  try {
+    const authSession = await auth.api.getSession({ headers: request.headers });
+    const ownerId = authSession?.user.id ?? null;
+    if (!ownerId) return NextResponse.json({ books: [] });
+
+    const rows = await db
+      .select({ id: books.id, code: books.code, title: books.title })
+      .from(books)
+      .where(eq(books.ownerId, ownerId))
+      .orderBy(desc(books.createdAt));
+
+    const ids = rows.map((r) => r.id);
+    const counts = ids.length
+      ? await db
+          .select({ bookId: bookPages.bookId, n: count() })
+          .from(bookPages)
+          .where(and(inArray(bookPages.bookId, ids), eq(bookPages.kind, "grid")))
+          .groupBy(bookPages.bookId)
+      : [];
+    const gridCountById = new Map(counts.map((c) => [c.bookId, Number(c.n)]));
+
+    return NextResponse.json({
+      books: rows.map((r) => ({
+        code: r.code,
+        title: r.title,
+        gridCount: gridCountById.get(r.id) ?? 0,
+      })),
+    });
+  } catch (error) {
+    console.error("Book list error:", error);
+    return NextResponse.json({ error: "Failed to list books" }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   try {

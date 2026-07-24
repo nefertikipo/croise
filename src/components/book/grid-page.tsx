@@ -45,7 +45,13 @@ export function GridPageView({
     <div className="flex flex-col gap-2" style={{ width: gridW * scale }}>
       <div className="flex items-baseline justify-between border-b-2 border-ink pb-1">
         <h3 className="font-heading text-xl uppercase leading-none text-foreground">
-          Grille <span className="text-primary">N°{index}</span>
+          {page.config.title ? (
+            page.config.title
+          ) : (
+            <>
+              Grille <span className="text-primary">N°{index}</span>
+            </>
+          )}
         </h3>
         <span className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
           {page.width}×{page.height}

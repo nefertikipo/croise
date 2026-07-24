@@ -41,6 +41,8 @@ export type GridDifficulty = "facile" | "moyen" | "difficile" | "balanced";
 
 /** Persisted shape of a grid page's `config`. */
 export interface GridPageConfig {
+  /** Custom name for this grid; falls back to "Grille N" when unset. */
+  title?: string;
   gridColor?: string;
   hiddenWord?: string;
   /** Clue difficulty used when (re)generating this grid. Default "balanced". */

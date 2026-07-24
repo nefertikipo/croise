@@ -1,32 +1,12 @@
 "use client";
 
-import { BookPageFrame } from "@/components/book/book-page-frame";
-import { useElementSize } from "@/components/book/use-element-size";
-import { CoverPage } from "@/components/book/cover-page";
-import { DedicationPage } from "@/components/book/dedication-page";
-import { ContentPageView } from "@/components/book/content-page";
-import { GridPageView } from "@/components/book/grid-page";
-import { WordIndexPage } from "@/components/book/word-index-page";
-import { cn } from "@/lib/utils";
-import type { BookData, GridPage, WordIndexEntry } from "@/types/book";
+import { SlotCard, buildSlots, type SlotData, type SlotId } from "@/components/book/page-slot";
 
-/** A renderable slot in the book: derived sections + spine pages share one list. */
-export type SlotId = "cover" | "dedication" | "index" | "solutions" | string;
-
-interface SpreadCanvasProps {
-  book: BookData;
-  gridPages: GridPage[];
-  gridNumberByPage: Map<string, number>;
-  wordIndex: WordIndexEntry[];
+interface SpreadCanvasProps extends SlotData {
   selectedId: SlotId;
   onSelect: (id: SlotId) => void;
   /** Double-click a page to open it in the focused Page view. */
   onFocus?: (id: SlotId) => void;
-}
-
-/** Ordered list of every visible page slot in the book. */
-export function buildSlots(book: BookData): SlotId[] {
-  return ["cover", "dedication", ...book.pages.map((p) => p.pageId), "index", "solutions"];
 }
 
 /**
@@ -41,65 +21,6 @@ export function buildSpreads(slots: SlotId[]): (SlotId | null)[][] {
   return spreads;
 }
 
-/**
- * A grid page inside a spread frame. The whole magazine block (title band +
- * grid + hidden-word strip) is laid out at a fixed design width, measured,
- * then uniformly transform-scaled to fit the frame — a true page thumbnail,
- * immune to content wrapping.
- */
-const GRID_DESIGN_WIDTH = 420;
-
-function SpreadGridPage({
-  page,
-  index,
-  interactive,
-}: {
-  page: GridPage;
-  index: number;
-  interactive: boolean;
-}) {
-  const { ref: frameRef, size: avail } = useElementSize<HTMLDivElement>();
-  const { ref: blockRef, size: natural } = useElementSize<HTMLDivElement>();
-
-  const scale =
-    avail.width > 0 && natural.height > 0
-      ? Math.min(avail.width / GRID_DESIGN_WIDTH, avail.height / natural.height, 1)
-      : 0;
-
-  return (
-    <BookPageFrame>
-      <div
-        ref={frameRef}
-        className="flex-1 flex items-center justify-center p-3 overflow-hidden"
-      >
-        <div
-          style={{
-            width: GRID_DESIGN_WIDTH * scale,
-            height: natural.height * scale,
-            visibility: scale > 0 ? "visible" : "hidden",
-          }}
-        >
-          <div
-            ref={blockRef}
-            style={{
-              width: GRID_DESIGN_WIDTH,
-              transform: `scale(${scale || 1})`,
-              transformOrigin: "top left",
-            }}
-          >
-            <GridPageView
-              page={page}
-              index={index}
-              interactive={interactive}
-              maxWidth={GRID_DESIGN_WIDTH}
-            />
-          </div>
-        </div>
-      </div>
-    </BookPageFrame>
-  );
-}
-
 export function SpreadCanvas({
   book,
   gridPages,
@@ -109,10 +30,10 @@ export function SpreadCanvas({
   onSelect,
   onFocus,
 }: SpreadCanvasProps) {
+  const data: SlotData = { book, gridPages, gridNumberByPage, wordIndex };
   const slots = buildSlots(book);
   const spreads = buildSpreads(slots);
-  const spread =
-    spreads.find((s) => s.includes(selectedId)) ?? spreads[0];
+  const spread = spreads.find((s) => s.includes(selectedId)) ?? spreads[0];
   const spreadIndex = spreads.indexOf(spread);
 
   function renderSlot(id: SlotId | null) {
@@ -122,58 +43,16 @@ export function SpreadCanvas({
         <div className="w-full max-w-[420px] aspect-[1/1.414] border-2 border-dashed border-black/15" />
       );
     }
-
-    const inner = (() => {
-      if (id === "cover") return <CoverPage title={book.title} cover={book.coverConfig} />;
-      if (id === "dedication") return <DedicationPage text={book.dedicationText} />;
-      if (id === "index") return <WordIndexPage entries={wordIndex} />;
-      if (id === "solutions") {
-        return (
-          <BookPageFrame>
-            <div className="flex-1 flex flex-col px-10 py-10 overflow-auto">
-              <h2 className="font-heading text-3xl uppercase mb-4">Solutions</h2>
-              <div className="space-y-6">
-                {gridPages.length === 0 && (
-                  <p className="text-muted-foreground italic">Aucune grille.</p>
-                )}
-                {gridPages.map((p) => (
-                  <GridPageView
-                    key={p.pageId}
-                    page={p}
-                    index={gridNumberByPage.get(p.pageId) ?? 0}
-                    showSolution
-                    maxWidth={300}
-                  />
-                ))}
-              </div>
-            </div>
-          </BookPageFrame>
-        );
-      }
-      const page = book.pages.find((p) => p.pageId === id);
-      if (!page) return null;
-      if (page.kind === "content") return <ContentPageView config={page.config} />;
-      return (
-        <SpreadGridPage
-          page={page}
-          index={gridNumberByPage.get(page.pageId) ?? 0}
-          interactive={selectedId === id}
-        />
-      );
-    })();
-
     return (
-      <div
-        onClick={() => onSelect(id)}
-        onDoubleClick={() => onFocus?.(id)}
-        title="Double-clic pour agrandir"
-        className={cn(
-          "block w-full max-w-[420px] text-left transition-shadow cursor-pointer",
-          selectedId === id && "ring-4 ring-primary ring-offset-2",
-        )}
-      >
-        {inner}
-      </div>
+      <SlotCard
+        id={id}
+        data={data}
+        selected={selectedId === id}
+        interactive={selectedId === id}
+        onSelect={onSelect}
+        onFocus={onFocus}
+        className="max-w-[420px]"
+      />
     );
   }
 
