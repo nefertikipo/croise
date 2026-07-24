@@ -16,4 +16,10 @@ export const placedWords = pgTable("placed_words", {
   isCustom: boolean("is_custom").notNull().default(false),
   /** JSON array of letter offsets where a multi-word answer breaks (e.g. [3]). */
   breaks: text("breaks"),
+  /**
+   * Chosen clue's difficulty at generation time: 1 = facile, 2 = moyen, 3 =
+   * difficile. Null for custom/unscored clues, and null on rows generated before
+   * this column existed (they show "—" until the grid is regenerated).
+   */
+  difficulty: integer("difficulty"),
 });

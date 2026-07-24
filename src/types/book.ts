@@ -89,6 +89,9 @@ export interface BookWord {
   clue: string;
   direction: string;
   isCustom: boolean;
+  /** Chosen clue's difficulty: 1 = facile, 2 = moyen, 3 = difficile. Null for
+   * custom/unscored clues or grids generated before difficulty was persisted. */
+  difficulty?: number | null;
 }
 
 /** A grid page as returned by the book API and rendered in the editor. */
