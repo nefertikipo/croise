@@ -135,6 +135,7 @@ export async function generateAndSaveGrid(
     length: w.slot.length,
     clueText: w.clueText,
     isCustom: customAnswers.has(w.word),
+    difficulty: w.difficulty,
   }));
   if (wordRows.length > 0) {
     await db.insert(placedWords).values(wordRows);

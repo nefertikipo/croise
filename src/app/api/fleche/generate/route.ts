@@ -269,6 +269,7 @@ export async function POST(request: Request) {
           length: w.slot.length,
           clueText: w.clueText,
           isCustom: w.isCustom,
+          difficulty: w.difficulty,
           breaks: wordBreaks && wordBreaks.length > 0 ? JSON.stringify(wordBreaks) : null,
         };
       });

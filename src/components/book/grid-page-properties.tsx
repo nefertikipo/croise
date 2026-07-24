@@ -6,9 +6,58 @@ import { DifficultyPicker } from "@/components/book/difficulty-picker";
 import { CustomWordsEditor } from "@/components/book/custom-words-editor";
 import { Button } from "@/components/ui/button";
 import { GenerationProgress } from "@/components/shared/generation-progress";
+import { ClueList, difficultyBand } from "@/components/fleche/clue-list";
 import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
-import type { GridPage, GridPageConfig } from "@/types/book";
+import type { GridPage, GridPageConfig, BookWord } from "@/types/book";
+
+/** Facile / moyen / difficile split of the grid's placed words, as a bar + legend. */
+function DifficultyBreakdown({ words }: { words: BookWord[] }) {
+  const scored = words.filter((w) => !w.isCustom && w.difficulty != null);
+  const facile = scored.filter((w) => difficultyBand(w.difficulty) === "facile").length;
+  const moyen = scored.filter((w) => difficultyBand(w.difficulty) === "moyen").length;
+  const difficile = scored.filter((w) => difficultyBand(w.difficulty) === "difficile").length;
+  const total = scored.length;
+
+  // Grids saved before difficulty was persisted have no scored words — say so
+  // rather than drawing an empty bar.
+  if (total === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Répartition indisponible — régénérez la grille pour la calculer.
+      </p>
+    );
+  }
+
+  const segments = [
+    { label: "Facile", n: facile, bar: "bg-emerald-500", text: "text-emerald-700" },
+    { label: "Moyen", n: moyen, bar: "bg-amber-500", text: "text-amber-700" },
+    { label: "Difficile", n: difficile, bar: "bg-red-500", text: "text-red-700" },
+  ];
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex h-2 w-full overflow-hidden rounded-full bg-secondary">
+        {segments.map((s) =>
+          s.n > 0 ? (
+            <div
+              key={s.label}
+              className={s.bar}
+              style={{ width: `${(s.n / total) * 100}%` }}
+            />
+          ) : null,
+        )}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
+        {segments.map((s) => (
+          <span key={s.label} className={s.text}>
+            {s.n} {s.label.toLowerCase()}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface GridPagePropertiesProps {
   page: GridPage;
@@ -61,6 +110,19 @@ export function GridPageProperties({
           {page.words.length} mots · {page.width}×{page.height}
         </span>
       </div>
+
+      <DifficultyBreakdown words={page.words} />
+
+      <details className="group" open>
+        <summary className="cursor-pointer list-none font-heading text-sm uppercase tracking-wide text-muted-foreground marker:content-none">
+          <span className="group-open:hidden">▸ </span>
+          <span className="hidden group-open:inline">▾ </span>
+          Liste des mots ({page.words.length})
+        </summary>
+        <div className="mt-2 max-h-72 overflow-auto">
+          <ClueList words={page.words} />
+        </div>
+      </details>
 
       <Field label="Nom de la grille">
         <TextField

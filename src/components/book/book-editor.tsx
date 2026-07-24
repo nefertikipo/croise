@@ -333,7 +333,7 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
       {/* Editor body */}
       <div
         className={`max-w-7xl mx-auto grid grid-cols-1 gap-6 px-4 py-6 print:hidden ${
-          showProps ? "lg:grid-cols-[220px_1fr_320px]" : "lg:grid-cols-[220px_1fr]"
+          showProps ? "lg:grid-cols-[220px_1fr_380px]" : "lg:grid-cols-[220px_1fr]"
         }`}
       >
         {/* Rail */}
@@ -426,9 +426,11 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
           )}
         </section>
 
-        {/* Properties panel (hidden for the cover and the full-width gallery) */}
+        {/* Properties panel (hidden for the cover and the full-width gallery).
+            Sticky + full-height so it uses the available space and only scrolls
+            internally when its content genuinely exceeds the viewport. */}
         {showProps && (
-        <aside className="lg:max-h-[80vh] lg:overflow-auto">
+        <aside className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-auto lg:self-start">
           {selectedId === "dedication" && (
             <DedicationEditor text={book.dedicationText ?? ""} onChange={updateDedication} />
           )}
