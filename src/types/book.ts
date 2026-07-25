@@ -88,11 +88,17 @@ export interface FlecheCell {
  * One entry in a book's clue-idea notepad: a brainstormed answer + its clue that
  * the maker can drop into any grid. Stored on `books.clueIdeas` (jsonb array).
  * `id` is a stable client-generated key; `answer` may be empty while jotting.
+ * `category` is an optional free-text grouping (a friend group, a situation, or
+ * "Général") used to sort the notepad and to suggest a themed grid fill.
+ * `author` is who contributed the idea — a group gift is crowdsourced, so this
+ * records the friend behind each joke (and could surface as a printed credit).
  */
 export interface ClueIdea {
   id: string;
   answer: string;
   clue: string;
+  category?: string;
+  author?: string;
 }
 
 export interface BookWord {
