@@ -1432,20 +1432,61 @@ export function generateFlecheVector(
   // without terminating the thread. Unset in the normal single-threaded path.
   shouldAbort?: () => boolean,
 ): VectorGenResult {
-  const { width, height } = params;
   const customClues = (params.customClues ?? []).filter(
     (c) => c.answer.length >= 2 && c.clue.length > 0,
   );
 
-  // Add custom words to clueDb and wordList so they're valid during solving
-  for (const custom of customClues) {
-    const answer = normalizeAnswer(custom.answer);
-    if (answer.length < 2) continue;
-    wordList.addWord(answer, 100);
-    if (!clueDb.has(answer)) {
-      clueDb.set(answer, [custom.clue]);
+  // Make custom words valid during solving WITHOUT leaking them into the
+  // caller's structures. Routes pass the process-wide cached singletons here,
+  // and any lasting mutation would bleed one user's invented words + personal
+  // clue texts into every later grid on a warm instance (at score 100 they'd
+  // even sort near-first).
+  // - clueDb: copy-on-write. A shallow Map copy shares the clue-array refs and
+  //   we only ADD new keys, so the caller's map and its arrays stay untouched.
+  // - wordList: its positional indexes are expensive to rebuild, so we inject
+  //   temporarily and remove in `finally`. This whole function is synchronous,
+  //   so on a single-threaded runtime no other request can observe the
+  //   injected words between add and removal — the only risk window would be a
+  //   future refactor that makes the generator async mid-run.
+  const injectedWords: string[] = [];
+  if (customClues.length > 0) {
+    clueDb = new Map(clueDb);
+    for (const custom of customClues) {
+      const answer = normalizeAnswer(custom.answer);
+      if (answer.length < 2) continue;
+      if (!wordList.has(answer)) {
+        wordList.addWord(answer, 100);
+        injectedWords.push(answer);
+      }
+      if (!clueDb.has(answer)) {
+        clueDb.set(answer, [custom.clue]);
+      }
     }
   }
+
+  try {
+    return generateFlecheVectorImpl(
+      params,
+      customClues,
+      wordList,
+      clueDb,
+      clueDifficulty,
+      shouldAbort,
+    );
+  } finally {
+    for (const w of injectedWords) wordList.removeWord(w);
+  }
+}
+
+function generateFlecheVectorImpl(
+  params: VectorGenParams,
+  customClues: { answer: string; clue: string }[],
+  wordList: WordList,
+  clueDb: Map<string, string[]>,
+  clueDifficulty?: Map<string, number>,
+  shouldAbort?: () => boolean,
+): VectorGenResult {
+  const { width, height } = params;
 
   // For a fixed-difficulty grid, precompute which words actually HAVE a clue at
   // the target level, so the fill prefers them and pickClue rarely falls back to

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
-import { books, bookPages } from "@/db/schema/books";
+import { bookPages } from "@/db/schema/books";
 import { eq } from "drizzle-orm";
 import { serializePage } from "@/lib/books/serialize";
+import { authorizeBookEdit, touchBookStatement } from "@/lib/books/authorize";
 
 const requestSchema = z.object({
   layout: z.enum(["note", "quote", "photo"]).default("note"),
@@ -26,15 +27,11 @@ export async function POST(
     const { code } = await params;
     const config = requestSchema.parse(await request.json());
 
-    const [book] = await db
-      .select({ id: books.id })
-      .from(books)
-      .where(eq(books.code, code))
-      .limit(1);
-
-    if (!book) {
-      return NextResponse.json({ error: "Book not found" }, { status: 404 });
+    const authz = await authorizeBookEdit(request, code);
+    if (!authz.ok) {
+      return NextResponse.json({ error: authz.error }, { status: authz.status });
     }
+    const book = authz.book;
 
     const existing = await db
       .select({ position: bookPages.position })
@@ -44,19 +41,24 @@ export async function POST(
     const position =
       existing.length > 0 ? Math.max(...existing.map((p) => p.position)) + 1 : 0;
 
-    const [page] = await db
-      .insert(bookPages)
-      .values({
+    const pageId = crypto.randomUUID();
+    await db.batch([
+      db.insert(bookPages).values({
+        id: pageId,
         bookId: book.id,
         position,
         kind: "content",
         config,
-      })
-      .returning({ id: bookPages.id });
+      }),
+      touchBookStatement(book.id),
+    ]);
 
-    const serialized = await serializePage(page.id);
+    const serialized = await serializePage(pageId);
     return NextResponse.json(serialized);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
+    }
     console.error("Content page creation error:", error);
     return NextResponse.json({ error: "Failed to create page" }, { status: 500 });
   }

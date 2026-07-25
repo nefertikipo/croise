@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, boolean, uuid } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, uuid, index } from "drizzle-orm/pg-core";
 import { crosswords } from "@/db/schema/crosswords";
 
 export const placedWords = pgTable("placed_words", {
@@ -22,4 +22,7 @@ export const placedWords = pgTable("placed_words", {
    * this column existed (they show "—" until the grid is regenerated).
    */
   difficulty: integer("difficulty"),
-});
+}, (table) => [
+  // every grid read fetches its words by crossword
+  index("placed_words_crossword_id_idx").on(table.crosswordId),
+]);

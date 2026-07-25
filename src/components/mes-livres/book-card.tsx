@@ -3,10 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 /**
  * A single book tile on "Mes livres" with an inline delete button.
- * The delete button sits outside the <Link> so it stays independently clickable.
+ * The delete button sits outside the <Link> so it stays independently
+ * clickable; a first click arms an inline "Confirmer / Annuler" strip.
  */
 export function BookCard({
   code,
@@ -20,24 +22,24 @@ export function BookCard({
   dateLabel: string;
 }) {
   const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   async function handleDelete() {
-    if (!confirm("Supprimer ce livre ? Cette action est définitive.")) {
-      return;
-    }
+    setConfirming(false);
     setDeleting(true);
     try {
       const res = await fetch(`/api/books/${code}`, { method: "DELETE" });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
-        alert(data.error || "Impossible de supprimer le livre.");
+        toast.error(data.error || "Impossible de supprimer le livre.");
         setDeleting(false);
         return;
       }
+      toast.success("Livre supprimé.");
       router.refresh();
     } catch {
-      alert("Impossible de supprimer le livre.");
+      toast.error("Impossible de supprimer le livre.");
       setDeleting(false);
     }
   }
@@ -59,16 +61,36 @@ export function BookCard({
         <p className="mt-1 font-mono text-xs text-brand">{code}</p>
         <p className="mt-2 font-serif text-xs italic text-ink/60">{dateLabel}</p>
       </Link>
-      <button
-        type="button"
-        onClick={handleDelete}
-        disabled={deleting}
-        aria-label="Supprimer le livre"
-        title="Supprimer"
-        className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-lg leading-none text-ink/40 transition-colors hover:border-brand hover:bg-brand/5 hover:text-brand disabled:opacity-40"
-      >
-        {deleting ? "…" : "✕"}
-      </button>
+      {confirming ? (
+        <div className="absolute right-2 top-2 flex items-center gap-1.5 border border-ink/20 bg-paper px-2 py-1 shadow-sm">
+          <span className="text-xs text-ink/70">Supprimer ce livre ?</span>
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="text-xs font-semibold uppercase text-brand hover:underline"
+          >
+            Confirmer
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            className="text-xs uppercase text-ink/50 hover:underline"
+          >
+            Annuler
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          disabled={deleting}
+          aria-label="Supprimer le livre"
+          title="Supprimer"
+          className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-lg leading-none text-ink/40 transition-colors hover:border-brand hover:bg-brand/5 hover:text-brand disabled:opacity-40"
+        >
+          {deleting ? "…" : "✕"}
+        </button>
+      )}
     </div>
   );
 }

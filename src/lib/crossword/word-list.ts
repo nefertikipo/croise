@@ -36,6 +36,37 @@ export class WordList {
     }
   }
 
+  /**
+   * Remove a word previously injected with `addWord`, restoring every index.
+   * Used by the generator to give back the process-wide cached word list
+   * exactly as it found it after temporarily injecting a caller's custom
+   * words (see `generateFlecheVector`) — otherwise one user's invented words
+   * would leak into every other user's grids on a warm instance.
+   */
+  removeWord(word: string) {
+    const upper = word.toUpperCase().trim();
+    if (!this.allWords.has(upper)) return;
+
+    this.allWords.delete(upper);
+    this.scoreByWord.delete(upper);
+    const len = upper.length;
+
+    const entries = this.words.get(len);
+    if (entries) {
+      const i = entries.findIndex((e) => e.word === upper);
+      if (i !== -1) entries.splice(i, 1);
+    }
+
+    for (let i = 0; i < len; i++) {
+      const key = `${len}:${i}:${upper[i]}`;
+      const bucket = this.index.get(key);
+      if (!bucket) continue;
+      const j = bucket.indexOf(upper);
+      if (j !== -1) bucket.splice(j, 1);
+      if (bucket.length === 0) this.index.delete(key);
+    }
+  }
+
   getByLength(length: number): WordEntry[] {
     return this.words.get(length) ?? [];
   }

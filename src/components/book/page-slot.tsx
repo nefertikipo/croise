@@ -37,7 +37,14 @@ export function slotLabel(id: SlotId, data: SlotData): string {
   if (!page) return "";
   if (page.kind === "grid")
     return page.config.title || `Grille ${data.gridNumberByPage.get(id) ?? ""}`.trim();
-  return page.config.title || (page.config.layout === "quote" ? "Citation" : "Note");
+  return (
+    page.config.title ||
+    (page.config.layout === "quote"
+      ? "Citation"
+      : page.config.layout === "photo"
+        ? "Photo"
+        : "Note")
+  );
 }
 
 /**

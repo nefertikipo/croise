@@ -3,8 +3,8 @@ import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
 import { generateFlecheVector, type DifficultyMode } from "@/lib/crossword/fleche-vector-gen";
 import { getFrenchWordList, getFrenchClueDb, getFrenchClueDifficulty, ensureLoaded } from "@/lib/crossword/load-french-clues";
-import { generateCrosswordCode } from "@/lib/code";
-import { normalizeAnswer } from "@/lib/crossword/normalize";
+import { generateCrosswordCode, retryOnUniqueViolation } from "@/lib/code";
+import { normalizeAnswer, normalizeClueText } from "@/lib/crossword/normalize";
 
 interface CustomClue {
   answer: string;
@@ -40,6 +40,11 @@ interface GenerateGridInput {
    * here has no effect.
    */
   usedWords: Set<string>;
+  /**
+   * Optional hidden word ("mot caché"): the generator steers the fill so the
+   * grid's letters can spell it out (best-effort — same semantics as /fleche).
+   */
+  hiddenWord?: string;
   /** Target clue difficulty. Default "balanced". */
   difficulty?: DifficultyMode;
 }
@@ -62,31 +67,47 @@ export async function generateAndSaveGrid(
   const rawClueDb = getFrenchClueDb();
   const clueDifficulty = getFrenchClueDifficulty();
 
+  // Stored clue texts went through normalizeClueText (trim + sentence case,
+  // ALL-CAPS lowercased) but the corpus strings are raw — so fold BOTH sides to
+  // the normalized, case-insensitive form before comparing, mirroring the
+  // in-grid de-dup. Without this, corpus "palace londonien" (stored as "Palace
+  // londonien") escapes the filter and the clue repeats across grids.
+  const usedCluesFolded = new Set<string>();
+  for (const c of input.usedClues) {
+    usedCluesFolded.add(normalizeClueText(c).toUpperCase());
+  }
+
   // Filter the clue DB to enforce the book's exclusions: drop any substantive
   // word already placed on another grid (hard word exclusion, ≥ MIN_LOCKED_WORD_
   // LENGTH — see the constant for why short filler is exempt), and drop any clue
   // text already used elsewhere (clue de-dup). Dropping a word from clueDb removes
   // it from every fill domain — the generator only ever places words that have a
-  // real clue. Build a copy so the shared cached clueDb is left untouched.
-  let clueDb = rawClueDb;
-  if (input.usedClues.size > 0 || input.usedWords.size > 0) {
+  // real clue. ALWAYS pass a copy so the process-wide cached clueDb can never be
+  // mutated (the generator also copy-on-writes; this is defense-in-depth —
+  // shallow-copying ~80K entries of shared array refs is cheap).
+  let clueDb: Map<string, string[]>;
+  if (usedCluesFolded.size > 0 || input.usedWords.size > 0) {
     clueDb = new Map();
     for (const [word, clues] of rawClueDb) {
       // word already on another grid in the book
       if (word.length >= MIN_LOCKED_WORD_LENGTH && input.usedWords.has(word)) continue;
       const filtered =
-        input.usedClues.size > 0
-          ? clues.filter((c) => !input.usedClues.has(c))
+        usedCluesFolded.size > 0
+          ? clues.filter((c) => !usedCluesFolded.has(normalizeClueText(c).toUpperCase()))
           : clues;
       if (filtered.length > 0) clueDb.set(word, filtered);
     }
+  } else {
+    clueDb = new Map(rawClueDb);
   }
 
+  const hiddenWord = input.hiddenWord?.trim() || undefined;
   const result = generateFlecheVector(
     {
       width: input.width,
       height: input.height,
       customClues: input.customClues,
+      hiddenWord,
       difficulty: input.difficulty,
     },
     wordList,
@@ -106,27 +127,15 @@ export async function generateAndSaveGrid(
     }
   }
 
-  const code = generateCrosswordCode();
-  const [saved] = await db
-    .insert(crosswords)
-    .values({
-      code,
-      title: input.title,
-      language: "fr",
-      width: grid.width,
-      height: grid.height,
-      gridPattern: pattern,
-      gridSolution: solution,
-      status: "ready",
-    })
-    .returning({ id: crosswords.id });
-
   const customAnswers = new Set(
     input.customClues.map((c) => normalizeAnswer(c.answer)),
   );
 
+  // Pre-generate the id so crossword + placed words can be written in ONE
+  // atomic db.batch (the neon-http driver has no interactive transactions).
+  const crosswordId = crypto.randomUUID();
   const wordRows = words.map((w, i) => ({
-    crosswordId: saved.id,
+    crosswordId,
     answer: w.word,
     direction: w.slot.direction === "horizontal" ? ("right" as const) : ("down" as const),
     number: i + 1,
@@ -137,9 +146,28 @@ export async function generateAndSaveGrid(
     isCustom: customAnswers.has(w.word),
     difficulty: w.difficulty,
   }));
-  if (wordRows.length > 0) {
-    await db.insert(placedWords).values(wordRows);
-  }
 
-  return { crosswordId: saved.id, code };
+  const code = await retryOnUniqueViolation(async () => {
+    const freshCode = generateCrosswordCode();
+    const insertCrossword = db.insert(crosswords).values({
+      id: crosswordId,
+      code: freshCode,
+      title: input.title,
+      language: "fr",
+      width: grid.width,
+      height: grid.height,
+      gridPattern: pattern,
+      gridSolution: solution,
+      hiddenWord: hiddenWord ?? null,
+      status: "ready",
+    });
+    if (wordRows.length > 0) {
+      await db.batch([insertCrossword, db.insert(placedWords).values(wordRows)]);
+    } else {
+      await insertCrossword;
+    }
+    return freshCode;
+  });
+
+  return { crosswordId, code };
 }

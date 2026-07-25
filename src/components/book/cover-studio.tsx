@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { CoverPreview } from "@/components/book/cover-preview";
 import { PhotoCropDialog } from "@/components/book/photo-crop-dialog";
+import { uploadBookPhoto } from "@/components/book/upload-photo";
 import { COVER_COLORS, COVER_FONTS, coverPhotoAspect } from "@/lib/book-pdf/cover-templates";
 import { cn } from "@/lib/utils";
 import type { CoverConfig, PageDesign } from "@/types/book";
@@ -40,18 +41,10 @@ export function CoverStudio({ title, cover, onTitleChange, onCoverChange }: Cove
     setUploading(true);
     setError(null);
     try {
-      const body = new FormData();
-      body.append("file", file);
-      const res = await fetch("/api/books/upload-photo", { method: "POST", body });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(typeof data?.error === "string" ? data.error : "Echec de l'import.");
-        return;
-      }
-      setPending({ photoRef: data.photoRef, preview: data.preview });
+      const { photoRef, preview } = await uploadBookPhoto(file);
+      setPending({ photoRef, preview });
     } catch (err) {
-      console.error("Image upload failed:", err);
-      setError("Echec de l'import de la photo.");
+      setError(err instanceof Error ? err.message : "Echec de l'import de la photo.");
     } finally {
       setUploading(false);
       e.target.value = "";

@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
-import { books, bookPages } from "@/db/schema/books";
+import { bookPages } from "@/db/schema/books";
 import { crosswords } from "@/db/schema/crosswords";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { serializePage } from "@/lib/books/serialize";
 import { generateAndSaveGrid } from "@/lib/books/generate-grid";
 import { collectUsedWordsAndClues } from "@/lib/books/used-clues";
+import { authorizeBookEdit, touchBookStatement } from "@/lib/books/authorize";
 import { checkCapacity } from "@/lib/crossword/check-capacity";
 import type { GridPageConfig } from "@/types/book";
+import type { BatchItem } from "drizzle-orm/batch";
 
 export const maxDuration = 120;
 
@@ -37,15 +39,13 @@ export async function POST(
       return NextResponse.json({ error: capacityError }, { status: 400 });
     }
 
-    const [book] = await db
-      .select({ id: books.id })
-      .from(books)
-      .where(eq(books.code, code))
-      .limit(1);
-    if (!book) {
-      return NextResponse.json({ error: "Book not found" }, { status: 404 });
+    const authz = await authorizeBookEdit(request, code);
+    if (!authz.ok) {
+      return NextResponse.json({ error: authz.error }, { status: authz.status });
     }
+    const book = authz.book;
 
+    // Scope to the book from the URL so a page id from another book 404s.
     const [page] = await db
       .select({
         id: bookPages.id,
@@ -55,7 +55,7 @@ export async function POST(
         config: bookPages.config,
       })
       .from(bookPages)
-      .where(eq(bookPages.id, pageId))
+      .where(and(eq(bookPages.id, pageId), eq(bookPages.bookId, book.id)))
       .limit(1);
 
     if (!page || page.kind !== "grid") {
@@ -69,11 +69,19 @@ export async function POST(
       book.id,
       page.crosswordId ?? undefined,
     );
+
+    // The regenerated grid must honor the page's mot caché: the request's value
+    // wins when provided (including "" to clear it), else keep the stored one.
+    const prevConfig = (page.config as GridPageConfig) ?? {};
+    const hiddenWord =
+      input.hiddenWord !== undefined ? input.hiddenWord : prevConfig.hiddenWord;
+
     const grid = await generateAndSaveGrid({
       width: input.width,
       height: input.height,
       title: `Grille ${page.position + 1}`,
       customClues: input.customClues,
+      hiddenWord,
       difficulty: input.difficulty,
       usedClues,
       usedWords,
@@ -86,7 +94,6 @@ export async function POST(
       );
     }
 
-    const prevConfig = (page.config as GridPageConfig) ?? {};
     const nextConfig: GridPageConfig = {
       ...prevConfig,
       ...(input.gridColor !== undefined ? { gridColor: input.gridColor } : {}),
@@ -94,19 +101,27 @@ export async function POST(
       ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
     };
 
+    // Repoint the page and drop the replaced crossword in one atomic batch
+    // (repoint first so the old crossword is unreferenced when deleted).
     const oldCrosswordId = page.crosswordId;
-    await db
-      .update(bookPages)
-      .set({ crosswordId: grid.crosswordId, config: nextConfig })
-      .where(eq(bookPages.id, pageId));
-
+    const statements: BatchItem<"pg">[] = [
+      db
+        .update(bookPages)
+        .set({ crosswordId: grid.crosswordId, config: nextConfig })
+        .where(and(eq(bookPages.id, pageId), eq(bookPages.bookId, book.id))),
+      touchBookStatement(book.id),
+    ];
     if (oldCrosswordId) {
-      await db.delete(crosswords).where(eq(crosswords.id, oldCrosswordId));
+      statements.push(db.delete(crosswords).where(eq(crosswords.id, oldCrosswordId)));
     }
+    await db.batch(statements as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
 
     const serialized = await serializePage(pageId);
     return NextResponse.json(serialized);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
+    }
     console.error("Grid regenerate error:", error);
     return NextResponse.json({ error: "Failed to regenerate grid" }, { status: 500 });
   }

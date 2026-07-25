@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 const NAV_CLASS =
   "font-display text-sm uppercase tracking-wide text-ink transition-colors hover:text-brand disabled:opacity-50";
@@ -30,11 +31,18 @@ export function CreateBookLink({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      if (!res.ok) throw new Error("Failed to create book");
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || "Impossible de créer le livre. Réessayez.");
+      }
       const { code } = await res.json();
       router.push(`/book/${code}`);
     } catch (err) {
-      console.error(err);
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : "Impossible de créer le livre. Réessayez.",
+      );
       setCreating(false);
     }
   }

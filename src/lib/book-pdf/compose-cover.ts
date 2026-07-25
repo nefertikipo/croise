@@ -1,19 +1,22 @@
 /**
- * Server-side cover composition engine.
+ * Server-side front-cover composition engine.
  *
- * Given a CoverTemplate (data) + CoverContent (photo + title), produces a
- * print-ready PDF: full-resolution photo cropped into its slot, the "gridify"
- * vector overlay, a placeholder frame, the title, and — crucially — a proper
- * trim size + bleed with crop marks. Pure server-side (pdf-lib + sharp); no
- * headless browser. Everything except the photo prints as sharp vector.
+ * Given a CoverTemplate (data) + CoverContent (photo + title), draws the front
+ * cover into a PANEL of an existing page (the right-hand panel of the
+ * wraparound cover spread): full-resolution photo cropped into its slot, the
+ * "gridify" vector overlay, a placeholder frame and the fitted title. Pure
+ * server-side (pdf-lib + sharp); no headless browser. Everything except the
+ * photo prints as sharp vector.
  */
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { PDFDocument, rgb, type PDFPage, type RGB } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
+import type { PDFDocument, PDFFont, PDFPage } from "pdf-lib";
 import sharp from "sharp";
 import { scramble } from "@/lib/design/shuffle-grid";
+import { hex2rgb, hexToObj, mm2pt, type PanelRect } from "@/lib/book-pdf/geometry";
+import { ellipsize, nfc } from "@/lib/book-pdf/text";
 import type { CoverTemplate, CoverContent, FracRect, BleedEdges, ShuffleEffect } from "@/lib/book-pdf/template-spec";
 
 /** Cover title fonts, read from public/fonts and cached by filename. */
@@ -27,48 +30,30 @@ async function loadTitleFont(file: string): Promise<Buffer> {
   return bytes;
 }
 
+/** Embed a cover title font (from public/fonts) into `doc`. Shared with the
+ * spine text of the wraparound spread. */
+export async function embedCoverTitleFont(doc: PDFDocument, file: string): Promise<PDFFont> {
+  doc.registerFontkit(fontkit);
+  return doc.embedFont(await loadTitleFont(file), { subset: true });
+}
+
 /** Print resolution for embedded raster (photos). */
 const DPI = 300;
-const MM_PER_INCH = 25.4;
+const mm2px = (mm: number) => Math.round((mm / 25.4) * DPI);
 
-const mm2pt = (mm: number) => (mm * 72) / MM_PER_INCH;
-const mm2px = (mm: number) => Math.round((mm / MM_PER_INCH) * DPI);
+/** Resolve a top-left panel-relative FracRect (optionally bleeding out to the
+ * `outer` rect) into a bottom-left-origin PDF rectangle in points. */
+function resolveRect(rect: FracRect, bleed: BleedEdges | undefined, panel: PanelRect, outer: PanelRect) {
+  let left = panel.x + rect.x * panel.w;
+  let right = panel.x + (rect.x + rect.w) * panel.w;
+  // y measured from the panel top, then flipped to bottom-left origin.
+  let top = panel.y + panel.h - rect.y * panel.h;
+  let bottom = panel.y + panel.h - (rect.y + rect.h) * panel.h;
 
-function hex2rgb(hex: string): RGB {
-  const h = hex.replace("#", "");
-  const n = parseInt(
-    h.length === 3
-      ? h
-          .split("")
-          .map((c) => c + c)
-          .join("")
-      : h,
-    16,
-  );
-  return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
-}
-
-interface Geometry {
-  pageW: number;
-  pageH: number;
-  bleedPt: number;
-  trimWpt: number;
-  trimHpt: number;
-}
-
-/** Resolve a top-left trim-relative FracRect (optionally bleeding to the page
- * edge) into a bottom-left-origin PDF rectangle in points. */
-function resolveRect(rect: FracRect, bleed: BleedEdges | undefined, g: Geometry) {
-  let left = g.bleedPt + rect.x * g.trimWpt;
-  let right = g.bleedPt + (rect.x + rect.w) * g.trimWpt;
-  // y measured from the trim top, then flipped to bottom-left origin.
-  let top = g.pageH - (g.bleedPt + rect.y * g.trimHpt);
-  let bottom = g.pageH - (g.bleedPt + (rect.y + rect.h) * g.trimHpt);
-
-  if (bleed?.left) left = 0;
-  if (bleed?.right) right = g.pageW;
-  if (bleed?.top) top = g.pageH;
-  if (bleed?.bottom) bottom = 0;
+  if (bleed?.left) left = outer.x;
+  if (bleed?.right) right = outer.x + outer.w;
+  if (bleed?.top) top = outer.y + outer.h;
+  if (bleed?.bottom) bottom = outer.y;
 
   return { x: left, y: bottom, width: right - left, height: top - bottom };
 }
@@ -78,12 +63,6 @@ async function cropPhotoToSlot(photo: Buffer, widthPt: number, heightPt: number)
   const pxW = Math.max(1, Math.round((widthPt / 72) * DPI));
   const pxH = Math.max(1, Math.round((heightPt / 72) * DPI));
   return sharp(photo).rotate().resize(pxW, pxH, { fit: "cover" }).jpeg({ quality: 92 }).toBuffer();
-}
-
-function hexToObj(hex: string) {
-  const h = hex.replace("#", "");
-  const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
-  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 
 /**
@@ -117,42 +96,41 @@ async function renderShuffled(photo: Buffer, widthPt: number, heightPt: number, 
     .toBuffer();
 }
 
-/** Small crop marks at the four trim corners (drawn into the bleed). */
-function drawCropMarks(page: PDFPage, g: Geometry) {
-  const len = mm2pt(3);
-  const gap = mm2pt(1.5);
-  const b = g.bleedPt;
-  const mark = { thickness: 0.4, color: rgb(0, 0, 0) };
-  const corners = [
-    { x: b, y: b, sx: -1, sy: -1 },
-    { x: g.pageW - b, y: b, sx: 1, sy: -1 },
-    { x: b, y: g.pageH - b, sx: -1, sy: 1 },
-    { x: g.pageW - b, y: g.pageH - b, sx: 1, sy: 1 },
-  ];
-  for (const c of corners) {
-    page.drawLine({ start: { x: c.x + c.sx * gap, y: c.y }, end: { x: c.x + c.sx * (gap + len), y: c.y }, ...mark });
-    page.drawLine({ start: { x: c.x, y: c.y + c.sy * gap }, end: { x: c.x, y: c.y + c.sy * (gap + len) }, ...mark });
+/** Best 2-line split of `text` at a space: minimizes the wider line. Returns
+ * null when the text has no space to break at. */
+function splitTwoLines(font: PDFFont, text: string): [string, string] | null {
+  const words = text.split(" ").filter(Boolean);
+  if (words.length < 2) return null;
+  let best: [string, string] | null = null;
+  let bestW = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const a = words.slice(0, i).join(" ");
+    const b = words.slice(i).join(" ");
+    const w = Math.max(font.widthOfTextAtSize(a, 100), font.widthOfTextAtSize(b, 100));
+    if (w < bestW) {
+      bestW = w;
+      best = [a, b];
+    }
   }
+  return best;
 }
 
-export async function composeCoverPdf(template: CoverTemplate, content: CoverContent): Promise<Uint8Array> {
-  const g: Geometry = {
-    pageW: mm2pt(template.trimWidthMm + 2 * template.bleedMm),
-    pageH: mm2pt(template.trimHeightMm + 2 * template.bleedMm),
-    bleedPt: mm2pt(template.bleedMm),
-    trimWpt: mm2pt(template.trimWidthMm),
-    trimHpt: mm2pt(template.trimHeightMm),
-  };
+export interface CoverPanelOptions {
+  doc: PDFDocument;
+  page: PDFPage;
+  /** Trim rect of the front-cover panel (bottom-left origin, pt). */
+  panel: PanelRect;
+  /** How far full-bleed slots may extend (usually the whole page). */
+  outer: PanelRect;
+  template: CoverTemplate;
+  content: CoverContent;
+}
 
-  const doc = await PDFDocument.create();
-  doc.registerFontkit(fontkit);
-  const page = doc.addPage([g.pageW, g.pageH]);
-
-  // Background across the full bleed.
-  page.drawRectangle({ x: 0, y: 0, width: g.pageW, height: g.pageH, color: hex2rgb(template.background) });
-
+/** Compose the front cover into its panel. The caller fills the page
+ * background (shared across the whole spread) and sets the print boxes. */
+export async function composeCoverPanel({ doc, page, panel, outer, template, content }: CoverPanelOptions): Promise<void> {
   // Photo: shuffled tile grid (homepage effect) or a plain crop-to-slot.
-  const slot = resolveRect(template.photo.rect, template.photo.bleed, g);
+  const slot = resolveRect(template.photo.rect, template.photo.bleed, panel, outer);
   const fx = template.photo.shuffle;
   const jpeg = fx
     ? await renderShuffled(content.photo, slot.width, slot.height, fx, template.background)
@@ -167,40 +145,65 @@ export async function composeCoverPdf(template: CoverTemplate, content: CoverCon
   if (template.frame) {
     const inset = mm2pt(template.frame.insetMm);
     page.drawRectangle({
-      x: g.bleedPt + inset,
-      y: g.bleedPt + inset,
-      width: g.trimWpt - 2 * inset,
-      height: g.trimHpt - 2 * inset,
+      x: panel.x + inset,
+      y: panel.y + inset,
+      width: panel.w - 2 * inset,
+      height: panel.h - 2 * inset,
       borderColor: hex2rgb(template.frame.color),
       borderWidth: template.frame.widthPt,
     });
   }
 
   // Title in the chosen embedded font, so print matches the editor preview.
-  const font = await doc.embedFont(await loadTitleFont(content.titleFontFile ?? "InstrumentSerif-Regular.ttf"), { subset: true });
+  const font = await embedCoverTitleFont(doc, content.titleFontFile ?? "InstrumentSerif-Regular.ttf");
   const t = template.title;
-  const box = resolveRect(t.rect, undefined, g);
+  const box = resolveRect(t.rect, undefined, panel, outer);
   if (t.fill) {
     page.drawRectangle({ x: box.x, y: box.y, width: box.width, height: box.height, color: hex2rgb(t.fill) });
   }
   if (t.border) {
     page.drawRectangle({ x: box.x, y: box.y, width: box.width, height: box.height, borderColor: hex2rgb(t.border.color), borderWidth: t.border.widthPt });
   }
-  const text = t.uppercase ? content.title.toUpperCase() : content.title;
+  const raw = nfc(content.title);
+  const text = t.uppercase ? raw.toUpperCase() : raw;
   const maxW = box.width - (t.border ? mm2pt(12) : 0);
-  let size = t.sizeFrac * g.trimHpt;
-  while (size > 4 && font.widthOfTextAtSize(text, size) > maxW) size -= 0.5;
-  const textW = font.widthOfTextAtSize(text, size);
-  const tx = t.align === "left" ? box.x : t.align === "right" ? box.x + box.width - textW : box.x + (box.width - textW) / 2;
-  const ty = box.y + (box.height - font.heightAtSize(size)) / 2;
   const titleColor = hex2rgb(t.color);
-  page.drawText(text, { x: tx, y: ty, size, font, color: titleColor });
-  // Synthetic bold: redraw slightly offset to thicken the strokes.
-  if (content.titleBold) {
-    page.drawText(text, { x: tx + Math.max(0.4, size * 0.02), y: ty, size, font, color: titleColor });
+  const drawLine = (line: string, size: number, y: number) => {
+    const lw = font.widthOfTextAtSize(line, size);
+    const x = t.align === "left" ? box.x : t.align === "right" ? box.x + box.width - lw : box.x + (box.width - lw) / 2;
+    page.drawText(line, { x, y, size, font, color: titleColor });
+    // Synthetic bold: redraw slightly offset to thicken the strokes.
+    if (content.titleBold) {
+      page.drawText(line, { x: x + Math.max(0.4, size * 0.02), y, size, font, color: titleColor });
+    }
+  };
+
+  const startSize = t.sizeFrac * panel.h;
+  // 1) Single line, shrinking no further than 18pt.
+  let size = startSize;
+  while (size > 18 && font.widthOfTextAtSize(text, size) > maxW) size -= 0.5;
+  if (font.widthOfTextAtSize(text, size) <= maxW) {
+    drawLine(text, size, box.y + (box.height - font.heightAtSize(size)) / 2);
+    return;
   }
-
-  drawCropMarks(page, g);
-
-  return doc.save();
+  // 2) Wrap to two lines if the title zone allows it, before shrinking further.
+  const two = splitTwoLines(font, text);
+  if (two) {
+    let s = startSize;
+    const fitsTwo = (sz: number) =>
+      font.widthOfTextAtSize(two[0], sz) <= maxW &&
+      font.widthOfTextAtSize(two[1], sz) <= maxW &&
+      2 * font.heightAtSize(sz) * 1.05 <= box.height;
+    while (s > 8 && !fitsTwo(s)) s -= 0.5;
+    if (fitsTwo(s)) {
+      const lh = font.heightAtSize(s) * 1.05;
+      const blockBottom = box.y + (box.height - 2 * lh) / 2;
+      drawLine(two[1], s, blockBottom);
+      drawLine(two[0], s, blockBottom + lh);
+      return;
+    }
+  }
+  // 3) Last resort: keep shrinking the single line, floored at 8pt + ellipsis.
+  while (size > 8 && font.widthOfTextAtSize(text, size) > maxW) size -= 0.5;
+  drawLine(ellipsize(font, text, size, maxW), size, box.y + (box.height - font.heightAtSize(size)) / 2);
 }

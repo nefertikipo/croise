@@ -1,113 +1,127 @@
 /**
  * Compose the back-of-book word index: every answer, grouped by word length
- * (shortest first) and alphabetical within each group, flowed into two balanced
- * columns and paginated across as many pages as needed. Mirrors the on-screen
- * WordIndexPage.
+ * (shortest first) and alphabetical within each group, ONE WORD PER LINE (the
+ * screen WordIndexPage is the source of truth), flowed into two columns and
+ * paginated across as many pages as needed.
+ *
+ * Pagination is pure arithmetic (no font metrics — one word per line means no
+ * width-dependent wrapping), shared between `composeIndexPages` and
+ * `countIndexPages` so the page-count prediction is exact.
  */
 
-import { type PDFDocument, type PDFPage } from "pdf-lib";
 import type { BookFonts } from "@/lib/book-pdf/fonts";
-import { drawCropMarks, hex2rgb, mixHex, type Geometry } from "@/lib/book-pdf/geometry";
+import { hex2rgb, mixHex, type AddPage, type Geometry } from "@/lib/book-pdf/geometry";
 import { DEFAULT_ACCENT_HEX } from "@/lib/book-pdf/draw-grid";
+import { nfc } from "@/lib/book-pdf/text";
 import type { WordIndexEntry } from "@/types/book";
 
 const INK = "#2f2a26";
 const PAGE_BG = "#fff6ec";
 
+const BODY_SIZE = 8.5;
+const BODY_LINE = BODY_SIZE * 1.4;
+const HEADER_SIZE = 8;
+const COL_GAP = 18;
+/** Vertical room taken by the "INDEX DES MOTS" heading block on page 1. */
+const FIRST_PAGE_HEADER_H = 20 + 4 + 8 + 10;
+
 interface Line {
   text: string;
   size: number;
-  font: BookFonts["clue"];
-  colorHex: string;
+  kind: "header" | "word";
   gapBefore: number;
 }
 
-/** Wrap `words` joined by " · " into lines no wider than `w` at `size`. */
-function wrapWordList(font: BookFonts["clue"], words: string[], size: number, w: number): string[] {
-  if (words.length === 0) return ["—"];
-  const sep = " · ";
-  const lines: string[] = [];
-  let cur = "";
-  for (const word of words) {
-    const cand = cur ? cur + sep + word : word;
-    if (font.widthOfTextAtSize(cand, size) <= w || !cur) cur = cand;
-    else {
-      lines.push(cur);
-      cur = word;
-    }
-  }
-  if (cur) lines.push(cur);
+interface PlacedLine {
+  line: Line;
+  col: 0 | 1;
+  yTop: number;
+}
+
+function buildLines(entries: WordIndexEntry[]): Line[] {
+  const lines: Line[] = [];
+  entries.forEach((entry, idx) => {
+    lines.push({ text: `${entry.length} LETTRES`, size: HEADER_SIZE, kind: "header", gapBefore: idx === 0 ? 0 : 9 });
+    const words = entry.words.length > 0 ? entry.words.map(nfc) : ["—"];
+    words.forEach((text, i) => lines.push({ text, size: BODY_SIZE, kind: "word", gapBefore: i === 0 ? 2 : 0 }));
+  });
   return lines;
 }
 
+/** Flow the lines into columns/pages. Deterministic — geometry only. */
+function paginateIndex(entries: WordIndexEntry[], g: Geometry): PlacedLine[][] {
+  const lines = buildLines(entries);
+  const contentBottom = g.contentTop + g.contentH;
+  const pages: PlacedLine[][] = [];
+  let cur: PlacedLine[] = [];
+  let col: 0 | 1 = 0;
+  let cursor = 0;
+
+  const startPage = (first: boolean) => {
+    cur = [];
+    pages.push(cur);
+    col = 0;
+    cursor = g.contentTop + (first ? FIRST_PAGE_HEADER_H : 0);
+  };
+  const nextColumn = () => {
+    if (col === 0) {
+      col = 1;
+      cursor = g.contentTop;
+    } else {
+      startPage(false);
+    }
+  };
+
+  startPage(true);
+  for (const line of lines) {
+    if (cursor + line.gapBefore + line.size > contentBottom) nextColumn();
+    cursor += line.gapBefore;
+    cur.push({ line, col, yTop: cursor });
+    cursor += BODY_LINE;
+  }
+  return pages;
+}
+
+/** Exact page count of the index section — used by countInteriorPages. */
+export function countIndexPages(entries: WordIndexEntry[], g: Geometry): number {
+  return paginateIndex(entries, g).length;
+}
+
 export interface IndexPagesOptions {
-  doc: PDFDocument;
+  addPage: AddPage;
+  /** Base geometry (side-independent metrics: contentW/H, contentTop). */
   g: Geometry;
   fonts: BookFonts;
   entries: WordIndexEntry[];
   accentHex?: string;
 }
 
-export function composeIndexPages({ doc, g, fonts, entries, accentHex }: IndexPagesOptions): PDFPage[] {
+export function composeIndexPages({ addPage, g, fonts, entries, accentHex }: IndexPagesOptions): void {
   const accent = accentHex || DEFAULT_ACCENT_HEX;
-  const bodySize = 8.5;
-  const bodyLine = bodySize * 1.4;
-  const headerSize = 8;
-  const colGap = 18;
-  const colW = (g.contentW - colGap) / 2;
   const total = entries.reduce((n, e) => n + e.words.length, 0);
+  const colW = (g.contentW - COL_GAP) / 2;
+  const layout = paginateIndex(entries, g);
 
-  // Flatten to a list of drawable lines.
-  const lines: Line[] = [];
-  entries.forEach((entry, idx) => {
-    lines.push({ text: `${entry.length} LETTRES`, size: headerSize, font: fonts.bold, colorHex: accent, gapBefore: idx === 0 ? 0 : 9 });
-    const body = wrapWordList(fonts.letter, entry.words, bodySize, colW);
-    body.forEach((t, i) => lines.push({ text: t, size: bodySize, font: fonts.letter, colorHex: INK, gapBefore: i === 0 ? 2 : 0 }));
-  });
-
-  const pages: PDFPage[] = [];
-  const contentBottom = g.contentTop + g.contentH;
-  let page!: PDFPage;
-  let col = 0;
-  let cursor = 0;
-  let colX = 0;
-
-  const newPage = (first: boolean) => {
-    page = doc.addPage([g.pageW, g.pageH]);
-    pages.push(page);
-    page.drawRectangle({ x: 0, y: 0, width: g.pageW, height: g.pageH, color: hex2rgb(PAGE_BG) });
-    drawCropMarks(page, g);
-    let top = g.contentTop;
-    if (first) {
+  layout.forEach((placed, pi) => {
+    const { page, g: pg } = addPage();
+    page.drawRectangle({ x: 0, y: 0, width: pg.pageW, height: pg.pageH, color: hex2rgb(PAGE_BG) });
+    if (pi === 0) {
       const hSize = 20;
-      page.drawText("INDEX DES MOTS", { x: g.contentX, y: g.pageH - (top + hSize), size: hSize, font: fonts.heading, color: hex2rgb(INK) });
+      let top = pg.contentTop;
+      page.drawText("INDEX DES MOTS", { x: pg.contentX, y: pg.pageH - (top + hSize), size: hSize, font: fonts.heading, color: hex2rgb(INK) });
       top += hSize + 4;
-      const sub = `${total} MOTS`;
-      page.drawText(sub, { x: g.contentX, y: g.pageH - (top + 8), size: 8, font: fonts.letter, color: mixHex(INK, PAGE_BG, 0.5) });
-      top += 8 + 10;
+      page.drawText(`${total} MOTS`, { x: pg.contentX, y: pg.pageH - (top + 8), size: 8, font: fonts.letter, color: mixHex(INK, PAGE_BG, 0.5) });
     }
-    col = 0;
-    cursor = top;
-    colX = g.contentX;
-  };
-
-  const nextColumn = () => {
-    if (col === 0) {
-      col = 1;
-      colX = g.contentX + colW + colGap;
-      cursor = g.contentTop;
-    } else {
-      newPage(false);
+    for (const p of placed) {
+      const x = pg.contentX + (p.col === 1 ? colW + COL_GAP : 0);
+      const isHeader = p.line.kind === "header";
+      page.drawText(p.line.text, {
+        x,
+        y: pg.pageH - (p.yTop + p.line.size),
+        size: p.line.size,
+        font: isHeader ? fonts.bold : fonts.letter,
+        color: isHeader ? hex2rgb(accent) : hex2rgb(INK),
+      });
     }
-  };
-
-  newPage(true);
-  for (const line of lines) {
-    if (cursor + line.gapBefore + line.size > contentBottom) nextColumn();
-    cursor += line.gapBefore;
-    page.drawText(line.text, { x: colX, y: g.pageH - (cursor + line.size), size: line.size, font: line.font, color: hex2rgb(line.colorHex) });
-    cursor += bodyLine;
-  }
-
-  return pages;
+  });
 }

@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { bookPages } from "@/db/schema/books";
 import { placedWords } from "@/db/schema/placed-words";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 
 /**
@@ -26,14 +26,18 @@ export async function collectUsedWordsAndClues(
     .from(bookPages)
     .where(eq(bookPages.bookId, bookId));
 
+  const crosswordIds = pages
+    .map((page) => page.crosswordId)
+    .filter((id): id is string => id !== null && id !== excludeCrosswordId);
+
   const words = new Set<string>();
   const clues = new Set<string>();
-  for (const page of pages) {
-    if (!page.crosswordId || page.crosswordId === excludeCrosswordId) continue;
+  if (crosswordIds.length > 0) {
+    // One batched query for the whole book instead of one per page.
     const placed = await db
       .select({ answer: placedWords.answer, clueText: placedWords.clueText })
       .from(placedWords)
-      .where(eq(placedWords.crosswordId, page.crosswordId));
+      .where(inArray(placedWords.crosswordId, crosswordIds));
     for (const w of placed) {
       words.add(normalizeAnswer(w.answer));
       clues.add(w.clueText);

@@ -1,8 +1,8 @@
 /**
  * Compose an interior photo page to the reference look: photos placed into a
  * layout's slots (with a subtle vintage grade), baked graphic tiles (colour +
- * lens motif), and a film-grain overlay over the whole page — then wrapped in a
- * print PDF at 300 DPI with bleed + crop marks.
+ * lens motif), and a film-grain overlay over the whole page — rendered at
+ * 300 DPI and drawn onto a page of the interior document.
  *
  * The page is composited as a raster (sharp) so the grain sits over everything,
  * matching the references; photo pages carry no text, so raster is fine.
@@ -10,27 +10,14 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { PDFDocument, rgb, type PDFPage } from "pdf-lib";
+import type { PDFDocument, PDFPage } from "pdf-lib";
 import sharp, { type OverlayOptions } from "sharp";
 import type { PhotoLayout, LayoutSlot } from "@/lib/book-pdf/photo-layouts";
 import { graphicInner, HAND_IMAGE_DIR } from "@/lib/book-pdf/graphic-motifs";
 import type { HandDir } from "@/lib/book-pdf/graphic-motifs";
+import { pt2px, type Geometry } from "@/lib/book-pdf/geometry";
 
-const DPI = 300;
-const MM = 25.4;
-const TRIM_W = 148;
-const TRIM_H = 210;
-const BLEED = 3;
 const CREAM = "#fff6ec";
-
-const mm2px = (mm: number) => Math.round((mm / MM) * DPI);
-const mm2pt = (mm: number) => (mm * 72) / MM;
-
-const PAGE_W = mm2px(TRIM_W + 2 * BLEED);
-const PAGE_H = mm2px(TRIM_H + 2 * BLEED);
-const BLEED_PX = mm2px(BLEED);
-const TRIM_WPX = mm2px(TRIM_W);
-const TRIM_HPX = mm2px(TRIM_H);
 
 function hexToObj(hex: string) {
   const h = hex.replace("#", "");
@@ -38,13 +25,22 @@ function hexToObj(hex: string) {
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 
+/** Pixel frame of the page being composited (page = trim + bleed). */
+interface PxFrame {
+  pageW: number;
+  pageH: number;
+  bleed: number;
+  trimW: number;
+  trimH: number;
+}
+
 /** Resolve a top-left trim-relative slot to an integer px box (image space). */
-function resolveBox(slot: LayoutSlot) {
+function resolveBox(slot: LayoutSlot, f: PxFrame) {
   const b = slot.bleed;
-  const left = b?.left ? 0 : Math.round(BLEED_PX + slot.rect.x * TRIM_WPX);
-  const top = b?.top ? 0 : Math.round(BLEED_PX + slot.rect.y * TRIM_HPX);
-  const right = b?.right ? PAGE_W : Math.round(BLEED_PX + (slot.rect.x + slot.rect.w) * TRIM_WPX);
-  const bottom = b?.bottom ? PAGE_H : Math.round(BLEED_PX + (slot.rect.y + slot.rect.h) * TRIM_HPX);
+  const left = b?.left ? 0 : Math.round(f.bleed + slot.rect.x * f.trimW);
+  const top = b?.top ? 0 : Math.round(f.bleed + slot.rect.y * f.trimH);
+  const right = b?.right ? f.pageW : Math.round(f.bleed + (slot.rect.x + slot.rect.w) * f.trimW);
+  const bottom = b?.bottom ? f.pageH : Math.round(f.bleed + (slot.rect.y + slot.rect.h) * f.trimH);
   return { left, top, width: right - left, height: bottom - top };
 }
 
@@ -102,43 +98,43 @@ async function gradePhoto(fill: PhotoFill, w: number, h: number, mono = false): 
 }
 
 /** RGBA mid-grey noise for an "overlay"-blend film grain. */
-function grain(): Promise<Buffer> {
-  const raw = Buffer.alloc(PAGE_W * PAGE_H * 4);
-  for (let i = 0; i < PAGE_W * PAGE_H; i++) {
+function grain(w: number, h: number): Promise<Buffer> {
+  const raw = Buffer.alloc(w * h * 4);
+  for (let i = 0; i < w * h; i++) {
     const v = 128 + Math.round((Math.random() - 0.5) * 40);
     raw[i * 4] = v;
     raw[i * 4 + 1] = v;
     raw[i * 4 + 2] = v;
     raw[i * 4 + 3] = 255;
   }
-  return sharp(raw, { raw: { width: PAGE_W, height: PAGE_H, channels: 4 } }).png().toBuffer();
+  return sharp(raw, { raw: { width: w, height: h, channels: 4 } }).png().toBuffer();
 }
 
-function drawCropMarks(page: PDFPage) {
-  const len = mm2pt(3);
-  const gap = mm2pt(1.5);
-  const b = mm2pt(BLEED);
-  const w = mm2pt(TRIM_W + 2 * BLEED);
-  const h = mm2pt(TRIM_H + 2 * BLEED);
-  const mark = { thickness: 0.4, color: rgb(0, 0, 0) };
-  const corners = [
-    { x: b, y: b, sx: -1, sy: -1 },
-    { x: w - b, y: b, sx: 1, sy: -1 },
-    { x: b, y: h - b, sx: -1, sy: 1 },
-    { x: w - b, y: h - b, sx: 1, sy: 1 },
-  ];
-  for (const c of corners) {
-    page.drawLine({ start: { x: c.x + c.sx * gap, y: c.y }, end: { x: c.x + c.sx * (gap + len), y: c.y }, ...mark });
-    page.drawLine({ start: { x: c.x, y: c.y + c.sy * gap }, end: { x: c.x, y: c.y + c.sy * (gap + len) }, ...mark });
-  }
+export interface PhotoPageOptions {
+  doc: PDFDocument;
+  page: PDFPage;
+  g: Geometry;
+  layout: PhotoLayout;
+  content: PhotoPageContent;
 }
 
-export async function composePhotoPage(layout: PhotoLayout, content: PhotoPageContent): Promise<Uint8Array> {
+export async function composePhotoPage({ doc, page, g, layout, content }: PhotoPageOptions): Promise<void> {
+  const pageWpx = pt2px(g.pageW);
+  const pageHpx = pt2px(g.pageH);
+  const bleedPx = pt2px(g.bleedPt);
+  const frame: PxFrame = {
+    pageW: pageWpx,
+    pageH: pageHpx,
+    bleed: bleedPx,
+    trimW: pageWpx - 2 * bleedPx,
+    trimH: pageHpx - 2 * bleedPx,
+  };
+
   const composites: OverlayOptions[] = [];
   const mono = layout.id === "hermes";
   let photoIdx = 0;
   for (const slot of layout.slots) {
-    const box = resolveBox(slot);
+    const box = resolveBox(slot, frame);
     if (slot.kind === "graphic") {
       composites.push({ input: await graphicTile(slot, box.width, box.height), left: box.left, top: box.top });
     } else {
@@ -146,19 +142,15 @@ export async function composePhotoPage(layout: PhotoLayout, content: PhotoPageCo
       if (fill) composites.push({ input: await gradePhoto(fill, box.width, box.height, mono), left: box.left, top: box.top });
     }
   }
-  composites.push({ input: await grain(), blend: "overlay" });
+  composites.push({ input: await grain(pageWpx, pageHpx), blend: "overlay" });
 
   const pageJpeg = await sharp({
-    create: { width: PAGE_W, height: PAGE_H, channels: 3, background: hexToObj(layout.background ?? CREAM) },
+    create: { width: pageWpx, height: pageHpx, channels: 3, background: hexToObj(layout.background ?? CREAM) },
   })
     .composite(composites)
     .jpeg({ quality: 90 })
     .toBuffer();
 
-  const doc = await PDFDocument.create();
-  const page = doc.addPage([mm2pt(TRIM_W + 2 * BLEED), mm2pt(TRIM_H + 2 * BLEED)]);
   const img = await doc.embedJpg(pageJpeg);
-  page.drawImage(img, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() });
-  drawCropMarks(page);
-  return doc.save();
+  page.drawImage(img, { x: 0, y: 0, width: g.pageW, height: g.pageH });
 }

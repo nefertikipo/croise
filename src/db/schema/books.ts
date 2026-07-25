@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, uuid, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, uuid, jsonb, index } from "drizzle-orm/pg-core";
 import { crosswords } from "@/db/schema/crosswords";
 import { user } from "@/db/schema/auth";
 
@@ -20,7 +20,10 @@ export const books = pgTable("books", {
   reminderSentAt: timestamp("reminder_sent_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  // "my books" listing filters on owner
+  index("books_owner_id_idx").on(table.ownerId),
+]);
 
 /**
  * The ordered spine of a book: grid pages and content pages interleaved.
@@ -36,9 +39,17 @@ export const bookPages = pgTable("book_pages", {
     .references(() => books.id, { onDelete: "cascade" }),
   position: integer("position").notNull(),
   kind: text("kind").notNull(),
-  crosswordId: uuid("crossword_id").references(() => crosswords.id),
+  // set null (not restrict/cascade): serialization already treats a null
+  // crosswordId as "nothing to render" and drops the page, so a crossword
+  // deleted out from under a page degrades gracefully instead of erroring.
+  crosswordId: uuid("crossword_id").references(() => crosswords.id, {
+    onDelete: "set null",
+  }),
   config: jsonb("config"),
-});
+}, (table) => [
+  // every spine read/update filters on the owning book
+  index("book_pages_book_id_idx").on(table.bookId),
+]);
 
 /**
  * @deprecated Legacy grids-only ordering. Superseded by `bookPages`.

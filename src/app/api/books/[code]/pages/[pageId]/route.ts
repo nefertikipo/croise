@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { bookPages } from "@/db/schema/books";
 import { crosswords } from "@/db/schema/crosswords";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { authorizeBookEdit, touchBookStatement } from "@/lib/books/authorize";
+import type { BatchItem } from "drizzle-orm/batch";
 
 /** Update a page's config (grid styling or content-page fields). */
 export async function PATCH(
@@ -10,13 +12,21 @@ export async function PATCH(
   { params }: { params: Promise<{ code: string; pageId: string }> },
 ) {
   try {
-    const { pageId } = await params;
+    const { code, pageId } = await params;
+
+    const authz = await authorizeBookEdit(request, code);
+    if (!authz.ok) {
+      return NextResponse.json({ error: authz.error }, { status: authz.status });
+    }
+    const book = authz.book;
+
     const body = await request.json();
 
+    // Scope to the book from the URL so a page id from another book 404s.
     const [page] = await db
       .select({ id: bookPages.id, config: bookPages.config })
       .from(bookPages)
-      .where(eq(bookPages.id, pageId))
+      .where(and(eq(bookPages.id, pageId), eq(bookPages.bookId, book.id)))
       .limit(1);
 
     if (!page) {
@@ -28,7 +38,13 @@ export async function PATCH(
     const nextConfig =
       body.config !== undefined ? { ...current, ...body.config } : current;
 
-    await db.update(bookPages).set({ config: nextConfig }).where(eq(bookPages.id, pageId));
+    await db.batch([
+      db
+        .update(bookPages)
+        .set({ config: nextConfig })
+        .where(and(eq(bookPages.id, pageId), eq(bookPages.bookId, book.id))),
+      touchBookStatement(book.id),
+    ]);
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -43,24 +59,36 @@ export async function DELETE(
   { params }: { params: Promise<{ code: string; pageId: string }> },
 ) {
   try {
-    const { pageId } = await params;
+    const { code, pageId } = await params;
 
+    const authz = await authorizeBookEdit(request, code);
+    if (!authz.ok) {
+      return NextResponse.json({ error: authz.error }, { status: authz.status });
+    }
+    const book = authz.book;
+
+    // Scope to the book from the URL so a page id from another book 404s.
     const [page] = await db
       .select({ id: bookPages.id, kind: bookPages.kind, crosswordId: bookPages.crosswordId })
       .from(bookPages)
-      .where(eq(bookPages.id, pageId))
+      .where(and(eq(bookPages.id, pageId), eq(bookPages.bookId, book.id)))
       .limit(1);
 
     if (!page) {
       return NextResponse.json({ error: "Page not found" }, { status: 404 });
     }
 
-    await db.delete(bookPages).where(eq(bookPages.id, pageId));
-
+    const statements: BatchItem<"pg">[] = [
+      db
+        .delete(bookPages)
+        .where(and(eq(bookPages.id, pageId), eq(bookPages.bookId, book.id))),
+      touchBookStatement(book.id),
+    ];
     if (page.kind === "grid" && page.crosswordId) {
       // Cascades to placed_words.
-      await db.delete(crosswords).where(eq(crosswords.id, page.crosswordId));
+      statements.push(db.delete(crosswords).where(eq(crosswords.id, page.crosswordId)));
     }
+    await db.batch(statements as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
 
     return NextResponse.json({ success: true });
   } catch (error) {

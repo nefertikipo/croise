@@ -9,6 +9,7 @@ import {
   Abel,
 } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "sonner";
 import { SiteChrome } from "@/components/shared/site-chrome";
 import { SanityLive } from "@/sanity/lib/live";
 import { sanityEnabled } from "@/sanity/env";
@@ -91,6 +92,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col font-sans">
         <SiteChrome />
         {children}
+        <Toaster position="bottom-right" richColors />
         {sanityEnabled && <SanityLive />}
       </body>
     </html>
