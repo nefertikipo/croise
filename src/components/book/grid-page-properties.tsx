@@ -92,6 +92,15 @@ export function GridPageProperties({
     if (addedAnswers.has(key)) return;
     setCustomClues((prev) => [...prev, { answer: idea.answer, clue: idea.clue }]);
   }
+  function pickIdeas(picked: ClueIdea[]) {
+    setCustomClues((prev) => {
+      const have = new Set(prev.map((c) => normalizeAnswer(c.answer)));
+      const additions = picked
+        .filter((idea) => !have.has(normalizeAnswer(idea.answer)))
+        .map((idea) => ({ answer: idea.answer, clue: idea.clue }));
+      return [...prev, ...additions];
+    });
+  }
   const [hiddenWord, setHiddenWord] = useState(page.config.hiddenWord ?? "");
   const [title, setTitle] = useState(page.config.title ?? "");
 
@@ -196,7 +205,10 @@ export function GridPageProperties({
           ideas={ideas}
           usage={ideaUsage}
           addedAnswers={addedAnswers}
+          width={page.width}
+          height={page.height}
           onPick={pickIdea}
+          onPickMany={pickIdeas}
         />
 
         <CustomWordsEditor

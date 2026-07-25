@@ -74,6 +74,16 @@ export function GridCreator({ busy, genBatch, ideas, ideaUsage, onCreate, onClos
     setCustomClues((prev) => [...prev, { answer: idea.answer, clue: idea.clue }]);
     setError(null);
   }
+  function pickIdeas(picked: ClueIdea[]) {
+    setCustomClues((prev) => {
+      const have = new Set(prev.map((c) => normalizeAnswer(c.answer)));
+      const additions = picked
+        .filter((idea) => !have.has(normalizeAnswer(idea.answer)))
+        .map((idea) => ({ answer: idea.answer, clue: idea.clue }));
+      return [...prev, ...additions];
+    });
+    setError(null);
+  }
   const effectiveCount = hasCustom ? 1 : count;
   const capacity = analyzeCapacity(width, height, customClues);
   const canCreate = !busy && capacity.message === null;
@@ -209,7 +219,10 @@ export function GridCreator({ busy, genBatch, ideas, ideaUsage, onCreate, onClos
                 ideas={ideas}
                 usage={ideaUsage}
                 addedAnswers={addedAnswers}
+                width={width}
+                height={height}
                 onPick={pickIdea}
+                onPickMany={pickIdeas}
               />
               <CustomWordsEditor
                 width={width}
