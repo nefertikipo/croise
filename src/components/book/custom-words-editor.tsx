@@ -1,7 +1,7 @@
 "use client";
 
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
-import { normalizeAnswer } from "@/lib/crossword/normalize";
+import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
 
 type CustomClue = { answer: string; clue: string };
 
@@ -62,7 +62,7 @@ export function CustomWordsEditor({ width, height, value, onChange }: CustomWord
               value={cc.answer}
               onChange={(e) => {
                 const next = [...value];
-                next[i] = { ...next[i], answer: e.target.value };
+                next[i] = { ...next[i], answer: composeInput(e.target.value) };
                 onChange(next);
               }}
               className={`w-36 rounded-none border-2 bg-white px-2 py-1 text-sm uppercase font-mono ${
