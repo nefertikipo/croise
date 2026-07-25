@@ -11,7 +11,7 @@ import { ClueList } from "@/components/fleche/clue-list";
 import { AddToBook } from "@/components/fleche/add-to-book";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
 import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
-import { normalizeAnswer } from "@/lib/crossword/normalize";
+import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
 import {
   findHiddenWordCells,
   missingHiddenLetters,
@@ -329,7 +329,7 @@ export default function FlechePage() {
                       value={cc.answer}
                       onChange={(e) => {
                         const next = [...customClues];
-                        next[i] = { ...next[i], answer: e.target.value };
+                        next[i] = { ...next[i], answer: composeInput(e.target.value) };
                         setCustomClues(next);
                       }}
                       className={`w-36 rounded-none border-2 bg-white px-2 py-1 text-sm uppercase font-mono ${
@@ -400,7 +400,7 @@ export default function FlechePage() {
               <input
                 placeholder="ex: ANNIVERSAIRE"
                 value={hiddenWord}
-                onChange={(e) => setHiddenWord(e.target.value)}
+                onChange={(e) => setHiddenWord(composeInput(e.target.value))}
                 className="w-48 rounded-none border px-2 py-1 text-sm uppercase font-mono"
               />
             </div>
@@ -579,7 +579,7 @@ export default function FlechePage() {
                         value={cc.answer}
                         onChange={(e) => {
                           const next = [...customClues];
-                          next[i] = { ...next[i], answer: e.target.value };
+                          next[i] = { ...next[i], answer: composeInput(e.target.value) };
                           setCustomClues(next);
                         }}
                         className={`border-2 rounded-none px-2 py-1 text-sm w-32 uppercase font-mono bg-white ${
@@ -633,7 +633,7 @@ export default function FlechePage() {
                 <input
                   placeholder="ex: ANNIVERSAIRE"
                   value={hiddenWord}
-                  onChange={(e) => setHiddenWord(e.target.value)}
+                  onChange={(e) => setHiddenWord(composeInput(e.target.value))}
                   className="border rounded-none px-2 py-1 text-sm w-48 uppercase font-mono bg-white"
                 />
                 {hiddenCells.size > 0 && (

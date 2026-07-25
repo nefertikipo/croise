@@ -24,6 +24,21 @@ export function normalizeAnswer(word: string): string {
 }
 
 /**
+ * Recompose freshly-typed text into precomposed (NFC) form for display.
+ *
+ * Some browsers and keyboards — notably Safari and iOS — emit accented letters
+ * decomposed: "é" arrives as "e" + U+0301 (combining acute). In a monospace font
+ * the combining mark takes its own advance width and renders as a gap next to the
+ * base letter ("e´"), so a personalized word like "FÊTE" shows phantom spaces.
+ * Folding each keystroke to NFC recombines the sequence into one precomposed
+ * glyph that renders cleanly. Purely cosmetic for the stored value —
+ * `normalizeAnswer` strips accents entirely before a word reaches a grid.
+ */
+export function composeInput(text: string): string {
+  return text.normalize("NFC");
+}
+
+/**
  * Normalize a clue's casing to sentence case for display.
  *
  * The corpus mixes styles: some clues are screaming ALL CAPS ("IL AIME SON
