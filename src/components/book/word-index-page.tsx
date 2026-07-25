@@ -24,9 +24,13 @@ export function WordIndexPage({ entries }: WordIndexPageProps) {
               <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-0.5">
                 {entry.length} lettres
               </h3>
-              <p className="text-xs leading-snug text-foreground font-mono">
-                {entry.words.join(" · ") || "—"}
-              </p>
+              <ul className="text-xs leading-snug text-foreground font-mono">
+                {entry.words.length === 0 ? (
+                  <li>—</li>
+                ) : (
+                  entry.words.map((word) => <li key={word}>{word}</li>)
+                )}
+              </ul>
             </div>
           ))}
         </div>
