@@ -84,6 +84,17 @@ export interface FlecheCell {
   breakBottom?: boolean;
 }
 
+/**
+ * One entry in a book's clue-idea notepad: a brainstormed answer + its clue that
+ * the maker can drop into any grid. Stored on `books.clueIdeas` (jsonb array).
+ * `id` is a stable client-generated key; `answer` may be empty while jotting.
+ */
+export interface ClueIdea {
+  id: string;
+  answer: string;
+  clue: string;
+}
+
 export interface BookWord {
   answer: string;
   clue: string;
@@ -132,6 +143,8 @@ export interface BookData {
   description: string | null;
   dedicationText: string | null;
   coverConfig: CoverConfig | null;
+  /** Design-time clue-idea notepad (not printed). Empty when never used. */
+  clueIdeas: ClueIdea[];
   language: string;
   status: string;
   pages: BookPageData[];

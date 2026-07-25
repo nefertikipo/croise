@@ -4,12 +4,14 @@ import { useState } from "react";
 import { Field, TextField, ColorPicker } from "@/components/book/field";
 import { DifficultyPicker } from "@/components/book/difficulty-picker";
 import { CustomWordsEditor } from "@/components/book/custom-words-editor";
+import { ClueIdeaPicker } from "@/components/book/clue-idea-picker";
 import { Button } from "@/components/ui/button";
 import { GenerationProgress } from "@/components/shared/generation-progress";
 import { ClueList, difficultyBand } from "@/components/fleche/clue-list";
 import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
-import type { GridPage, GridPageConfig, BookWord } from "@/types/book";
+import { normalizeAnswer } from "@/lib/crossword/normalize";
+import type { ClueIdea, GridPage, GridPageConfig, BookWord } from "@/types/book";
 
 /** Facile / moyen / difficile split of the grid's placed words, as a bar + legend. */
 function DifficultyBreakdown({ words }: { words: BookWord[] }) {
@@ -63,6 +65,10 @@ interface GridPagePropertiesProps {
   page: GridPage;
   index: number;
   regenerating: boolean;
+  /** The book's saved clue ideas, offered as one-click custom words. */
+  ideas: ClueIdea[];
+  /** Normalized custom answer → grid numbers, for the idea picker's "used" hints. */
+  ideaUsage: Map<string, number[]>;
   onConfigChange: (patch: Partial<GridPageConfig>) => void;
   onRegenerate: (customClues: { answer: string; clue: string }[]) => void;
   onDelete: () => void;
@@ -72,11 +78,20 @@ export function GridPageProperties({
   page,
   index,
   regenerating,
+  ideas,
+  ideaUsage,
   onConfigChange,
   onRegenerate,
   onDelete,
 }: GridPagePropertiesProps) {
   const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>([]);
+
+  const addedAnswers = new Set(customClues.map((c) => normalizeAnswer(c.answer)));
+  function pickIdea(idea: ClueIdea) {
+    const key = normalizeAnswer(idea.answer);
+    if (addedAnswers.has(key)) return;
+    setCustomClues((prev) => [...prev, { answer: idea.answer, clue: idea.clue }]);
+  }
   const [hiddenWord, setHiddenWord] = useState(page.config.hiddenWord ?? "");
   const [title, setTitle] = useState(page.config.title ?? "");
 
@@ -176,6 +191,13 @@ export function GridPageProperties({
         <p className="text-xs text-muted-foreground">
           Ajoutez vos mots, puis régénérez la grille pour les intégrer.
         </p>
+
+        <ClueIdeaPicker
+          ideas={ideas}
+          usage={ideaUsage}
+          addedAnswers={addedAnswers}
+          onPick={pickIdea}
+        />
 
         <CustomWordsEditor
           width={page.width}

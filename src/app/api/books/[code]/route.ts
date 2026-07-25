@@ -45,6 +45,7 @@ export async function PATCH(
     if (body.description !== undefined) updates.description = body.description;
     if (body.dedicationText !== undefined) updates.dedicationText = body.dedicationText;
     if (body.coverConfig !== undefined) updates.coverConfig = body.coverConfig;
+    if (body.clueIdeas !== undefined) updates.clueIdeas = body.clueIdeas;
     if (body.status !== undefined) updates.status = body.status;
 
     await db.update(books).set(updates).where(eq(books.id, book.id));

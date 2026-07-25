@@ -4,10 +4,12 @@ import { useState } from "react";
 import { GenerationProgress } from "@/components/shared/generation-progress";
 import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { CustomWordsEditor } from "@/components/book/custom-words-editor";
+import { ClueIdeaPicker } from "@/components/book/clue-idea-picker";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
 import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
+import { normalizeAnswer } from "@/lib/crossword/normalize";
 import { CLUE_EXAMPLES, DIFFICULTY_INFO } from "@/lib/fleche/difficulty-guide";
-import type { GridDifficulty } from "@/types/book";
+import type { ClueIdea, GridDifficulty } from "@/types/book";
 
 const FORMATS = [
   { w: 11, h: 17, label: "11×17" },
@@ -36,6 +38,10 @@ interface GridCreatorProps {
   busy: boolean;
   /** Per-grid progress while a batch add is running; null when idle. */
   genBatch: { current: number; total: number } | null;
+  /** The book's saved clue ideas, offered as one-click custom words. */
+  ideas: ClueIdea[];
+  /** Normalized custom answer → grid numbers, for the idea picker's "used" hints. */
+  ideaUsage: Map<string, number[]>;
   onCreate: (opts: CreateGridOptions) => Promise<string | null> | void;
   onClose: () => void;
 }
@@ -48,7 +54,7 @@ interface GridCreatorProps {
  * it makes exactly one grid (a personalized grid is one-of-a-kind); otherwise it
  * can batch several.
  */
-export function GridCreator({ busy, genBatch, onCreate, onClose }: GridCreatorProps) {
+export function GridCreator({ busy, genBatch, ideas, ideaUsage, onCreate, onClose }: GridCreatorProps) {
   const [width, setWidth] = useState(11);
   const [height, setHeight] = useState(17);
   const [count, setCount] = useState(1);
@@ -61,6 +67,13 @@ export function GridCreator({ busy, genBatch, onCreate, onClose }: GridCreatorPr
     (c) => c.answer.trim().length >= 2 && c.clue.trim().length > 0,
   );
   const hasCustom = validCustom.length > 0;
+  const addedAnswers = new Set(customClues.map((c) => normalizeAnswer(c.answer)));
+  function pickIdea(idea: ClueIdea) {
+    const key = normalizeAnswer(idea.answer);
+    if (addedAnswers.has(key)) return;
+    setCustomClues((prev) => [...prev, { answer: idea.answer, clue: idea.clue }]);
+    setError(null);
+  }
   const effectiveCount = hasCustom ? 1 : count;
   const capacity = analyzeCapacity(width, height, customClues);
   const canCreate = !busy && capacity.message === null;
@@ -192,6 +205,12 @@ export function GridCreator({ busy, genBatch, onCreate, onClose }: GridCreatorPr
 
             {/* Custom words — the headline feature, front and center */}
             <div className="space-y-3 rounded-none border-2 border-ink/15 bg-muted/30 p-4">
+              <ClueIdeaPicker
+                ideas={ideas}
+                usage={ideaUsage}
+                addedAnswers={addedAnswers}
+                onPick={pickIdea}
+              />
               <CustomWordsEditor
                 width={width}
                 height={height}
