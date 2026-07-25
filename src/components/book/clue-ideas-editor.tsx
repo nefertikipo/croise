@@ -1,6 +1,6 @@
 "use client";
 
-import { normalizeAnswer } from "@/lib/crossword/normalize";
+import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
 import type { ClueIdea } from "@/types/book";
 
 interface ClueIdeasEditorProps {
@@ -116,7 +116,7 @@ export function ClueIdeasEditor({ ideas, usage, onChange }: ClueIdeasEditorProps
                   <input
                     placeholder="Mot (ex: MAMIE)"
                     value={idea.answer}
-                    onChange={(e) => update(idea.id, { answer: e.target.value })}
+                    onChange={(e) => update(idea.id, { answer: composeInput(e.target.value) })}
                     className="w-32 rounded-none border-2 border-ink/20 bg-white px-2 py-1 text-sm uppercase font-mono"
                   />
                   <input

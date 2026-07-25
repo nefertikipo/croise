@@ -7,7 +7,7 @@ import { CustomWordsEditor } from "@/components/book/custom-words-editor";
 import { ClueIdeaPicker } from "@/components/book/clue-idea-picker";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
 import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
-import { normalizeAnswer } from "@/lib/crossword/normalize";
+import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
 import { CLUE_EXAMPLES, DIFFICULTY_INFO } from "@/lib/fleche/difficulty-guide";
 import type { ClueIdea, GridDifficulty } from "@/types/book";
 
@@ -247,7 +247,7 @@ export function GridCreator({ busy, genBatch, ideas, ideaUsage, onCreate, onClos
               <input
                 placeholder="ex: ANNIVERSAIRE"
                 value={hiddenWord}
-                onChange={(e) => setHiddenWord(e.target.value)}
+                onChange={(e) => setHiddenWord(composeInput(e.target.value))}
                 className="w-48 rounded-none border px-2 py-1 text-sm uppercase font-mono"
               />
             </div>

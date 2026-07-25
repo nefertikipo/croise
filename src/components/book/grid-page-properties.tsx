@@ -10,7 +10,7 @@ import { GenerationProgress } from "@/components/shared/generation-progress";
 import { ClueList, difficultyBand } from "@/components/fleche/clue-list";
 import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
-import { normalizeAnswer } from "@/lib/crossword/normalize";
+import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
 import type { ClueIdea, GridPage, GridPageConfig, BookWord } from "@/types/book";
 
 /** Facile / moyen / difficile split of the grid's placed words, as a bar + legend. */
@@ -175,7 +175,7 @@ export function GridPageProperties({
       <Field label="Mot caché">
         <TextField
           value={hiddenWord}
-          onChange={(e) => setHiddenWord(e.target.value)}
+          onChange={(e) => setHiddenWord(composeInput(e.target.value))}
           onBlur={() => onConfigChange({ hiddenWord: hiddenWord })}
           placeholder="ex: ANNIVERSAIRE"
           className="uppercase font-mono"
