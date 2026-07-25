@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { BookPrintLayout } from "@/components/book/book-print-layout";
 import { buildWordIndex } from "@/lib/crossword/word-index";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
+import { BOOK_MIN_GRIDS } from "@/lib/books/constants";
 import type {
   BookData,
   ClueIdea,
@@ -194,8 +195,21 @@ export function BookEditor({
     await openPdf(`/api/books/${code}/cover.pdf`);
   }
 
-  /** Print-ready interior (grids → index → solutions) at A5 or A4. */
+  /** Print-ready interior (full spine) at A5 or A4. Below the recommended
+   * grid count, warn first — the printed book would feel thin. */
   function downloadBook(size: "a5" | "a4" = "a5") {
+    if (!readOnly && gridPages.length > 0 && gridPages.length < BOOK_MIN_GRIDS) {
+      toast(
+        `Votre livre compte ${gridPages.length} grille${gridPages.length > 1 ? "s" : ""} sur les ${BOOK_MIN_GRIDS} recommandées pour l'impression.`,
+        {
+          action: {
+            label: "Télécharger quand même",
+            onClick: () => void openPdf(`/api/books/${code}/book.pdf?size=${size}`),
+          },
+        },
+      );
+      return;
+    }
     void openPdf(`/api/books/${code}/book.pdf?size=${size}`);
   }
 
@@ -250,6 +264,20 @@ export function BookEditor({
   }
 
   // --- Structural mutations -------------------------------------------------
+  /** Top up the book to BOOK_MIN_GRIDS with generic grids (defaults, no custom
+   * words) — the user can regenerate any of them later with personal touches. */
+  function completeWithGenericGrids() {
+    const missing = BOOK_MIN_GRIDS - gridPages.length;
+    if (missing <= 0 || busy) return;
+    void addGrids({
+      width: 11,
+      height: 17,
+      count: missing,
+      difficulty: "balanced",
+      customClues: [],
+    });
+  }
+
   async function addGrids(opts: CreateGridOptions): Promise<string | null> {
     setBusy(true);
     setGenBatch({ current: 1, total: opts.count });
@@ -610,6 +638,41 @@ export function BookEditor({
             </div>
           ) : (
             <>
+              {/* 12-grid completion nudge: a printed book needs BOOK_MIN_GRIDS
+                  grids; offer one-click generic top-up + notes-page filler. */}
+              {!readOnly && gridPages.length > 0 && gridPages.length < BOOK_MIN_GRIDS && (
+                <div className="mb-4 flex flex-wrap items-center justify-center gap-3 border-2 border-black/20 bg-accent/30 px-4 py-2 text-sm">
+                  <span>
+                    <strong>{gridPages.length}</strong> grille
+                    {gridPages.length > 1 ? "s" : ""} sur {BOOK_MIN_GRIDS} — un
+                    livre imprimé en compte au moins {BOOK_MIN_GRIDS}.
+                  </span>
+                  {busy && genBatch ? (
+                    <span className="text-muted-foreground">
+                      Génération {genBatch.current}/{genBatch.total}…
+                    </span>
+                  ) : (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={completeWithGenericGrids}
+                      >
+                        Compléter avec des grilles génériques
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => void addContent("note")}
+                      >
+                        + Page de notes
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
               <div className="mb-4 flex justify-center">
                 <div className="inline-flex border-2 border-ink" role="tablist">
                   {(
@@ -775,7 +838,7 @@ export function BookEditor({
           genBatch={genBatch}
           ideas={book.clueIdeas}
           ideaUsage={ideaUsage}
-          initialCount={5}
+          initialCount={BOOK_MIN_GRIDS}
           onCreate={addGrids}
           onClose={() => setOnboardingCreator(false)}
         />

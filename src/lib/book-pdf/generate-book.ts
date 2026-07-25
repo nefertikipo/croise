@@ -30,8 +30,9 @@ import type { BookData, ContentPageConfig, GridPage } from "@/types/book";
 
 const PAGE_BG = "#fff6ec";
 
-/** Typical POD perfect-bound minimum — below this we warn, not block. */
-export const POD_MIN_INTERIOR_PAGES = 24;
+/** Typical POD perfect-bound minimum — below this we warn, not block.
+ * Re-exported from the client-safe constants module. */
+export { POD_MIN_INTERIOR_PAGES } from "@/lib/books/constants";
 
 /** Thrown when a book has no grid pages to print (a crossword book needs grids,
  * whatever content pages it carries). */

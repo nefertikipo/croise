@@ -153,5 +153,18 @@ function composeNote(page: PDFPage, g: Geometry, fonts: BookFonts, config: Conte
       page.drawText(line, { x: g.contentX, y: g.pageH - (yTop + size), size, font: fonts.clue, color: hex2rgb(INK) });
       yTop += lineH;
     }
+  } else {
+    // Empty body = a "notes" page for the recipient to write on: light ruled
+    // lines down to the bottom margin (screen equivalent in content-page.tsx).
+    const RULE_SPACING = 24;
+    const bottom = g.contentTop + g.contentH;
+    for (let y = yTop + RULE_SPACING; y <= bottom; y += RULE_SPACING) {
+      page.drawLine({
+        start: { x: g.contentX, y: g.pageH - y },
+        end: { x: g.contentX + g.contentW, y: g.pageH - y },
+        thickness: 0.5,
+        color: mixHex(bgHex, "#000000", 0.15),
+      });
+    }
   }
 }

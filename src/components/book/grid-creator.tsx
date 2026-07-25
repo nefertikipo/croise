@@ -10,6 +10,7 @@ import { analyzeCapacity } from "@/lib/crossword/check-capacity";
 import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
 import { CLUE_EXAMPLES, DIFFICULTY_INFO } from "@/lib/fleche/difficulty-guide";
+import { BOOK_MIN_GRIDS } from "@/lib/books/constants";
 import type { ClueIdea, GridDifficulty } from "@/types/book";
 
 const FORMATS = [
@@ -43,7 +44,7 @@ interface GridCreatorProps {
   ideas: ClueIdea[];
   /** Normalized custom answer → grid numbers, for the idea picker's "used" hints. */
   ideaUsage: Map<string, number[]>;
-  /** Preset for the grid count (e.g. 5 from the empty-book onboarding). */
+  /** Preset for the grid count (e.g. BOOK_MIN_GRIDS from the empty-book onboarding). */
   initialCount?: number;
   onCreate: (opts: CreateGridOptions) => Promise<string | null> | void;
   onClose: () => void;
@@ -68,7 +69,7 @@ export function GridCreator({
 }: GridCreatorProps) {
   const [width, setWidth] = useState(11);
   const [height, setHeight] = useState(17);
-  const [count, setCount] = useState(() => Math.min(10, Math.max(1, initialCount ?? 1)));
+  const [count, setCount] = useState(() => Math.min(BOOK_MIN_GRIDS, Math.max(1, initialCount ?? 1)));
   const [difficulty, setDifficulty] = useState<GridDifficulty>("balanced");
   const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>([]);
   const [hiddenWord, setHiddenWord] = useState("");
@@ -270,7 +271,7 @@ export function GridCreator({
                   <span className="w-10 text-center font-mono">{count}</span>
                   <button
                     className="px-3 py-1.5 hover:bg-accent"
-                    onClick={() => setCount((c) => Math.min(10, c + 1))}
+                    onClick={() => setCount((c) => Math.min(BOOK_MIN_GRIDS, c + 1))}
                   >
                     +
                   </button>
