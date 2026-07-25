@@ -8,6 +8,7 @@ import { buildWordIndex } from "@/lib/crossword/word-index";
 import type {
   BookData,
   BookPageData,
+  ClueIdea,
   ContentPageConfig,
   CoverConfig,
   GridPage,
@@ -103,6 +104,7 @@ export async function loadBook(code: string): Promise<BookData | null> {
     description: book.description,
     dedicationText: book.dedicationText,
     coverConfig: (book.coverConfig as CoverConfig) ?? null,
+    clueIdeas: (book.clueIdeas as ClueIdea[]) ?? [],
     language: book.language,
     status: book.status,
     pages,

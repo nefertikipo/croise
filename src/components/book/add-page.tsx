@@ -3,17 +3,21 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GridCreator, type CreateGridOptions } from "@/components/book/grid-creator";
-import type { ContentLayout } from "@/types/book";
+import type { ClueIdea, ContentLayout } from "@/types/book";
 
 interface AddPageProps {
   busy: boolean;
   /** Per-grid progress while a batch add is running; null when idle. */
   genBatch: { current: number; total: number } | null;
+  /** The book's saved clue ideas, forwarded to the grid creator's idea picker. */
+  ideas: ClueIdea[];
+  /** Normalized custom answer → grid numbers, for the idea picker's "used" hints. */
+  ideaUsage: Map<string, number[]>;
   onAddGrids: (opts: CreateGridOptions) => Promise<string | null> | void;
   onAddContent: (layout: ContentLayout) => void;
 }
 
-export function AddPage({ busy, genBatch, onAddGrids, onAddContent }: AddPageProps) {
+export function AddPage({ busy, genBatch, ideas, ideaUsage, onAddGrids, onAddContent }: AddPageProps) {
   const [creating, setCreating] = useState(false);
 
   return (
@@ -54,6 +58,8 @@ export function AddPage({ busy, genBatch, onAddGrids, onAddContent }: AddPagePro
         <GridCreator
           busy={busy}
           genBatch={genBatch}
+          ideas={ideas}
+          ideaUsage={ideaUsage}
           onCreate={onAddGrids}
           onClose={() => setCreating(false)}
         />

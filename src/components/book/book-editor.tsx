@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { PageRail, type RailItem } from "@/components/book/page-rail";
 import { CoverStudio } from "@/components/book/cover-studio";
 import { DedicationEditor } from "@/components/book/dedication-editor";
+import { ClueIdeasEditor } from "@/components/book/clue-ideas-editor";
 import { GridPageProperties } from "@/components/book/grid-page-properties";
 import { ContentPageEditor } from "@/components/book/content-page-editor";
 import { SpreadCanvas } from "@/components/book/spread-canvas";
@@ -15,8 +16,10 @@ import type { CreateGridOptions } from "@/components/book/grid-creator";
 import { cn } from "@/lib/utils";
 import { BookPrintLayout } from "@/components/book/book-print-layout";
 import { buildWordIndex } from "@/lib/crossword/word-index";
+import { normalizeAnswer } from "@/lib/crossword/normalize";
 import type {
   BookData,
+  ClueIdea,
   ContentLayout,
   ContentPageConfig,
   CoverConfig,
@@ -98,6 +101,11 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
   function updateDedication(text: string) {
     setBook((b) => ({ ...b, dedicationText: text }));
     debounce("book-dedication", () => patchBook({ dedicationText: text }));
+  }
+
+  function updateClueIdeas(clueIdeas: ClueIdea[]) {
+    setBook((b) => ({ ...b, clueIdeas }));
+    debounce("book-clue-ideas", () => patchBook({ clueIdeas }));
   }
 
   // --- Page-level saves -----------------------------------------------------
@@ -269,6 +277,26 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
   }, [book.pages]);
   const wordIndex = useMemo(() => buildWordIndex(gridPages), [gridPages]);
 
+  // Which grids each clue idea has landed in: normalized custom answer → grid
+  // numbers. Derived live from the placed custom words, so regenerating a grid
+  // marks an idea "used" and deleting that grid frees it again — no extra state.
+  const ideaUsage = useMemo(() => {
+    const map = new Map<string, number[]>();
+    for (const p of book.pages) {
+      if (p.kind !== "grid") continue;
+      const n = gridNumberByPage.get(p.pageId) ?? 0;
+      for (const w of p.words) {
+        if (!w.isCustom) continue;
+        const key = normalizeAnswer(w.answer);
+        if (!key) continue;
+        const grids = map.get(key) ?? [];
+        if (!grids.includes(n)) grids.push(n);
+        map.set(key, grids);
+      }
+    }
+    return map;
+  }, [book.pages, gridNumberByPage]);
+
   const railItems: RailItem[] = [
     { id: "cover", kind: "cover", label: "Couverture" },
     { id: "dedication", kind: "dedication", label: "Dédicace" },
@@ -287,6 +315,8 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
     ),
     { id: "index", kind: "index", label: "Index des mots" },
     { id: "solutions", kind: "solutions", label: "Solutions" },
+    // Design tools, not book pages — rendered under a separate "Atelier" divider.
+    { id: "ideas", kind: "ideas", label: "Carnet d'idées" },
     { id: "add", kind: "add", label: "+ Ajouter une page" },
   ];
 
@@ -295,7 +325,7 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
   // The properties panel only shows when editing a single non-cover page. The
   // gallery/spread overviews and the full-width cover studio take the whole width.
   const showProps =
-    selectedId === "add"
+    selectedId === "add" || selectedId === "ideas"
       ? true
       : view === "gallery"
         ? false
@@ -350,6 +380,16 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
           {selectedId === "add" ? (
             <div className="text-muted-foreground italic pt-20 text-center">
               Choisissez une page à ajouter →
+            </div>
+          ) : selectedId === "ideas" ? (
+            <div className="mx-auto max-w-md pt-16 text-center">
+              <p className="font-heading text-lg uppercase">Votre carnet d&apos;idées</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Notez à droite vos idées de mots et d&apos;indices (prénoms, dates,
+                clins d&apos;œil). Rien n&apos;est imprimé ici. Vous pourrez les piocher
+                d&apos;un clic en créant ou régénérant une grille, et voir lesquelles
+                ont déjà été placées.
+              </p>
             </div>
           ) : (
             <>
@@ -434,10 +474,19 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
           {selectedId === "dedication" && (
             <DedicationEditor text={book.dedicationText ?? ""} onChange={updateDedication} />
           )}
+          {selectedId === "ideas" && (
+            <ClueIdeasEditor
+              ideas={book.clueIdeas}
+              usage={ideaUsage}
+              onChange={updateClueIdeas}
+            />
+          )}
           {selectedId === "add" && (
             <AddPage
               busy={busy}
               genBatch={genBatch}
+              ideas={book.clueIdeas}
+              ideaUsage={ideaUsage}
               onAddGrids={addGrids}
               onAddContent={addContent}
             />
@@ -457,6 +506,8 @@ export function BookEditor({ code, initialBook }: BookEditorProps) {
               page={selectedPage}
               index={gridNumberByPage.get(selectedPage.pageId) ?? 0}
               regenerating={regeneratingId === selectedPage.pageId}
+              ideas={book.clueIdeas}
+              ideaUsage={ideaUsage}
               onConfigChange={(patch: Partial<GridPageConfig>) =>
                 updatePageConfig(selectedPage.pageId, patch)
               }

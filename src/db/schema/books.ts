@@ -12,6 +12,9 @@ export const books = pgTable("books", {
   language: text("language").notNull().default("en"),
   dedicationText: text("dedication_text"),
   coverConfig: jsonb("cover_config"),
+  // Design-time notepad: brainstormed clue ideas (answer + clue) the maker can
+  // drop into any grid. Not a printed section — a workspace. Typed as `ClueIdea[]`.
+  clueIdeas: jsonb("clue_ideas"),
   status: text("status").notNull().default("draft"),
   // When we last emailed the owner a "finish your book" reminder (null = never).
   reminderSentAt: timestamp("reminder_sent_at"),
