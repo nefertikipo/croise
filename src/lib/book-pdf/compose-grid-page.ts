@@ -47,7 +47,7 @@ export function composeGridPage({ page, g, fonts, grid, gridNumber, mode, headin
   const headTop = g.contentTop;
   const heading = nfc(headingOverride ?? grid.config.title ?? `Grille N°${gridNumber}`);
   const headSize = 15; // band height stays fixed; only the drawn size shrinks
-  const meta = `${grid.width}×${grid.height}` + (grid.config.difficulty && grid.config.difficulty !== "balanced" ? ` · ${grid.config.difficulty}` : "");
+  const meta = `${grid.width}×${grid.height}`;
   const metaSize = 7;
   const metaW = fonts.letter.widthOfTextAtSize(meta.toUpperCase(), metaSize);
   // Shrink-to-fit so a long custom title never collides with the right-aligned

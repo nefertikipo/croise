@@ -239,9 +239,9 @@ export function BookEditor({
     await openPdf(`/api/books/${code}/cover.pdf`);
   }
 
-  /** Print-ready interior (full spine) at A5 or A4. Below the recommended
-   * grid count, warn first — the printed book would feel thin. */
-  function downloadBook(size: "a5" | "a4" = "a5") {
+  /** Print-ready A5 interior (full spine). Below the recommended grid count,
+   * warn first — the printed book would feel thin. */
+  function downloadBook(size: "a5" = "a5") {
     if (!readOnly && gridPages.length > 0 && gridPages.length < BOOK_MIN_GRIDS) {
       toast(
         `Votre livre compte ${gridPages.length} grille${gridPages.length > 1 ? "s" : ""} sur les ${BOOK_MIN_GRIDS} recommandées pour l'impression.`,

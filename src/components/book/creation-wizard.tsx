@@ -97,7 +97,7 @@ export function CreationWizard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: `Les fléchés de ${firstName.trim()}`,
+          title: `Les flèches de ${firstName.trim()}`,
           dedicationText: dedication.trim() || undefined,
           clueIdeas: ideas.length > 0 ? ideas : undefined,
         }),
@@ -180,7 +180,7 @@ export function CreationWizard() {
                 />
                 {firstName.trim() && (
                   <p className="text-xs text-muted-foreground">
-                    Le livre s&apos;appellera «&nbsp;Les fléchés de {firstName.trim()}&nbsp;»,
+                    Le livre s&apos;appellera «&nbsp;Les flèches de {firstName.trim()}&nbsp;»,
                     modifiable ensuite.
                   </p>
                 )}

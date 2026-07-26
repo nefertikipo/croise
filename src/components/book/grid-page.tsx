@@ -55,9 +55,6 @@ export function GridPageView({
         </h3>
         <span className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
           {page.width}×{page.height}
-          {page.config.difficulty && page.config.difficulty !== "balanced"
-            ? ` · ${page.config.difficulty}`
-            : ""}
         </span>
       </div>
 

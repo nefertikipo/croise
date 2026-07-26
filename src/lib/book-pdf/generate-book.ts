@@ -2,8 +2,9 @@
  * Assemble the print-ready interior of a book into one PDF, in the same order
  * the editor shows (see book-print-layout.tsx): dedication → the spine (grid,
  * photo, note and quote pages in book order) → word index → solutions — then
- * padded with blank pages to an EVEN page count (POD perfect binding needs
- * complete leaves). At A5 (the POD book, trim+bleed+boxes, binding gutter) or
+ * padded with blank pages to a MULTIPLE-OF-4 page count (saddle-stitch
+ * booklets need complete 4-page signatures; perfect binding only needs even,
+ * so the stricter rule serves both). At A5 (the POD book, trim+bleed+boxes, binding gutter) or
  * A4 (true print-at-home pages). The cover is a separate wraparound spread
  * (see generate-cover.ts).
  */
@@ -58,7 +59,7 @@ export function countInteriorPages(book: BookData, size: PageSize = "a5"): numbe
   n += book.pages.length;
   n += countIndexPages(book.wordIndex, g);
   n += countSolutionsPages(grids, g);
-  if (n % 2 === 1) n += 1; // blank pad to an even count (complete leaves)
+  if (n % 4 !== 0) n += 4 - (n % 4); // blank pad to a multiple of 4 (signatures)
   return n;
 }
 
@@ -122,8 +123,8 @@ export async function generateBookInteriorPdf(book: BookData, size: PageSize = "
   composeIndexPages({ addPage, g: gBase, fonts, entries: book.wordIndex });
   composeSolutionsPages({ addPage, g: gBase, fonts, grids });
 
-  // 5) Pad to an even page count with blank (background-only) pages.
-  while (doc.getPageCount() % 2 === 1) {
+  // 5) Pad to a multiple-of-4 page count with blank (background-only) pages.
+  while (doc.getPageCount() % 4 !== 0) {
     const { page, g } = addPage();
     page.drawRectangle({ x: 0, y: 0, width: g.pageW, height: g.pageH, color: hex2rgb(PAGE_BG) });
   }

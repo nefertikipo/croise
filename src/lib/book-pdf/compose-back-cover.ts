@@ -48,7 +48,7 @@ export function composeBackCoverPanel({ page, fonts, panel, title, code, cover }
 
   // Wordmark + tagline, optically centred on the panel.
   const midTop = panel.h * 0.42;
-  centered("LES FLÉCHÉS", midTop, 22, fonts.heading);
+  centered("LES FLÈCHES", midTop, 22, fonts.heading);
   const rW = panel.w * 0.18;
   page.drawLine({ start: { x: cx - rW, y: panelTopY - (midTop + 34) }, end: { x: cx + rW, y: panelTopY - (midTop + 34) }, thickness: 1, color: faint });
   centered("MOTS FLÉCHÉS PERSONNALISÉS", midTop + 46, 8.5, fonts.letter);
