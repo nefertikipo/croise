@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { PageRail, type RailItem } from "@/components/book/page-rail";
 import { CoverStudio } from "@/components/book/cover-studio";
 import { DedicationEditor } from "@/components/book/dedication-editor";
@@ -653,6 +653,9 @@ export function BookEditor({
             <Button variant="outline" onClick={() => downloadBook("a5")}>
               Livre (PDF)
             </Button>
+            <Link href={`/book/${code}/apercu`} className={buttonVariants()}>
+              Aperçu &amp; commande
+            </Link>
             <Button variant="outline" onClick={copyLink}>
               {copied ? "Lien copié !" : "Partager"}
             </Button>
