@@ -1,5 +1,6 @@
 import { loadBook } from "@/lib/books/serialize";
 import { generateBookInteriorPdf, countInteriorPages, EmptyBookError, POD_MIN_INTERIOR_PAGES } from "@/lib/book-pdf/generate-book";
+import { SADDLE_MAX_INTERIOR_PAGES } from "@/lib/books/constants";
 import { resolvePageSize } from "@/lib/book-pdf/geometry";
 import { MissingPhotoError } from "@/lib/book-pdf/photo-store";
 
@@ -19,6 +20,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     const pageCount = countInteriorPages(book, size);
     if (pageCount < POD_MIN_INTERIOR_PAGES) {
       console.warn(`Book ${code}: interior is ${pageCount} pages, below the typical POD minimum of ${POD_MIN_INTERIOR_PAGES}.`);
+    }
+    if (pageCount > SADDLE_MAX_INTERIOR_PAGES) {
+      console.warn(`Book ${code}: ${pageCount} pages exceeds the saddle-stitch ceiling of ${SADDLE_MAX_INTERIOR_PAGES} — needs perfect binding.`);
     }
 
     const pdf = await generateBookInteriorPdf(book, size);

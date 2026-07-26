@@ -1,3 +1,4 @@
+import { BOOK_BINDING } from "@/lib/books/constants";
 /**
  * Generate the print-ready WRAPAROUND COVER SPREAD for a real book: one PDF
  * page holding back cover + spine + front cover (POD perfect-bound softcover
@@ -79,7 +80,10 @@ export async function generateCoverSpreadPdf(input: CoverSpreadInput): Promise<U
   const bleedPt = mm2pt(template.bleedMm);
   const trimWpt = mm2pt(template.trimWidthMm);
   const trimHpt = mm2pt(template.trimHeightMm);
-  const spineMm = spineWidthMm(input.interiorPageCount);
+  // Saddle-stitch covers have no spine panel (staples, not a flat spine);
+  // spineWidthMm only applies to perfect binding.
+  const spineMm =
+    BOOK_BINDING === "saddle-stitch" ? 0 : spineWidthMm(input.interiorPageCount);
   const spinePt = mm2pt(spineMm);
   const pageW = 2 * trimWpt + spinePt + 2 * bleedPt;
   const pageH = trimHpt + 2 * bleedPt;
