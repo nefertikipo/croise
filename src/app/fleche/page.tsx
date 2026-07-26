@@ -187,6 +187,12 @@ export default function FlechePage() {
           seedConfig: cleanHidden ? { hiddenWord: cleanHidden } : undefined,
         }),
       });
+      // Book creation now requires an account — send anonymous users to sign
+      // in, then back here to retry.
+      if (res.status === 401) {
+        router.push("/connexion?redirect=/fleche");
+        return;
+      }
       if (!res.ok) throw new Error("Failed to create book");
       const { code } = await res.json();
       router.push(`/book/${code}`);

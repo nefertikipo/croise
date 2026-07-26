@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { MOTIFS, FRAMES } from "@/lib/design/patterns";
 import { PhotoCropDialog } from "@/components/book/photo-crop-dialog";
+import { uploadBookPhoto } from "@/components/book/upload-photo";
 import { cn } from "@/lib/utils";
 import type { PageDesign } from "@/types/book";
 
@@ -27,23 +28,15 @@ export function DesignPicker({ design, onChange, cropAspect }: DesignPickerProps
     setUploading(true);
     setError(null);
     try {
-      const body = new FormData();
-      body.append("file", file);
-      const res = await fetch("/api/books/upload-photo", { method: "POST", body });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(typeof data?.error === "string" ? data.error : "Echec de l'import.");
-        return;
-      }
+      const { photoRef, preview } = await uploadBookPhoto(file);
       // Full-res original lives in storage (photoRef); imageUrl is a preview only.
       if (cropAspect) {
-        setPending({ photoRef: data.photoRef, preview: data.preview });
+        setPending({ photoRef, preview });
       } else {
-        onChange({ ...design, photoRef: data.photoRef, imageUrl: data.preview, crop: undefined });
+        onChange({ ...design, photoRef, imageUrl: preview, crop: undefined });
       }
     } catch (err) {
-      console.error("Image upload failed:", err);
-      setError("Echec de l'import de la photo.");
+      setError(err instanceof Error ? err.message : "Echec de l'import de la photo.");
     } finally {
       setUploading(false);
       e.target.value = "";

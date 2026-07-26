@@ -5,10 +5,12 @@ import { GenerationProgress } from "@/components/shared/generation-progress";
 import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { CustomWordsEditor } from "@/components/book/custom-words-editor";
 import { ClueIdeaPicker } from "@/components/book/clue-idea-picker";
+import { addPickedIdeas } from "@/components/book/pick-ideas";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
 import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
 import { CLUE_EXAMPLES, DIFFICULTY_INFO } from "@/lib/fleche/difficulty-guide";
+import { BOOK_MIN_GRIDS } from "@/lib/books/constants";
 import type { ClueIdea, GridDifficulty } from "@/types/book";
 
 const FORMATS = [
@@ -42,6 +44,8 @@ interface GridCreatorProps {
   ideas: ClueIdea[];
   /** Normalized custom answer → grid numbers, for the idea picker's "used" hints. */
   ideaUsage: Map<string, number[]>;
+  /** Preset for the grid count (e.g. BOOK_MIN_GRIDS from the empty-book onboarding). */
+  initialCount?: number;
   onCreate: (opts: CreateGridOptions) => Promise<string | null> | void;
   onClose: () => void;
 }
@@ -54,10 +58,18 @@ interface GridCreatorProps {
  * it makes exactly one grid (a personalized grid is one-of-a-kind); otherwise it
  * can batch several.
  */
-export function GridCreator({ busy, genBatch, ideas, ideaUsage, onCreate, onClose }: GridCreatorProps) {
+export function GridCreator({
+  busy,
+  genBatch,
+  ideas,
+  ideaUsage,
+  initialCount,
+  onCreate,
+  onClose,
+}: GridCreatorProps) {
   const [width, setWidth] = useState(11);
   const [height, setHeight] = useState(17);
-  const [count, setCount] = useState(1);
+  const [count, setCount] = useState(() => Math.min(BOOK_MIN_GRIDS, Math.max(1, initialCount ?? 1)));
   const [difficulty, setDifficulty] = useState<GridDifficulty>("balanced");
   const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>([]);
   const [hiddenWord, setHiddenWord] = useState("");
@@ -69,19 +81,10 @@ export function GridCreator({ busy, genBatch, ideas, ideaUsage, onCreate, onClos
   const hasCustom = validCustom.length > 0;
   const addedAnswers = new Set(customClues.map((c) => normalizeAnswer(c.answer)));
   function pickIdea(idea: ClueIdea) {
-    const key = normalizeAnswer(idea.answer);
-    if (addedAnswers.has(key)) return;
-    setCustomClues((prev) => [...prev, { answer: idea.answer, clue: idea.clue }]);
-    setError(null);
+    pickIdeas([idea]);
   }
   function pickIdeas(picked: ClueIdea[]) {
-    setCustomClues((prev) => {
-      const have = new Set(prev.map((c) => normalizeAnswer(c.answer)));
-      const additions = picked
-        .filter((idea) => !have.has(normalizeAnswer(idea.answer)))
-        .map((idea) => ({ answer: idea.answer, clue: idea.clue }));
-      return [...prev, ...additions];
-    });
+    setCustomClues((prev) => addPickedIdeas(prev, picked));
     setError(null);
   }
   const effectiveCount = hasCustom ? 1 : count;
@@ -268,7 +271,7 @@ export function GridCreator({ busy, genBatch, ideas, ideaUsage, onCreate, onClos
                   <span className="w-10 text-center font-mono">{count}</span>
                   <button
                     className="px-3 py-1.5 hover:bg-accent"
-                    onClick={() => setCount((c) => Math.min(10, c + 1))}
+                    onClick={() => setCount((c) => Math.min(BOOK_MIN_GRIDS, c + 1))}
                   >
                     +
                   </button>

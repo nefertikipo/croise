@@ -23,21 +23,37 @@ interface PageRow {
   config: unknown;
 }
 
-/** Build a single grid page payload from its spine row + crossword + words. */
-async function serializeGridPage(page: PageRow): Promise<GridPage | null> {
-  if (!page.crosswordId) return null;
-  const [grid] = await db
+interface GridData {
+  grid: typeof crosswords.$inferSelect;
+  words: (typeof placedWords.$inferSelect)[];
+}
+
+/**
+ * Load crosswords + their placed words for a set of ids in two batched queries
+ * (instead of two queries per grid page), grouped by crossword id.
+ */
+async function loadGridData(crosswordIds: string[]): Promise<Map<string, GridData>> {
+  const byId = new Map<string, GridData>();
+  if (crosswordIds.length === 0) return byId;
+
+  const grids = await db
     .select()
     .from(crosswords)
-    .where(eq(crosswords.id, page.crosswordId))
-    .limit(1);
-  if (!grid) return null;
+    .where(inArray(crosswords.id, crosswordIds));
+  for (const grid of grids) byId.set(grid.id, { grid, words: [] });
 
   const words = await db
     .select()
     .from(placedWords)
-    .where(eq(placedWords.crosswordId, grid.id));
+    .where(inArray(placedWords.crosswordId, crosswordIds));
+  for (const w of words) byId.get(w.crosswordId)?.words.push(w);
 
+  return byId;
+}
+
+/** Build a single grid page payload from its spine row + crossword + words. */
+function buildGridPage(page: PageRow, data: GridData): GridPage {
+  const { grid, words } = data;
   return {
     kind: "grid",
     pageId: page.id,
@@ -58,8 +74,19 @@ async function serializeGridPage(page: PageRow): Promise<GridPage | null> {
   };
 }
 
+/** A grid page whose crossword is gone can't render; drop it, but never silently. */
+function reportMissingCrossword(page: PageRow, bookRef: string): void {
+  console.error(
+    `[books] grid page ${page.id} (book ${bookRef}) references missing crossword ` +
+      `${page.crosswordId ?? "(null)"} — dropping the page from the payload`,
+  );
+}
+
 /** Serialize the ordered spine (grid + content pages) of a book. */
-export async function serializePages(bookId: string): Promise<BookPageData[]> {
+export async function serializePages(
+  bookId: string,
+  bookCode?: string,
+): Promise<BookPageData[]> {
   const rows = await db
     .select({
       id: bookPages.id,
@@ -72,11 +99,20 @@ export async function serializePages(bookId: string): Promise<BookPageData[]> {
     .where(eq(bookPages.bookId, bookId))
     .orderBy(asc(bookPages.position));
 
+  const gridIds = rows
+    .filter((r) => r.kind === "grid" && r.crosswordId !== null)
+    .map((r) => r.crosswordId as string);
+  const gridData = await loadGridData(gridIds);
+
   const pages: BookPageData[] = [];
   for (const row of rows) {
     if (row.kind === "grid") {
-      const gp = await serializeGridPage(row);
-      if (gp) pages.push(gp);
+      const data = row.crosswordId ? gridData.get(row.crosswordId) : undefined;
+      if (!data) {
+        reportMissingCrossword(row, bookCode ?? bookId);
+        continue;
+      }
+      pages.push(buildGridPage(row, data));
     } else {
       pages.push({
         kind: "content",
@@ -94,7 +130,7 @@ export async function loadBook(code: string): Promise<BookData | null> {
   const [book] = await db.select().from(books).where(eq(books.code, code)).limit(1);
   if (!book) return null;
 
-  const pages = await serializePages(book.id);
+  const pages = await serializePages(book.id, book.code);
   const grids = pages.filter((p): p is GridPage => p.kind === "grid");
 
   return {
@@ -123,11 +159,20 @@ export async function serializePage(pageId: string): Promise<BookPageData | null
       config: bookPages.config,
     })
     .from(bookPages)
-    .where(inArray(bookPages.id, [pageId]))
+    .where(eq(bookPages.id, pageId))
     .limit(1);
   const row = rows[0];
   if (!row) return null;
-  if (row.kind === "grid") return serializeGridPage(row);
+  if (row.kind === "grid") {
+    const data = row.crosswordId
+      ? (await loadGridData([row.crosswordId])).get(row.crosswordId)
+      : undefined;
+    if (!data) {
+      reportMissingCrossword(row, "(single-page load)");
+      return null;
+    }
+    return buildGridPage(row, data);
+  }
   return {
     kind: "content",
     pageId: row.id,

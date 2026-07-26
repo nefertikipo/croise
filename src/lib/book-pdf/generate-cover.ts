@@ -1,13 +1,28 @@
+import { BOOK_BINDING } from "@/lib/books/constants";
 /**
- * Generate a print-ready cover PDF for a real book: resolve its chosen template,
- * fetch the full-resolution photo, and compose. Shared by the cover.pdf route
- * and any preview/preflight path.
+ * Generate the print-ready WRAPAROUND COVER SPREAD for a real book: one PDF
+ * page holding back cover + spine + front cover (POD perfect-bound softcover
+ * expects a single spread file). Width = 2×trim + spine + 2×bleed; spine width
+ * derives from the interior page count (see PAPER_THICKNESS_MM_PER_PAGE —
+ * calibrate to the chosen Gelato paper before ordering). TrimBox/BleedBox are
+ * set; no crop marks.
  */
 
+import { PDFDocument, degrees } from "pdf-lib";
 import sharp from "sharp";
-import { composeCoverPdf } from "@/lib/book-pdf/compose-cover";
+import { composeCoverPanel, embedCoverTitleFont } from "@/lib/book-pdf/compose-cover";
+import { composeBackCoverPanel } from "@/lib/book-pdf/compose-back-cover";
 import { getCoverTemplate, resolveCoverColor, resolveCoverFont } from "@/lib/book-pdf/cover-templates";
+import { embedBookFonts } from "@/lib/book-pdf/fonts";
+import {
+  hex2rgb,
+  mm2pt,
+  spineWidthMm,
+  SPINE_TEXT_MIN_MM,
+  type PanelRect,
+} from "@/lib/book-pdf/geometry";
 import { getOriginal } from "@/lib/book-pdf/photo-store";
+import { nfc } from "@/lib/book-pdf/text";
 import type { CoverConfig, PageDesign } from "@/types/book";
 
 /** Apply the user's fractional crop to the full-res original, if any. */
@@ -31,15 +46,20 @@ export class MissingCoverPhotoError extends Error {
   }
 }
 
-export async function generateCoverPdf(input: {
+export interface CoverSpreadInput {
   title: string;
+  code: string;
   cover: CoverConfig | null;
-}): Promise<Uint8Array> {
+  /** Final interior page count (see countInteriorPages) — drives spine width. */
+  interiorPageCount: number;
+}
+
+export async function generateCoverSpreadPdf(input: CoverSpreadInput): Promise<Uint8Array> {
   const base = getCoverTemplate(input.cover?.coverTemplate);
   const photoRef = input.cover?.design?.photoRef;
   if (!photoRef) throw new MissingCoverPhotoError();
 
-  // The whole page is the chosen colour (blue/red/gold) with a thin keyline
+  // The whole spread is the chosen colour (blue/red/gold) with a thin keyline
   // border; only the photo differs. No mutation of the shared template.
   const { bg, border } = resolveCoverColor(input.cover?.coverColor);
   const template = {
@@ -55,5 +75,68 @@ export async function generateCoverPdf(input: {
 
   const photo = await applyCrop(await getOriginal(photoRef), input.cover?.design?.crop);
   const titleFontFile = resolveCoverFont(input.cover?.titleFont).file;
-  return composeCoverPdf(template, { title: input.title, photo, titleFontFile, titleBold: input.cover?.titleBold });
+
+  // --- Spread geometry: back | spine | front, plus bleed all around. --------
+  const bleedPt = mm2pt(template.bleedMm);
+  const trimWpt = mm2pt(template.trimWidthMm);
+  const trimHpt = mm2pt(template.trimHeightMm);
+  // Saddle-stitch covers have no spine panel (staples, not a flat spine);
+  // spineWidthMm only applies to perfect binding.
+  const spineMm =
+    BOOK_BINDING === "saddle-stitch" ? 0 : spineWidthMm(input.interiorPageCount);
+  const spinePt = mm2pt(spineMm);
+  const pageW = 2 * trimWpt + spinePt + 2 * bleedPt;
+  const pageH = trimHpt + 2 * bleedPt;
+
+  const doc = await PDFDocument.create();
+  const fonts = await embedBookFonts(doc);
+  const page = doc.addPage([pageW, pageH]);
+
+  // Shared background across the full spread (back, spine, front + bleed).
+  page.drawRectangle({ x: 0, y: 0, width: pageW, height: pageH, color: hex2rgb(bg) });
+
+  // Back cover — left panel.
+  const backPanel: PanelRect = { x: bleedPt, y: bleedPt, w: trimWpt, h: trimHpt };
+  composeBackCoverPanel({ page, fonts, panel: backPanel, title: input.title, code: input.code, cover: input.cover });
+
+  // Spine — solid background (already painted); title vertically only when the
+  // spine is wide enough to carry text.
+  if (spineMm >= SPINE_TEXT_MIN_MM) {
+    const spineFont = await embedCoverTitleFont(doc, titleFontFile);
+    const text = nfc(input.title).toUpperCase();
+    const maxLen = trimHpt - 40;
+    let size = Math.min(spinePt * 0.55, 14);
+    while (size > 5 && spineFont.widthOfTextAtSize(text, size) > maxLen) size -= 0.5;
+    if (spineFont.widthOfTextAtSize(text, size) <= maxLen) {
+      const spineCx = bleedPt + trimWpt + spinePt / 2;
+      const textW = spineFont.widthOfTextAtSize(text, size);
+      // Rotated -90°: text reads top-to-bottom when the book stands upright.
+      page.drawText(text, {
+        x: spineCx - size * 0.35,
+        y: pageH / 2 + textW / 2,
+        size,
+        font: spineFont,
+        color: hex2rgb(border),
+        rotate: degrees(-90),
+      });
+    }
+  }
+
+  // Front cover — right panel.
+  const frontPanel: PanelRect = { x: bleedPt + trimWpt + spinePt, y: bleedPt, w: trimWpt, h: trimHpt };
+  await composeCoverPanel({
+    doc,
+    page,
+    panel: frontPanel,
+    outer: { x: 0, y: 0, w: pageW, h: pageH },
+    template,
+    content: { title: input.title, photo, titleFontFile, titleBold: input.cover?.titleBold },
+  });
+
+  // POD print boxes: MediaBox = trim + bleed, BleedBox = MediaBox, TrimBox =
+  // the trim rect of the whole spread. No crop marks.
+  page.setBleedBox(0, 0, pageW, pageH);
+  page.setTrimBox(bleedPt, bleedPt, pageW - 2 * bleedPt, pageH - 2 * bleedPt);
+
+  return doc.save();
 }

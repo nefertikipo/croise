@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/db";
 import { books } from "@/db/schema/books";
 import { eq } from "drizzle-orm";
 import { loadBook } from "@/lib/books/serialize";
-import { auth } from "@/lib/auth";
+import { authorizeBookEdit } from "@/lib/books/authorize";
+import {
+  bookClueIdeasSchema,
+  bookDedicationSchema,
+  bookTitleSchema,
+} from "@/lib/books/validation";
 
 export async function GET(
   request: Request,
@@ -22,33 +28,56 @@ export async function GET(
   }
 }
 
+/**
+ * Partial update: only the provided fields change; unknown fields are ignored
+ * (zod strips them). Every field is bounded (shared schemas in
+ * src/lib/books/validation.ts) so a book row can't be inflated arbitrarily.
+ */
+const patchSchema = z.object({
+  title: bookTitleSchema.optional(),
+  description: z.string().max(2000).nullable().optional(),
+  dedicationText: bookDedicationSchema.nullable().optional(),
+  status: z.enum(["draft", "ready", "ordered"]).optional(),
+  clueIdeas: bookClueIdeasSchema.optional(),
+  coverConfig: z
+    .record(z.string(), z.unknown())
+    .refine((v) => JSON.stringify(v).length <= 50_000, {
+      message: "coverConfig trop volumineux",
+    })
+    .optional(),
+});
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ code: string }> },
 ) {
   try {
     const { code } = await params;
-    const body = await request.json().catch(() => ({}));
 
-    const [book] = await db
-      .select({ id: books.id })
-      .from(books)
-      .where(eq(books.code, code))
-      .limit(1);
-
-    if (!book) {
-      return NextResponse.json({ error: "Book not found" }, { status: 404 });
+    const authz = await authorizeBookEdit(request, code);
+    if (!authz.ok) {
+      return NextResponse.json({ error: authz.error }, { status: authz.status });
     }
 
-    const updates: Record<string, unknown> = { updatedAt: new Date() };
-    if (body.title !== undefined) updates.title = body.title;
-    if (body.description !== undefined) updates.description = body.description;
-    if (body.dedicationText !== undefined) updates.dedicationText = body.dedicationText;
-    if (body.coverConfig !== undefined) updates.coverConfig = body.coverConfig;
-    if (body.clueIdeas !== undefined) updates.clueIdeas = body.clueIdeas;
-    if (body.status !== undefined) updates.status = body.status;
+    const body = await request.json().catch(() => ({}));
+    const parsed = patchSchema.safeParse(body ?? {});
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Requête invalide : certains champs sont mal formés ou trop longs." },
+        { status: 400 },
+      );
+    }
+    const data = parsed.data;
 
-    await db.update(books).set(updates).where(eq(books.id, book.id));
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (data.title !== undefined) updates.title = data.title;
+    if (data.description !== undefined) updates.description = data.description;
+    if (data.dedicationText !== undefined) updates.dedicationText = data.dedicationText;
+    if (data.coverConfig !== undefined) updates.coverConfig = data.coverConfig;
+    if (data.clueIdeas !== undefined) updates.clueIdeas = data.clueIdeas;
+    if (data.status !== undefined) updates.status = data.status;
+
+    await db.update(books).set(updates).where(eq(books.id, authz.book.id));
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -64,27 +93,15 @@ export async function DELETE(
   try {
     const { code } = await params;
 
-    const session = await auth.api.getSession({ headers: request.headers });
-    if (!session) {
-      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-    }
-
-    const [book] = await db
-      .select({ id: books.id, ownerId: books.ownerId })
-      .from(books)
-      .where(eq(books.code, code))
-      .limit(1);
-
-    if (!book) {
-      return NextResponse.json({ error: "Livre introuvable" }, { status: 404 });
-    }
-
-    if (book.ownerId !== session.user.id) {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    // Anonymous books are deletable by anyone holding the code (the code is
+    // their only credential); owned books only by their owner.
+    const authz = await authorizeBookEdit(request, code);
+    if (!authz.ok) {
+      return NextResponse.json({ error: authz.error }, { status: authz.status });
     }
 
     // book_pages rows cascade on book delete; the grids themselves are kept.
-    await db.delete(books).where(eq(books.id, book.id));
+    await db.delete(books).where(eq(books.id, authz.book.id));
 
     return NextResponse.json({ success: true });
   } catch (error) {

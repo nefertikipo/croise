@@ -3,14 +3,21 @@ import { z } from "zod";
 import { db } from "@/db";
 import { books, bookPages } from "@/db/schema/books";
 import { crosswords } from "@/db/schema/crosswords";
-import { generateBookCode } from "@/lib/code";
+import { generateBookCode, retryOnUniqueViolation } from "@/lib/code";
+import { copyCrossword } from "@/lib/books/copy-crossword";
 import { auth } from "@/lib/auth";
+import {
+  bookClueIdeasSchema,
+  bookDedicationSchema,
+  bookTitleSchema,
+} from "@/lib/books/validation";
 import { and, count, desc, eq, inArray } from "drizzle-orm";
 
 const requestSchema = z.object({
-  title: z.string().optional(),
-  description: z.string().optional(),
-  dedicationText: z.string().optional(),
+  title: bookTitleSchema.optional(),
+  description: z.string().max(2000).optional(),
+  dedicationText: bookDedicationSchema.optional(),
+  clueIdeas: bookClueIdeasSchema.optional(),
   coverConfig: z.record(z.string(), z.unknown()).optional(),
   /** Link an already-generated grid (e.g. from /fleche) as the first page. */
   seedCrosswordCode: z.string().optional(),
@@ -61,30 +68,32 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const parsed = requestSchema.parse(body ?? {});
-
-    const code = generateBookCode();
-
-    // Attach to the signed-in user if there is one (anonymous otherwise).
+    // Book creation requires an account: every new book gets an owner so it is
+    // always retrievable from "Mes livres" (legacy anonymous books are
+    // unaffected — read paths and edit authorization stay as they were).
     const authSession = await auth.api.getSession({ headers: request.headers });
-    const ownerId = authSession?.user.id ?? null;
+    const ownerId = authSession?.user.id;
+    if (!ownerId) {
+      return NextResponse.json(
+        { error: "Connectez-vous pour créer un livre." },
+        { status: 401 },
+      );
+    }
 
-    const [book] = await db
-      .insert(books)
-      .values({
-        code,
-        ownerId,
-        title: parsed.title || "Mon livre de mots fleches",
-        description: parsed.description,
-        dedicationText: parsed.dedicationText,
-        coverConfig: parsed.coverConfig,
-        language: "fr",
-        status: "draft",
-      })
-      .returning({ id: books.id, code: books.code });
+    const body = await request.json().catch(() => ({}));
+    const result = requestSchema.safeParse(body ?? {});
+    if (!result.success) {
+      return NextResponse.json(
+        { error: "Requête invalide : certains champs sont mal formés ou trop longs." },
+        { status: 400 },
+      );
+    }
+    const parsed = result.data;
 
-    // Optionally seed the first grid page from an existing crossword.
+    // Optionally seed the first grid page from an existing crossword — as a
+    // deep COPY (like attach-grid), so deleting the book page later can never
+    // destroy the original standalone grid the user may still share.
+    let seedCrosswordId: string | null = null;
     if (parsed.seedCrosswordCode) {
       const [grid] = await db
         .select({ id: crosswords.id })
@@ -92,17 +101,46 @@ export async function POST(request: Request) {
         .where(eq(crosswords.code, parsed.seedCrosswordCode))
         .limit(1);
       if (grid) {
-        await db.insert(bookPages).values({
-          bookId: book.id,
-          position: 0,
-          kind: "grid",
-          crosswordId: grid.id,
-          config: parsed.seedConfig ?? {},
-        });
+        seedCrosswordId = await copyCrossword(grid.id);
       }
     }
 
-    return NextResponse.json({ id: book.id, code: book.code });
+    // Pre-generate the id so book + seed page insert atomically in one batch
+    // (neon-http has no interactive transactions), retrying on the
+    // astronomically rare share-code collision.
+    const bookId = crypto.randomUUID();
+    const code = await retryOnUniqueViolation(async () => {
+      const freshCode = generateBookCode();
+      const insertBook = db.insert(books).values({
+        id: bookId,
+        code: freshCode,
+        ownerId,
+        title: parsed.title || "Mon livre de mots fleches",
+        description: parsed.description,
+        dedicationText: parsed.dedicationText,
+        clueIdeas: parsed.clueIdeas,
+        coverConfig: parsed.coverConfig,
+        language: "fr",
+        status: "draft",
+      });
+      if (seedCrosswordId) {
+        await db.batch([
+          insertBook,
+          db.insert(bookPages).values({
+            bookId,
+            position: 0,
+            kind: "grid",
+            crosswordId: seedCrosswordId,
+            config: parsed.seedConfig ?? {},
+          }),
+        ]);
+      } else {
+        await insertBook;
+      }
+      return freshCode;
+    });
+
+    return NextResponse.json({ id: bookId, code });
   } catch (error) {
     console.error("Book creation error:", error);
     return NextResponse.json({ error: "Failed to create book" }, { status: 500 });

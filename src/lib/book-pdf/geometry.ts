@@ -1,7 +1,13 @@
 /**
  * Shared print geometry for the book PDF engine: physical page sizes, unit
- * conversions, colour helpers and crop marks. Used by every interior page
- * composer (grid, index, back cover) so trim/bleed stays consistent.
+ * conversions, colour helpers, print boxes (Trim/Bleed) and the binding-gutter
+ * margins. Used by every interior page composer (grid, index, content,
+ * solutions) so trim/bleed stays consistent.
+ *
+ * POD output (a5) is trim + bleed with TrimBox/BleedBox metadata and NO crop
+ * marks — that is what Gelato-class print-on-demand expects. The a4 variant is
+ * a true 210×297 mm "print at home" page: no bleed, no marks, content inside a
+ * plain 10 mm margin.
  */
 
 import { rgb, type PDFPage, type RGB } from "pdf-lib";
@@ -14,6 +20,23 @@ export const mm2pt = (mm: number) => (mm * 72) / MM_PER_INCH;
 export const mm2px = (mm: number) => Math.round((mm / MM_PER_INCH) * DPI);
 export const pt2px = (pt: number) => Math.round((pt / 72) * DPI);
 
+/**
+ * Paper thickness per interior page (leaf side), used to derive the spine
+ * width of the wraparound cover: `spineMm = interiorPageCount × this`.
+ *
+ * 0.055 mm/page approximates a 90–130 gsm uncoated book paper. IMPORTANT:
+ * this MUST be calibrated against the exact Gelato product/paper chosen for
+ * the book before the first real order — every paper has its own bulk, and a
+ * wrong value visibly misplaces the spine text.
+ */
+export const PAPER_THICKNESS_MM_PER_PAGE = 0.055;
+
+/** Spine width in millimetres for an interior of `pageCount` pages. */
+export const spineWidthMm = (pageCount: number) => pageCount * PAPER_THICKNESS_MM_PER_PAGE;
+
+/** Minimum spine width for printing the title on it; below this, leave blank. */
+export const SPINE_TEXT_MIN_MM = 6;
+
 /** A named trim size. Interior pages use A5 (the book) or A4 (print-at-home). */
 export type PageSize = "a5" | "a4";
 
@@ -21,15 +44,23 @@ export interface PageSpec {
   /** Trim size in millimetres. */
   trimWmm: number;
   trimHmm: number;
-  /** Bleed on every edge in millimetres. */
+  /** Bleed on every edge in millimetres (0 = no bleed, page = trim). */
   bleedMm: number;
-  /** Safe inner margin from the trim edge, in millimetres. */
-  marginMm: number;
+  /** Safe margins from the trim edge, in millimetres. Inner = spine side. */
+  marginTopMm: number;
+  marginBottomMm: number;
+  marginInnerMm: number;
+  marginOuterMm: number;
 }
 
 export const PAGE_SPECS: Record<PageSize, PageSpec> = {
-  a5: { trimWmm: 148, trimHmm: 210, bleedMm: 3, marginMm: 12 },
-  a4: { trimWmm: 210, trimHmm: 297, bleedMm: 3, marginMm: 16 },
+  // POD interior: mirrored margins — 15 mm on the spine side (binding gutter),
+  // 10 mm on the fore-edge, 12 mm top/bottom (unchanged).
+  // Bleed is Lulu's exact 0.125in. Inner margin covers their 0.2in gutter
+  // minimum with room; outer/top/bottom sit near their 0.5in safety guidance.
+  a5: { trimWmm: 148, trimHmm: 210, bleedMm: 3.175, marginTopMm: 12, marginBottomMm: 12, marginInnerMm: 15, marginOuterMm: 10 },
+  // Print-at-home: TRUE A4, no bleed, symmetric ~10 mm margins.
+  a4: { trimWmm: 210, trimHmm: 297, bleedMm: 0, marginTopMm: 10, marginBottomMm: 10, marginInnerMm: 10, marginOuterMm: 10 },
 };
 
 export function resolvePageSize(size?: string): PageSize {
@@ -37,8 +68,19 @@ export function resolvePageSize(size?: string): PageSize {
 }
 
 /**
+ * Which side of the spread a bound page lands on. Page 1 (doc index 0) is a
+ * recto (right-hand page): its spine — and inner margin — is on the LEFT.
+ * Versos mirror it.
+ */
+export type PageSide = "recto" | "verso";
+
+/** Side of the page at 0-based index `i` in the assembled document. */
+export const sideForPageIndex = (i: number): PageSide => (i % 2 === 0 ? "recto" : "verso");
+
+/**
  * Resolved page geometry in PDF points (72/inch), bottom-left origin. The page
- * is trim + bleed on all sides; `content*` is the safe area inside the margin.
+ * is trim + bleed on all sides; `content*` is the safe area inside the margins
+ * (gutter-aware: pass the page's `side`).
  */
 export interface Geometry {
   pageW: number;
@@ -46,18 +88,23 @@ export interface Geometry {
   bleedPt: number;
   trimWpt: number;
   trimHpt: number;
-  /** Safe content box (inside the margin), top-left origin fields for layout. */
+  /** Safe content box (inside the margins), top-left origin fields for layout. */
   contentX: number;
   contentTop: number;
   contentW: number;
   contentH: number;
 }
 
-export function pageGeometry(spec: PageSpec): Geometry {
+export function pageGeometry(spec: PageSpec, side: PageSide = "recto"): Geometry {
   const bleedPt = mm2pt(spec.bleedMm);
   const trimWpt = mm2pt(spec.trimWmm);
   const trimHpt = mm2pt(spec.trimHmm);
-  const marginPt = mm2pt(spec.marginMm);
+  const innerPt = mm2pt(spec.marginInnerMm);
+  const outerPt = mm2pt(spec.marginOuterMm);
+  const topPt = mm2pt(spec.marginTopMm);
+  const bottomPt = mm2pt(spec.marginBottomMm);
+  // Recto: spine (inner margin) on the left. Verso: on the right.
+  const leftPt = side === "recto" ? innerPt : outerPt;
   const pageW = mm2pt(spec.trimWmm + 2 * spec.bleedMm);
   const pageH = mm2pt(spec.trimHmm + 2 * spec.bleedMm);
   return {
@@ -66,11 +113,34 @@ export function pageGeometry(spec: PageSpec): Geometry {
     bleedPt,
     trimWpt,
     trimHpt,
-    contentX: bleedPt + marginPt,
-    contentTop: bleedPt + marginPt,
-    contentW: trimWpt - 2 * marginPt,
-    contentH: trimHpt - 2 * marginPt,
+    contentX: bleedPt + leftPt,
+    contentTop: bleedPt + topPt,
+    contentW: trimWpt - innerPt - outerPt,
+    contentH: trimHpt - topPt - bottomPt,
   };
+}
+
+/** A page factory used by paginating composers (index, solutions): each call
+ * adds a page with the correct recto/verso geometry and print boxes set. */
+export type AddPage = () => { page: PDFPage; g: Geometry };
+
+/** An axis-aligned rectangle in PDF points, bottom-left origin. Used for the
+ * cover-spread panels (back / spine / front). */
+export interface PanelRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * POD print metadata: MediaBox is trim + bleed (the page itself), BleedBox =
+ * MediaBox, TrimBox = the trim rectangle. No crop marks — POD wants clean
+ * trim+bleed files with boxes.
+ */
+export function setPrintBoxes(page: PDFPage, g: Geometry) {
+  page.setBleedBox(0, 0, g.pageW, g.pageH);
+  page.setTrimBox(g.bleedPt, g.bleedPt, g.trimWpt, g.trimHpt);
 }
 
 /** Parse a #rgb / #rrggbb hex into a pdf-lib RGB. */
@@ -111,21 +181,3 @@ export function mixHex(a: string, b: string, t: number): RGB {
 
 /** Convert a top-left-origin y (points from page top) to pdf-lib's bottom-left. */
 export const flipY = (g: Geometry, yTop: number) => g.pageH - yTop;
-
-/** Small crop marks at the four trim corners, drawn into the bleed. */
-export function drawCropMarks(page: PDFPage, g: Geometry) {
-  const len = mm2pt(3);
-  const gap = mm2pt(1.5);
-  const b = g.bleedPt;
-  const mark = { thickness: 0.4, color: rgb(0, 0, 0) };
-  const corners = [
-    { x: b, y: b, sx: -1, sy: -1 },
-    { x: g.pageW - b, y: b, sx: 1, sy: -1 },
-    { x: b, y: g.pageH - b, sx: -1, sy: 1 },
-    { x: g.pageW - b, y: g.pageH - b, sx: 1, sy: 1 },
-  ];
-  for (const c of corners) {
-    page.drawLine({ start: { x: c.x + c.sx * gap, y: c.y }, end: { x: c.x + c.sx * (gap + len), y: c.y }, ...mark });
-    page.drawLine({ start: { x: c.x, y: c.y + c.sy * gap }, end: { x: c.x, y: c.y + c.sy * (gap + len) }, ...mark });
-  }
-}

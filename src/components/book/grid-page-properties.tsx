@@ -5,6 +5,8 @@ import { Field, TextField, ColorPicker } from "@/components/book/field";
 import { DifficultyPicker } from "@/components/book/difficulty-picker";
 import { CustomWordsEditor } from "@/components/book/custom-words-editor";
 import { ClueIdeaPicker } from "@/components/book/clue-idea-picker";
+import { ConfirmButton } from "@/components/book/confirm-button";
+import { addPickedIdeas } from "@/components/book/pick-ideas";
 import { Button } from "@/components/ui/button";
 import { GenerationProgress } from "@/components/shared/generation-progress";
 import { ClueList, difficultyBand } from "@/components/fleche/clue-list";
@@ -88,18 +90,10 @@ export function GridPageProperties({
 
   const addedAnswers = new Set(customClues.map((c) => normalizeAnswer(c.answer)));
   function pickIdea(idea: ClueIdea) {
-    const key = normalizeAnswer(idea.answer);
-    if (addedAnswers.has(key)) return;
-    setCustomClues((prev) => [...prev, { answer: idea.answer, clue: idea.clue }]);
+    pickIdeas([idea]);
   }
   function pickIdeas(picked: ClueIdea[]) {
-    setCustomClues((prev) => {
-      const have = new Set(prev.map((c) => normalizeAnswer(c.answer)));
-      const additions = picked
-        .filter((idea) => !have.has(normalizeAnswer(idea.answer)))
-        .map((idea) => ({ answer: idea.answer, clue: idea.clue }));
-      return [...prev, ...additions];
-    });
+    setCustomClues((prev) => addPickedIdeas(prev, picked));
   }
   const [hiddenWord, setHiddenWord] = useState(page.config.hiddenWord ?? "");
   const [title, setTitle] = useState(page.config.title ?? "");
@@ -233,9 +227,12 @@ export function GridPageProperties({
         )}
       </div>
 
-      <Button variant="outline" onClick={onDelete} className="w-full">
-        Supprimer cette grille
-      </Button>
+      <ConfirmButton
+        label="Supprimer cette grille"
+        prompt="Supprimer cette grille ?"
+        onConfirm={onDelete}
+        className="w-full"
+      />
     </div>
   );
 }

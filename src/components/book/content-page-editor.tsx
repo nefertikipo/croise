@@ -1,9 +1,9 @@
 "use client";
 
 import { Field, TextField, TextAreaField, ColorPicker } from "@/components/book/field";
+import { ConfirmButton } from "@/components/book/confirm-button";
 import { DesignPicker } from "@/components/book/design-picker";
 import { PhotoPageEditor } from "@/components/book/photo-page-editor";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ContentLayout, ContentPageConfig } from "@/types/book";
 
@@ -24,12 +24,7 @@ export function ContentPageEditor({ config, onChange, onDelete }: ContentPageEdi
   }
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-heading text-xl uppercase">Page libre</h3>
-        <button onClick={onDelete} className="text-sm text-muted-foreground hover:text-destructive">
-          Supprimer
-        </button>
-      </div>
+      <h3 className="font-heading text-xl uppercase">Page libre</h3>
 
       <Field label="Type">
         <div className="flex gap-2">
@@ -100,9 +95,12 @@ export function ContentPageEditor({ config, onChange, onDelete }: ContentPageEdi
         />
       </div>
 
-      <Button variant="outline" onClick={onDelete} className="w-full">
-        Supprimer cette page
-      </Button>
+      <ConfirmButton
+        label="Supprimer cette page"
+        prompt="Supprimer cette page ?"
+        onConfirm={onDelete}
+        className="w-full"
+      />
     </div>
   );
 }

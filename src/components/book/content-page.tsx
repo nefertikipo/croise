@@ -48,9 +48,21 @@ export function ContentPageView({ config }: ContentPageViewProps) {
           </h2>
         )}
         <div className="h-px w-full bg-black/20 mb-6" />
-        <p className="text-lg leading-relaxed text-foreground whitespace-pre-wrap">
-          {config.body || "Votre texte…"}
-        </p>
+        {config.body ? (
+          <p className="text-lg leading-relaxed text-foreground whitespace-pre-wrap">
+            {config.body}
+          </p>
+        ) : (
+          // Empty body = a "notes" page: ruled lines for the recipient to
+          // write on (printed the same way — see compose-content-page.ts).
+          <div
+            className="flex-1"
+            style={{
+              backgroundImage:
+                "repeating-linear-gradient(transparent, transparent 31px, rgba(0,0,0,0.15) 31px, rgba(0,0,0,0.15) 32px)",
+            }}
+          />
+        )}
       </div>
     </BookPageFrame>
   );

@@ -1,7 +1,12 @@
 import { loadBook } from "@/lib/books/serialize";
-import { generateCoverPdf, MissingCoverPhotoError } from "@/lib/book-pdf/generate-cover";
+import { generateCoverSpreadPdf, MissingCoverPhotoError } from "@/lib/book-pdf/generate-cover";
+import { countInteriorPages, EmptyBookError } from "@/lib/book-pdf/generate-book";
+import { MissingPhotoError } from "@/lib/book-pdf/photo-store";
 
-/** GET the print-ready cover PDF for a book. */
+/** PDF composition (photo at 300 DPI) can exceed the default duration. */
+export const maxDuration = 60;
+
+/** GET the print-ready wraparound cover spread (back + spine + front) for a book. */
 export async function GET(_req: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     const { code } = await params;
@@ -10,16 +15,30 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
       return Response.json({ error: "Book not found" }, { status: 404 });
     }
 
-    const pdf = await generateCoverPdf({ title: book.title, cover: book.coverConfig });
+    // The spine width derives from the final interior page count (A5 = the book).
+    const interiorPageCount = countInteriorPages(book, "a5");
+    const pdf = await generateCoverSpreadPdf({
+      title: book.title,
+      code: book.code,
+      cover: book.coverConfig,
+      interiorPageCount,
+    });
     return new Response(Buffer.from(pdf), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename="cover-${code}.pdf"`,
+        "Cache-Control": "no-store",
       },
     });
   } catch (err) {
+    if (err instanceof EmptyBookError) {
+      return Response.json({ error: "Ajoutez au moins une grille." }, { status: 400 });
+    }
     if (err instanceof MissingCoverPhotoError) {
       return Response.json({ error: "Ajoutez une photo de couverture." }, { status: 400 });
+    }
+    if (err instanceof MissingPhotoError) {
+      return Response.json({ error: "Une photo du livre est introuvable. Veuillez la retélécharger." }, { status: 400 });
     }
     console.error("Cover PDF generation failed:", err);
     return Response.json({ error: "Echec de la generation de la couverture." }, { status: 500 });

@@ -25,27 +25,22 @@ const TOOL_KINDS = new Set<RailItem["kind"]>(["ideas", "add"]);
  * Reordering lives in the gallery (drag); this is navigation only.
  */
 export function PageRail({ items, selectedId, onSelect }: PageRailProps) {
-  let pageNum = 0;
-  let toolsStarted = false;
+  const firstToolId = items.find((i) => TOOL_KINDS.has(i.kind))?.id;
 
   return (
     <nav className="flex flex-col">
-      {items.map((item) => {
-        const isTool = TOOL_KINDS.has(item.kind);
+      {items.map((item, idx) => {
         const selected = item.id === selectedId;
 
         // The divider is emitted once, just before the first tool row.
-        let divider: React.ReactNode = null;
-        if (isTool && !toolsStarted) {
-          toolsStarted = true;
-          divider = (
+        const divider: React.ReactNode =
+          item.id === firstToolId ? (
             <div className="mt-4 mb-1 px-3">
               <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/70">
                 Atelier
               </span>
             </div>
-          );
-        }
+          ) : null;
 
         if (item.kind === "add") {
           return (
@@ -84,9 +79,10 @@ export function PageRail({ items, selectedId, onSelect }: PageRailProps) {
           );
         }
 
-        // Numbered book-spine row.
-        pageNum += 1;
-        const num = pageNum;
+        // Numbered book-spine row: its rank among the non-tool rows so far.
+        const num = items
+          .slice(0, idx + 1)
+          .filter((i) => !TOOL_KINDS.has(i.kind)).length;
         return (
           <button
             key={item.id}

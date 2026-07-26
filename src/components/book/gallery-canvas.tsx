@@ -19,6 +19,8 @@ interface GalleryCanvasProps extends SlotData {
   onFocus?: (id: SlotId) => void;
   /** Drop the dragged page before `beforeId`, or at the end when null. */
   onReorder: (dragId: string, beforeId: string | null) => void;
+  /** Viewing someone else's book: no drag handles, no reorder buttons. */
+  readOnly?: boolean;
 }
 
 /** Sentinel for "insert after the last movable page". */
@@ -40,6 +42,7 @@ export function GalleryCanvas({
   onSelect,
   onFocus,
   onReorder,
+  readOnly = false,
 }: GalleryCanvasProps) {
   const data: SlotData = { book, gridPages, gridNumberByPage, wordIndex };
   const slots = buildSlots(book);
@@ -58,6 +61,20 @@ export function GalleryCanvas({
     setDropBefore(null);
   }
 
+  /** Button reorder (touch fallback for HTML5 DnD): move one step in reading
+   * order — before the previous movable page, or past the next one. */
+  function movePage(id: string, dir: -1 | 1) {
+    const i = movableIds.indexOf(id);
+    if (i < 0) return;
+    if (dir === -1) {
+      if (i === 0) return;
+      onReorder(id, movableIds[i - 1]);
+    } else {
+      if (i === movableIds.length - 1) return;
+      onReorder(id, movableIds[i + 2] ?? null);
+    }
+  }
+
   function renderSide(id: SlotId | null) {
     if (id === null) {
       // Inside back cover facing the front cover — mirrors a real open book.
@@ -72,8 +89,9 @@ export function GalleryCanvas({
       );
     }
 
-    const draggable = movable.has(id);
+    const draggable = movable.has(id) && !readOnly;
     const isDragging = dragId === id;
+    const moveIndex = draggable ? movableIds.indexOf(id) : -1;
     // Show the caret before this page, or after it when it is the tail target.
     const caretBefore = dragId !== null && dragId !== id && dropBefore === id;
     const caretAfter =
@@ -135,28 +153,63 @@ export function GalleryCanvas({
             <div className="absolute -right-3 top-0 bottom-0 z-10 w-1.5 rounded bg-primary" />
           )}
 
-          {/* Locked vs. draggable badge. */}
-          <span
-            className={cn(
-              "absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-sm border px-1 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] shadow-sm",
-              draggable
-                ? "border-black/15 bg-paper/90 text-muted-foreground"
-                : "border-black/10 bg-muted/90 text-muted-foreground/70",
-            )}
-            title={draggable ? "Glissez pour déplacer" : "Position fixe"}
-          >
-            {draggable ? (
-              <>
-                <GripVertical className="h-2.5 w-2.5" aria-hidden />
-                Déplacer
-              </>
-            ) : (
-              <>
-                <Lock className="h-2.5 w-2.5" aria-hidden />
-                Fixe
-              </>
-            )}
-          </span>
+          {/* Locked vs. draggable badge — edit chrome, hidden in read-only. */}
+          {!readOnly && (
+            <span
+              className={cn(
+                "absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-sm border px-1 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] shadow-sm",
+                draggable
+                  ? "border-black/15 bg-paper/90 text-muted-foreground"
+                  : "border-black/10 bg-muted/90 text-muted-foreground/70",
+              )}
+              title={draggable ? "Glissez pour déplacer" : "Position fixe"}
+            >
+              {draggable ? (
+                <>
+                  <GripVertical className="h-2.5 w-2.5" aria-hidden />
+                  Déplacer
+                </>
+              ) : (
+                <>
+                  <Lock className="h-2.5 w-2.5" aria-hidden />
+                  Fixe
+                </>
+              )}
+            </span>
+          )}
+
+          {/* Button reorder — always visible so touch devices (no HTML5 DnD)
+              can still rearrange pages. */}
+          {draggable && (
+            <span className="absolute right-1.5 top-1.5 z-10 flex overflow-hidden rounded-sm border border-black/15 bg-paper/90 shadow-sm">
+              <button
+                type="button"
+                aria-label="Déplacer la page vers l'avant"
+                title="Déplacer vers l'avant"
+                disabled={moveIndex <= 0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  movePage(id, -1);
+                }}
+                className="px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+              >
+                ◀
+              </button>
+              <button
+                type="button"
+                aria-label="Déplacer la page vers l'arrière"
+                title="Déplacer vers l'arrière"
+                disabled={moveIndex === movableIds.length - 1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  movePage(id, 1);
+                }}
+                className="border-l border-black/15 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+              >
+                ▶
+              </button>
+            </span>
+          )}
 
           <SlotCard
             id={id}

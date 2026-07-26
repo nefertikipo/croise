@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
-import { books, bookPages } from "@/db/schema/books";
+import { bookPages } from "@/db/schema/books";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
 import { eq } from "drizzle-orm";
 import { serializePage } from "@/lib/books/serialize";
 import { collectUsedWordsAndClues } from "@/lib/books/used-clues";
 import { generateAndSaveGrid, MIN_LOCKED_WORD_LENGTH } from "@/lib/books/generate-grid";
-import { generateCrosswordCode } from "@/lib/code";
+import { copyCrossword } from "@/lib/books/copy-crossword";
+import { authorizeBookEdit, touchBookStatement } from "@/lib/books/authorize";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import type { GridPageConfig } from "@/types/book";
 
@@ -48,14 +49,11 @@ export async function POST(
     const { code } = await params;
     const input = requestSchema.parse(await request.json());
 
-    const [book] = await db
-      .select({ id: books.id, language: books.language })
-      .from(books)
-      .where(eq(books.code, code))
-      .limit(1);
-    if (!book) {
-      return NextResponse.json({ error: "Book not found" }, { status: 404 });
+    const authz = await authorizeBookEdit(request, code);
+    if (!authz.ok) {
+      return NextResponse.json({ error: authz.error }, { status: authz.status });
     }
+    const book = authz.book;
 
     const [grid] = await db
       .select()
@@ -135,6 +133,9 @@ export async function POST(
         height: grid.height,
         title: `Grille ${position + 1}`,
         customClues,
+        // Honor the page's mot caché (request override wins, else the
+        // standalone grid's own hidden word) — mirrors baseConfig below.
+        hiddenWord: input.config?.hiddenWord ?? grid.hiddenWord ?? undefined,
         difficulty: input.config?.difficulty,
         usedClues: bookClues,
         usedWords: bookWords,
@@ -149,69 +150,36 @@ export async function POST(
     } else {
       // Attach a COPY so the original standalone grid stays independent (deleting
       // the book page must not delete a grid the user may still use elsewhere).
-      crosswordId = await copyCrossword(grid.id);
+      const copied = await copyCrossword(grid.id);
+      if (!copied) {
+        return NextResponse.json({ error: "Grid not found" }, { status: 404 });
+      }
+      crosswordId = copied;
     }
 
-    const [page] = await db
-      .insert(bookPages)
-      .values({
+    const pageId = crypto.randomUUID();
+    await db.batch([
+      db.insert(bookPages).values({
+        id: pageId,
         bookId: book.id,
         position,
         kind: "grid",
         crosswordId,
         config: baseConfig,
-      })
-      .returning({ id: bookPages.id });
+      }),
+      touchBookStatement(book.id),
+    ]);
 
-    const serialized = await serializePage(page.id);
+    const serialized = await serializePage(pageId);
     if (!serialized) {
       return NextResponse.json({ error: "Failed to load attached grid" }, { status: 500 });
     }
     return NextResponse.json(serialized);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
+    }
     console.error("Attach grid error:", error);
     return NextResponse.json({ error: "Failed to attach grid" }, { status: 500 });
   }
-}
-
-/** Deep-copy a crossword row + its placed words, returning the new crossword id. */
-async function copyCrossword(sourceId: string): Promise<string> {
-  const [src] = await db.select().from(crosswords).where(eq(crosswords.id, sourceId)).limit(1);
-  const [copy] = await db
-    .insert(crosswords)
-    .values({
-      code: generateCrosswordCode(),
-      ownerId: src.ownerId,
-      title: src.title,
-      language: src.language,
-      width: src.width,
-      height: src.height,
-      gridPattern: src.gridPattern,
-      gridSolution: src.gridSolution,
-      hiddenWord: src.hiddenWord,
-      status: "ready",
-      difficulty: src.difficulty,
-      theme: src.theme,
-      vibe: src.vibe,
-    })
-    .returning({ id: crosswords.id });
-
-  const srcWords = await db.select().from(placedWords).where(eq(placedWords.crosswordId, sourceId));
-  if (srcWords.length > 0) {
-    await db.insert(placedWords).values(
-      srcWords.map((w) => ({
-        crosswordId: copy.id,
-        answer: w.answer,
-        direction: w.direction,
-        number: w.number,
-        startRow: w.startRow,
-        startCol: w.startCol,
-        length: w.length,
-        clueText: w.clueText,
-        isCustom: w.isCustom,
-        breaks: w.breaks,
-      })),
-    );
-  }
-  return copy.id;
 }

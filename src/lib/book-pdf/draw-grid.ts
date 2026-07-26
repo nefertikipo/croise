@@ -12,6 +12,7 @@
 import { rgb, type PDFPage, type RGB } from "pdf-lib";
 import type { BookFonts } from "@/lib/book-pdf/fonts";
 import { hex2rgb, mixHex } from "@/lib/book-pdf/geometry";
+import { nfc } from "@/lib/book-pdf/text";
 import type { FlecheCell } from "@/types/book";
 
 /* Palette — mirrors the constants at the top of fleche-grid.tsx. */
@@ -302,7 +303,7 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
           const boxW = S - 7 * u;
           const boxH = subH - 4 * u;
           const italic = cl.text === cl.answer;
-          const fitted = fitText(fonts.clue, cl.text.toUpperCase(), boxW, boxH, (hasTwo ? 10 : 13) * u, 5 * u, 1.1);
+          const fitted = fitText(fonts.clue, nfc(cl.text).toUpperCase(), boxW, boxH, (hasTwo ? 10 : 13) * u, 5 * u, 1.1);
           const lineH = fitted.size * 1.1;
           fitted.lines.forEach((line, li) => {
             const baseTop = subTop + 2 * u + li * lineH + fitted.size * 0.8;
@@ -338,7 +339,7 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
         });
       }
       if ((mode === "solution" || (plain && mode === "plain")) && cell.letter) {
-        centeredText(r, c, cell.letter.toUpperCase(), 22 * u, fonts.letter, INK_RGB);
+        centeredText(r, c, nfc(cell.letter).toUpperCase(), 22 * u, fonts.letter, INK_RGB);
       }
     }
   }

@@ -63,7 +63,7 @@ const SOLID_COLOR_A5: CoverTemplate = {
   name: "Fond couleur + grande photo + titre",
   trimWidthMm: 148,
   trimHeightMm: 210,
-  bleedMm: 3,
+  bleedMm: 3.175, // Lulu's exact 0.125in
   background: COVER_COLORS[DEFAULT_COVER_COLOR].bg,
   photo: {
     rect: { x: 0.04, y: 0.04, w: 0.92, h: 0.76 },

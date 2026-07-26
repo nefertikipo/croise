@@ -1,8 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { ConfirmButton } from "@/components/book/confirm-button";
 import { PhotoCropDialog } from "@/components/book/photo-crop-dialog";
 import { PhotoPagePreview } from "@/components/book/photo-page-preview";
+import { uploadBookPhoto } from "@/components/book/upload-photo";
 import { getPhotoLayout } from "@/lib/book-pdf/photo-layouts";
 import { cn } from "@/lib/utils";
 import type { ContentPageConfig, PageDesign } from "@/types/book";
@@ -48,18 +50,10 @@ export function PhotoPageEditor({ config, onChange, onDelete }: PhotoPageEditorP
     setUploading(true);
     setError(null);
     try {
-      const body = new FormData();
-      body.append("file", file);
-      const res = await fetch("/api/books/upload-photo", { method: "POST", body });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(typeof data?.error === "string" ? data.error : "Echec de l'import.");
-        return;
-      }
-      setPending({ k, photoRef: data.photoRef, preview: data.preview, aspect: photoAspects[k] });
+      const { photoRef, preview } = await uploadBookPhoto(file);
+      setPending({ k, photoRef, preview, aspect: photoAspects[k] });
     } catch (err) {
-      console.error("Image upload failed:", err);
-      setError("Echec de l'import de la photo.");
+      setError(err instanceof Error ? err.message : "Echec de l'import de la photo.");
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -68,12 +62,7 @@ export function PhotoPageEditor({ config, onChange, onDelete }: PhotoPageEditorP
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-heading text-xl uppercase">Photos</h3>
-        <button onClick={onDelete} className="text-sm text-muted-foreground hover:text-destructive">
-          Supprimer
-        </button>
-      </div>
+      <h3 className="font-heading text-xl uppercase">Photos</h3>
 
       <div className="space-y-1">
         <span className={label}>Disposition</span>
@@ -114,6 +103,13 @@ export function PhotoPageEditor({ config, onChange, onDelete }: PhotoPageEditorP
         </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
+
+      <ConfirmButton
+        label="Supprimer cette page"
+        prompt="Supprimer cette page ?"
+        onConfirm={onDelete}
+        className="w-full"
+      />
 
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
 
