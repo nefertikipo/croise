@@ -23,9 +23,11 @@ const OCCASIONS: { label: string; seed: string }[] = [
   { label: "Autre", seed: "" },
 ];
 
-/** The three difficulty cards (the "moyen" preset stays reachable per grid later). */
-const WIZARD_DIFFICULTIES: { v: GridDifficulty; label: string }[] = [
-  { v: "facile", label: "Facile" },
+/** The three difficulty cards (the "moyen" preset stays reachable per grid later).
+ * "Facile" is the recommended default: gift books get solved on the sofa, not
+ * fought with. */
+const WIZARD_DIFFICULTIES: { v: GridDifficulty; label: string; recommended?: boolean }[] = [
+  { v: "facile", label: "Facile", recommended: true },
   { v: "balanced", label: "Équilibré" },
   { v: "difficile", label: "Difficile" },
 ];
@@ -58,7 +60,7 @@ export function CreationWizard() {
     { id: crypto.randomUUID(), answer: "", clue: "" },
   ]);
   const [message, setMessage] = useState("");
-  const [difficulty, setDifficulty] = useState<GridDifficulty>("balanced");
+  const [difficulty, setDifficulty] = useState<GridDifficulty>("facile");
   const [submitting, setSubmitting] = useState(false);
 
   const validRows = rows.filter(
@@ -377,8 +379,15 @@ export function CreationWizard() {
                     )}
                   >
                     <span className="flex items-center justify-between">
-                      <span className="font-display text-sm uppercase tracking-wide text-ink">
-                        {d.label}
+                      <span className="flex items-center gap-2">
+                        <span className="font-display text-sm uppercase tracking-wide text-ink">
+                          {d.label}
+                        </span>
+                        {d.recommended && (
+                          <span className="border border-ink bg-paper px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-ink">
+                            Recommandé
+                          </span>
+                        )}
                       </span>
                       {selected && <span className="text-sm font-bold text-brand">✓</span>}
                     </span>

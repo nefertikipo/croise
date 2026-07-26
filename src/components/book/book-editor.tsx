@@ -26,6 +26,7 @@ import type {
   ContentLayout,
   ContentPageConfig,
   CoverConfig,
+  GridDifficulty,
   GridPage,
   GridPageConfig,
 } from "@/types/book";
@@ -308,15 +309,30 @@ export function BookEditor({
 
   // --- Structural mutations -------------------------------------------------
   /** Top up the book to BOOK_MIN_GRIDS with generic grids (defaults, no custom
-   * words) — the user can regenerate any of them later with personal touches. */
+   * words) — the user can regenerate any of them later with personal touches.
+   * Difficulty follows what the book already uses (most common among its
+   * grids), falling back to the recommended "facile". */
   function completeWithGenericGrids() {
     const missing = BOOK_MIN_GRIDS - gridPages.length;
     if (missing <= 0 || busy) return;
+    const counts = new Map<GridDifficulty, number>();
+    for (const p of gridPages) {
+      const d = p.config.difficulty ?? "balanced";
+      counts.set(d, (counts.get(d) ?? 0) + 1);
+    }
+    let difficulty: GridDifficulty = "facile";
+    let best = 0;
+    for (const [d, n] of counts) {
+      if (n > best) {
+        best = n;
+        difficulty = d;
+      }
+    }
     void addGrids({
       width: 11,
       height: 17,
       count: missing,
-      difficulty: "balanced",
+      difficulty,
       customClues: [],
     });
   }
