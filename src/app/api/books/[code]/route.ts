@@ -5,6 +5,11 @@ import { books } from "@/db/schema/books";
 import { eq } from "drizzle-orm";
 import { loadBook } from "@/lib/books/serialize";
 import { authorizeBookEdit } from "@/lib/books/authorize";
+import {
+  bookClueIdeasSchema,
+  bookDedicationSchema,
+  bookTitleSchema,
+} from "@/lib/books/validation";
 
 export async function GET(
   request: Request,
@@ -23,25 +28,17 @@ export async function GET(
   }
 }
 
-const clueIdeaSchema = z.object({
-  id: z.string().min(1).max(64),
-  answer: z.string().max(120),
-  clue: z.string().max(500),
-  category: z.string().max(80).optional(),
-  author: z.string().max(80).optional(),
-});
-
 /**
  * Partial update: only the provided fields change; unknown fields are ignored
- * (zod strips them). Every field is bounded so a book row can't be inflated
- * arbitrarily.
+ * (zod strips them). Every field is bounded (shared schemas in
+ * src/lib/books/validation.ts) so a book row can't be inflated arbitrarily.
  */
 const patchSchema = z.object({
-  title: z.string().min(1).max(120).optional(),
+  title: bookTitleSchema.optional(),
   description: z.string().max(2000).nullable().optional(),
-  dedicationText: z.string().max(2000).nullable().optional(),
+  dedicationText: bookDedicationSchema.nullable().optional(),
   status: z.enum(["draft", "ready", "ordered"]).optional(),
-  clueIdeas: z.array(clueIdeaSchema).max(200).optional(),
+  clueIdeas: bookClueIdeasSchema.optional(),
   coverConfig: z
     .record(z.string(), z.unknown())
     .refine((v) => JSON.stringify(v).length <= 50_000, {

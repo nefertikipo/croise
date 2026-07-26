@@ -6,12 +6,18 @@ import { crosswords } from "@/db/schema/crosswords";
 import { generateBookCode, retryOnUniqueViolation } from "@/lib/code";
 import { copyCrossword } from "@/lib/books/copy-crossword";
 import { auth } from "@/lib/auth";
+import {
+  bookClueIdeasSchema,
+  bookDedicationSchema,
+  bookTitleSchema,
+} from "@/lib/books/validation";
 import { and, count, desc, eq, inArray } from "drizzle-orm";
 
 const requestSchema = z.object({
-  title: z.string().optional(),
-  description: z.string().optional(),
-  dedicationText: z.string().optional(),
+  title: bookTitleSchema.optional(),
+  description: z.string().max(2000).optional(),
+  dedicationText: bookDedicationSchema.optional(),
+  clueIdeas: bookClueIdeasSchema.optional(),
   coverConfig: z.record(z.string(), z.unknown()).optional(),
   /** Link an already-generated grid (e.g. from /fleche) as the first page. */
   seedCrosswordCode: z.string().optional(),
@@ -62,12 +68,27 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const parsed = requestSchema.parse(body ?? {});
-
-    // Attach to the signed-in user if there is one (anonymous otherwise).
+    // Book creation requires an account: every new book gets an owner so it is
+    // always retrievable from "Mes livres" (legacy anonymous books are
+    // unaffected — read paths and edit authorization stay as they were).
     const authSession = await auth.api.getSession({ headers: request.headers });
-    const ownerId = authSession?.user.id ?? null;
+    const ownerId = authSession?.user.id;
+    if (!ownerId) {
+      return NextResponse.json(
+        { error: "Connectez-vous pour créer un livre." },
+        { status: 401 },
+      );
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const result = requestSchema.safeParse(body ?? {});
+    if (!result.success) {
+      return NextResponse.json(
+        { error: "Requête invalide : certains champs sont mal formés ou trop longs." },
+        { status: 400 },
+      );
+    }
+    const parsed = result.data;
 
     // Optionally seed the first grid page from an existing crossword — as a
     // deep COPY (like attach-grid), so deleting the book page later can never
@@ -97,6 +118,7 @@ export async function POST(request: Request) {
         title: parsed.title || "Mon livre de mots fleches",
         description: parsed.description,
         dedicationText: parsed.dedicationText,
+        clueIdeas: parsed.clueIdeas,
         coverConfig: parsed.coverConfig,
         language: "fr",
         status: "draft",

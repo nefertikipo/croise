@@ -71,6 +71,12 @@ export function BookEditor({
   // Grid creator opened from the empty-book onboarding (not the add-page panel).
   const [onboardingCreator, setOnboardingCreator] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  // Wizard handoff (/livre/nouveau): true while the wizard's generation plan is
+  // running, to show the "we're preparing your grids" banner.
+  const [wizardGenerating, setWizardGenerating] = useState(false);
+  const [wizardBannerDismissed, setWizardBannerDismissed] = useState(false);
+  // One-shot guard for the wizard pickup (also covers strict-mode re-invokes).
+  const wizardRan = useRef(false);
 
   const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   // Freshest book state, so debounced saves persist what is displayed at fire
@@ -114,6 +120,43 @@ export function BookEditor({
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [pendingSaves]);
+
+  // Wizard handoff: /livre/nouveau creates the book, stores a per-grid
+  // generation plan in sessionStorage, then lands here. Pick the plan up once
+  // (mutation orchestration, not data fetching) and auto-generate the grids
+  // while the user starts on the cover. Only ever runs on a brand-new book —
+  // the plan key is deleted before running and a ref guards strict-mode's
+  // double effect invocation.
+  useEffect(() => {
+    if (wizardRan.current) return;
+    wizardRan.current = true;
+    if (readOnly) return;
+    const key = `book-wizard-plan-${code}`;
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem(key);
+      if (raw !== null) sessionStorage.removeItem(key);
+    } catch {
+      return; // Storage unavailable — nothing to pick up.
+    }
+    if (!raw) return;
+    if (initialBook.pages.some((p) => p.kind === "grid")) return;
+    let plans: CreateGridOptions[] = [];
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) plans = parsed as CreateGridOptions[];
+    } catch {
+      return; // Corrupt plan — the empty-book onboarding takes over.
+    }
+    if (plans.length === 0) return;
+    setWizardGenerating(true);
+    void runGridPlans(plans, { selectFirst: false }).then((failReason) => {
+      setWizardGenerating(false);
+      if (failReason) toast.error(failReason);
+    });
+    // Mount-only by design: the plan must run exactly once for this book.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** Re-fetch the book so the UI stops showing unsaved data as saved. */
   async function resyncBook() {
@@ -278,24 +321,39 @@ export function BookEditor({
     });
   }
 
+  /** Batch add of identical grids (the grid creator / generic top-up path). */
   async function addGrids(opts: CreateGridOptions): Promise<string | null> {
+    return runGridPlans(
+      Array.from({ length: opts.count }, () => ({ ...opts, count: 1 })),
+    );
+  }
+
+  /**
+   * Run a list of per-grid generation plans sequentially — one grid per request
+   * so each returns quickly (well under the serverless timeout), grids appear
+   * in the book as they land, and the progress bar can report "Grille X sur N".
+   * The endpoint recomputes the book's used-word/clue exclusions per call, so
+   * sequential requests stay free of repeats exactly like a server-side batch
+   * would. Plans may differ per grid (the wizard spreads custom words and the
+   * hidden message across them). Resolves to a failure reason when nothing was
+   * created, null otherwise (partial failures toast here).
+   */
+  async function runGridPlans(
+    plans: CreateGridOptions[],
+    { selectFirst = true }: { selectFirst?: boolean } = {},
+  ): Promise<string | null> {
     setBusy(true);
-    setGenBatch({ current: 1, total: opts.count });
+    setGenBatch({ current: 1, total: plans.length });
     let created = 0;
     let failReason: string | null = null;
     const fallbackReason = "La génération de la grille a échoué. Réessayez.";
     try {
-      // Generate one grid per request so each returns quickly (well under the
-      // serverless timeout), grids appear in the book as they land, and the
-      // progress bar can report "Grille X sur N". The endpoint recomputes the
-      // book's used-word/clue exclusions per call, so sequential requests stay
-      // free of repeats exactly like a server-side batch would.
-      for (let i = 0; i < opts.count; i++) {
-        setGenBatch({ current: i + 1, total: opts.count });
+      for (let i = 0; i < plans.length; i++) {
+        setGenBatch({ current: i + 1, total: plans.length });
         const res = await fetch(`/api/books/${code}/grids`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...opts, count: 1 }),
+          body: JSON.stringify({ ...plans[i], count: 1 }),
         });
         if (!res.ok) {
           failReason = await readError(res, fallbackReason);
@@ -310,14 +368,16 @@ export function BookEditor({
           break;
         }
         setBook((b) => ({ ...b, pages: [...b.pages, ...data.pages] }));
-        if (created === 0 && data.pages[0]) setSelectedId(data.pages[0].pageId);
+        if (selectFirst && created === 0 && data.pages[0]) {
+          setSelectedId(data.pages[0].pageId);
+        }
         created += data.pages.length;
       }
       // Nothing generated — surface the reason inline in the creator.
       if (created === 0) return failReason ?? fallbackReason;
-      if (created < opts.count) {
+      if (created < plans.length) {
         toast.error(
-          `${created} grille${created > 1 ? "s" : ""} sur ${opts.count} créée${created > 1 ? "s" : ""} — ${failReason ?? fallbackReason}`,
+          `${created} grille${created > 1 ? "s" : ""} sur ${plans.length} créée${created > 1 ? "s" : ""} — ${failReason ?? fallbackReason}`,
         );
       }
       return null;
@@ -325,7 +385,7 @@ export function BookEditor({
       console.error(err);
       if (created > 0) {
         toast.error(
-          `${created} grille${created > 1 ? "s" : ""} sur ${opts.count} créée${created > 1 ? "s" : ""} — ${fallbackReason}`,
+          `${created} grille${created > 1 ? "s" : ""} sur ${plans.length} créée${created > 1 ? "s" : ""} — ${fallbackReason}`,
         );
         return null;
       }
@@ -537,9 +597,11 @@ export function BookEditor({
         ? "Échec de l'enregistrement"
         : "Enregistré";
 
-  // Empty-book onboarding: no grids yet, in the default overview.
+  // Empty-book onboarding: no grids yet, in the default overview. Hidden while
+  // a generation batch runs (e.g. the wizard's plan) — the first grid is coming.
   const showEmptyState =
     !readOnly &&
+    !busy &&
     gridPages.length === 0 &&
     view === "gallery" &&
     selectedId !== "add" &&
@@ -638,9 +700,34 @@ export function BookEditor({
             </div>
           ) : (
             <>
-              {/* 12-grid completion nudge: a printed book needs BOOK_MIN_GRIDS
-                  grids; offer one-click generic top-up + notes-page filler. */}
-              {!readOnly && gridPages.length > 0 && gridPages.length < BOOK_MIN_GRIDS && (
+              {/* One banner slot: while the wizard's plan runs, reassure +
+                  report progress; otherwise the 12-grid completion nudge. */}
+              {!readOnly && wizardGenerating ? (
+                !wizardBannerDismissed && (
+                  <div className="mb-4 flex flex-wrap items-center justify-center gap-3 border-2 border-black/20 bg-accent/30 px-4 py-2 text-sm">
+                    <span className="max-w-xl">
+                      Nous préparons vos {BOOK_MIN_GRIDS} grilles avec vos mots.
+                      Personnalisez la couverture ou la dédicace pendant ce
+                      temps. Vous pourrez ensuite ajouter des mots et régénérer
+                      chaque grille.
+                    </span>
+                    {genBatch && (
+                      <span className="whitespace-nowrap text-muted-foreground">
+                        Génération {genBatch.current}/{genBatch.total}…
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setWizardBannerDismissed(true)}
+                      aria-label="Masquer ce message"
+                      className="shrink-0 text-muted-foreground hover:text-foreground"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )
+              ) : (
+              !readOnly && gridPages.length > 0 && gridPages.length < BOOK_MIN_GRIDS && (
                 <div className="mb-4 flex flex-wrap items-center justify-center gap-3 border-2 border-black/20 bg-accent/30 px-4 py-2 text-sm">
                   <span>
                     <strong>{gridPages.length}</strong> grille
@@ -672,7 +759,7 @@ export function BookEditor({
                     </>
                   )}
                 </div>
-              )}
+              ))}
               <div className="mb-4 flex justify-center">
                 <div className="inline-flex border-2 border-ink" role="tablist">
                   {(
