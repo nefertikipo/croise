@@ -64,7 +64,9 @@ async function main() {
   }
   console.log(`Lulu API: ${luluBaseUrl()}  ·  SKU: ${LULU_POD_PACKAGE_ID}`);
   const { interiorUrl, coverUrl } = bookSourceUrls(code);
-  const pageCount = await fetchPageCount(interiorUrl);
+  // --pages overrides the header lookup (e.g. before the header ships to prod).
+  const pagesArg = arg("pages");
+  const pageCount = pagesArg ? Number(pagesArg) : await fetchPageCount(interiorUrl);
   console.log(`Book ${code}: ${pageCount} interior pages`);
 
   if (command === "dims") {

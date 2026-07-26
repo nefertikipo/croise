@@ -4,7 +4,7 @@
  * pod_package_id (dotted format): [Trim].[Ink].[Quality].[Binding].[Paper].[Finish]
  * - 0583X0827  → A5 trim, 5.83 × 8.27 in (148 × 210 mm)
  * - FC         → full colour ink
- * - STD        → standard quality
+ * - PRE        → premium quality (saddle stitch at A5 only exists in PRE full colour — verified against the live catalog 2026-07-26)
  * - SS         → saddle stitch (lies flat for solving; 4-48 interior pages)
  * - 060UW444   → 60# UNCOATED white paper — writable with pen/pencil, which a
  *                crossword book must be (coated/silk papers smear)
@@ -15,7 +15,7 @@
  * chosen paper/finish differs.
  */
 export const LULU_POD_PACKAGE_ID =
-  process.env.LULU_POD_PACKAGE_ID ?? "0583X0827.FC.STD.SS.060UW444.MXX";
+  process.env.LULU_POD_PACKAGE_ID ?? "0583X0827.FC.PRE.SS.060UW444.MXX";
 
 /** Public base URL Lulu fetches the PDFs from (must be reachable from Lulu). */
 export const LULU_SOURCE_BASE =
