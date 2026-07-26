@@ -8,14 +8,15 @@
  * - SS         → saddle stitch (lies flat for solving; 4-48 interior pages)
  * - 060UW444   → 60# UNCOATED white paper — writable with pen/pencil, which a
  *                crossword book must be (coated/silk papers smear)
- * - MXX        → matte cover, no linen, no foil
+ * - GXX        → GLOSS cover (newsstand-magazine shine, same price as
+ *                matte MXX), no linen, no foil. Interior stays uncoated/writable.
  *
  * Confirm this exact SKU exists in the pricing calculator before the first
  * real order (developers.lulu.com/price-calculator); override via env if the
  * chosen paper/finish differs.
  */
 export const LULU_POD_PACKAGE_ID =
-  process.env.LULU_POD_PACKAGE_ID ?? "0583X0827.FC.PRE.SS.060UW444.MXX";
+  process.env.LULU_POD_PACKAGE_ID ?? "0583X0827.FC.PRE.SS.060UW444.GXX";
 
 /** Public base URL Lulu fetches the PDFs from (must be reachable from Lulu). */
 export const LULU_SOURCE_BASE =
