@@ -9,6 +9,7 @@ import { generateAndSaveGrid } from "@/lib/books/generate-grid";
 import { collectUsedWordsAndClues } from "@/lib/books/used-clues";
 import { authorizeBookEdit, touchBookStatement } from "@/lib/books/authorize";
 import { checkCapacity } from "@/lib/crossword/check-capacity";
+import { hardCustomWordsHint } from "@/lib/crossword/generation-hint";
 import type { GridPageConfig } from "@/types/book";
 import type { BatchItem } from "drizzle-orm/batch";
 
@@ -88,8 +89,15 @@ export async function POST(
     });
 
     if (!grid) {
+      // Same per-word hints as /fleche when a custom word is provably hard.
+      // Response shape unchanged ({ error }).
+      const hint = hardCustomWordsHint(input.customClues);
       return NextResponse.json(
-        { error: "Failed to regenerate grid after max attempts" },
+        {
+          error: hint
+            ? `Impossible de régénérer la grille. ${hint}`
+            : "Failed to regenerate grid after max attempts",
+        },
         { status: 500 },
       );
     }

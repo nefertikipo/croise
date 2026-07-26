@@ -8,6 +8,7 @@ import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
 import { generateCrosswordCode } from "@/lib/code";
 import { checkCapacity } from "@/lib/crossword/check-capacity";
+import { hardCustomWordsHint } from "@/lib/crossword/generation-hint";
 import { normalizeAnswer, answerBreaks } from "@/lib/crossword/normalize";
 import { auth } from "@/lib/auth";
 import type { Coord } from "@/lib/crossword/fleche-math";
@@ -109,16 +110,12 @@ export async function POST(request: Request) {
         .map((c) => normalizeAnswer(c.answer))
         .filter((a) => a.length >= 2);
 
-      // Find which words are hardest (all consonants, very long, etc.)
-      const hard = customWords.filter((w) => {
-        const vowels = [...w].filter((c) => "AEIOUY".includes(c)).length;
-        return vowels === 0 || w.length >= 10;
-      });
-      const hint = hard.length > 0
-        ? `Les mots ${hard.join(", ")} sont tres difficiles a placer (peu de voyelles ou tres long). Essayez de les retirer ou modifier.`
-        : customWords.length > 3
+      // Name the hardest words (all consonants, very long, etc.) when possible.
+      const hint =
+        hardCustomWordsHint(params.customClues ?? []) ??
+        (customWords.length > 3
           ? "Essayez avec moins de mots personnalises ou des mots plus courts."
-          : "Essayez de regenerer.";
+          : "Essayez de regenerer.");
       return NextResponse.json(
         { error: `Impossible de generer la grille. ${hint}` },
         { status: 500 },
