@@ -62,7 +62,10 @@ export function CreateEmptyBookButton({
         throw new Error(data.error || "Impossible de créer le livre. Réessayez.");
       }
       const { code } = await res.json();
-      router.push(`/book/${code}`);
+      // Replace (not push): creating the book is a transient hand-off, so a
+      // back-gesture from the editor shouldn't return here and re-create a
+      // duplicate empty book.
+      router.replace(`/book/${code}`);
     } catch (err) {
       toast.error(
         err instanceof Error && err.message

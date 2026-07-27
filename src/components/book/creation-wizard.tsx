@@ -118,7 +118,13 @@ export function CreationWizard() {
         // Storage unavailable: the book still opens; the editor's empty-book
         // onboarding takes over (the words stay in the notepad).
       }
-      router.push(`/book/${code}`);
+      // Replace (not push): the wizard is a transient hand-off, not a page to
+      // return to. Otherwise a back-gesture from the editor lands on a
+      // freshly-remounted, empty wizard ("everything restarted") and a
+      // re-submit there would spawn a second, duplicate book. The created
+      // book — with its words — is safe server-side; back now returns to
+      // wherever the user opened the wizard from.
+      router.replace(`/book/${code}`);
     } catch (err) {
       toast.error(
         err instanceof Error && err.message
