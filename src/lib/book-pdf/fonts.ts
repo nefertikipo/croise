@@ -1,9 +1,10 @@
 /**
  * Font loading + embedding for the interior PDF engine. Mirrors the on-screen
- * type: Barlow Semi Condensed for clue text + grid letters (screen
- * `--font-condensed`), Anton for the deco headings (screen `--font-heading`
- * falls back to Anton). Raw TTF bytes are cached across requests; the embedded
- * `PDFFont` handles are per-document.
+ * type: Inter for clue text (screen `--font-sans`, switched from the condensed
+ * face for legibility at small sizes — see fleche-grid.tsx), Barlow Semi
+ * Condensed for grid letters, Anton for the deco headings (screen
+ * `--font-heading` falls back to Anton). Raw TTF bytes are cached across
+ * requests; the embedded `PDFFont` handles are per-document.
  */
 
 import { readFile } from "node:fs/promises";
@@ -24,7 +25,7 @@ async function loadFontBytes(file: string): Promise<Buffer> {
 
 /** The set of fonts every interior page draws with. */
 export interface BookFonts {
-  /** Clue text — Barlow Semi Condensed Medium (matches the screen clue face). */
+  /** Clue text — Inter Medium (matches the screen clue face, --font-sans). */
   clue: PDFFont;
   /** Grid letters + labels — Barlow Semi Condensed SemiBold. */
   letter: PDFFont;
@@ -37,7 +38,7 @@ export interface BookFonts {
 export async function embedBookFonts(doc: PDFDocument): Promise<BookFonts> {
   doc.registerFontkit(fontkit);
   const [clueB, letterB, boldB, headingB] = await Promise.all([
-    loadFontBytes("BarlowSemiCondensed-Medium.ttf"),
+    loadFontBytes("Inter-Medium.ttf"),
     loadFontBytes("BarlowSemiCondensed-SemiBold.ttf"),
     loadFontBytes("BarlowSemiCondensed-Bold.ttf"),
     loadFontBytes("Anton-Regular.ttf"),

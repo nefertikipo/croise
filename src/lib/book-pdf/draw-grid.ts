@@ -275,21 +275,34 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
         const clueTexts = [...cell.clues].sort(
           (a, b) => (a.answerRow > r ? 1 : 0) - (b.answerRow > r ? 1 : 0),
         );
-        const n = clueTexts.length;
-        const hasTwo = n >= 2;
+        const hasTwo = clueTexts.length >= 2;
         const b = cellRect(r, c);
+        // Proportional band split: when two clues share a cell the longer
+        // definition gets a taller band (clamped 0.34–0.66 so the shorter never
+        // collapses), mirroring fleche-grid.tsx. `bandTopFrac[i]` is band i's
+        // top and `grow[i]/growSum` its height, as 0–1 fractions down the cell.
+        const totalLen = clueTexts.reduce((s, cl) => s + cl.text.length, 0) || 1;
+        const grow = clueTexts.map((cl) => Math.min(0.66, Math.max(0.34, cl.text.length / totalLen)));
+        const growSum = grow.reduce((a, x) => a + x, 0) || 1;
+        let acc = 0;
+        const bandTopFrac = grow.map((g) => {
+          const top = acc / growSum;
+          acc += g;
+          return top;
+        });
         if (hasTwo) {
-          // Mid divider.
+          // Divider follows the split (band-1 top), not a fixed 50%.
+          const yDiv = pageH - (originTop + r * S + bandTopFrac[1] * S);
           page.drawLine({
-            start: { x: b.x, y: b.y + b.h / 2 },
-            end: { x: b.x + b.w, y: b.y + b.h / 2 },
+            start: { x: b.x, y: yDiv },
+            end: { x: b.x + b.w, y: yDiv },
             thickness: 0.5 * u,
             color: clueRule,
           });
         }
         clueTexts.forEach((cl, i) => {
-          const subTop = originTop + r * S + (i * S) / n;
-          const subH = S / n;
+          const subTop = originTop + r * S + bandTopFrac[i] * S;
+          const subH = (grow[i] / growSum) * S;
           if (cl.isCustom) {
             page.drawRectangle({
               x: b.x + 0.5 * u,
@@ -305,9 +318,14 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
           const italic = cl.text === cl.answer;
           const fitted = fitText(fonts.clue, nfc(cl.text).toUpperCase(), boxW, boxH, (hasTwo ? 10 : 13) * u, 5 * u, 1.1);
           const lineH = fitted.size * 1.1;
+          // Center the text block vertically within the band, and each line
+          // horizontally within the box (mirrors the screen's centred clues).
+          const vPad = Math.max(0, (boxH - fitted.lines.length * lineH) / 2);
           fitted.lines.forEach((line, li) => {
-            const baseTop = subTop + 2 * u + li * lineH + fitted.size * 0.8;
-            const [x, y] = abs(c * S + boxLeft, (baseTop - originTop));
+            const lineW = fonts.clue.widthOfTextAtSize(line, fitted.size);
+            const xLine = boxLeft + Math.max(0, (boxW - lineW) / 2);
+            const baseTop = subTop + 2 * u + vPad + li * lineH + fitted.size * 0.8;
+            const [x, y] = abs(c * S + xLine, (baseTop - originTop));
             page.drawText(line, {
               x,
               y,
@@ -368,14 +386,21 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
         const sorted = [...cell.clues].sort(
           (a, b) => (a.answerRow > ar ? 1 : 0) - (b.answerRow > ar ? 1 : 0),
         );
+        // Each arrow tail sits at the centre of its (unequal) band — same
+        // proportional split as the clue text above.
+        const sortedTotalLen = sorted.reduce((s, cl) => s + cl.text.length, 0) || 1;
+        const grow = sorted.map((cl) => Math.min(0.66, Math.max(0.34, cl.text.length / sortedTotalLen)));
+        const growSum = grow.reduce((a, x) => a + x, 0) || 1;
         sorted.forEach((cl, i) => {
+          const before = grow.slice(0, i).reduce((a, x) => a + x, 0);
+          const center = (before + grow[i] / 2) / growSum;
           const geo = arrowGeometry(
             ar,
             ac,
             cl.answerCol - ac,
             cl.answerRow - ar,
             cl.direction,
-            sorted.length === 1 ? 0.5 : i === 0 ? 0.28 : 0.72,
+            sorted.length === 1 ? 0.5 : center,
             S,
           );
           drawPolyline(page, geo.shaft, originX, originTop, pageH, INK_RGB, 3 * u);
