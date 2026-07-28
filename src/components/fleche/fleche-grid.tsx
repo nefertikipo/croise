@@ -113,17 +113,17 @@ function FitText({
     // collapse to one line and clip the text.
     <div
       ref={boxRef}
-      className="absolute overflow-hidden"
+      className="absolute overflow-hidden flex items-center justify-center"
       style={{ top: 2, left: 4, right: 3, bottom: 2 }}
     >
       <span
         ref={spanRef}
         className={cn(
-          "block uppercase break-words hyphens-auto",
+          "block text-center uppercase break-words hyphens-auto",
           italic && "italic opacity-60",
         )}
         style={{
-          fontFamily: "var(--font-condensed), var(--font-sans), sans-serif",
+          fontFamily: "var(--font-sans), sans-serif",
           fontSize: `${size}px`,
           fontWeight: 500,
           lineHeight: `${size * lineRatio}px`,
@@ -622,14 +622,26 @@ export function FlecheGrid({
       const sorted = [...acell.clues].sort(
         (a, b) => (a.answerRow > ar ? 1 : 0) - (b.answerRow > ar ? 1 : 0),
       );
+      // Mirror the proportional band split used when rendering the clue cell so
+      // each arrow's tail sits at the visual centre of its (unequal) band.
+      const sortedTotalLen =
+        sorted.reduce((s, cl) => s + cl.text.length, 0) || 1;
+      const grow = sorted.map((cl) =>
+        Math.min(0.66, Math.max(0.34, cl.text.length / sortedTotalLen)),
+      );
+      const growSum = grow.reduce((a, b) => a + b, 0) || 1;
       sorted.forEach((cl, i) => {
+        // Fraction of the cell taken up by bands above this one, plus half of
+        // this band → the band's centre as a 0–1 offset down the cell.
+        const before = grow.slice(0, i).reduce((a, b) => a + b, 0);
+        const center = (before + grow[i] / 2) / growSum;
         arrows.push({
           r: ar,
           c: ac,
           dx: cl.answerCol - ac,
           dy: cl.answerRow - ar,
           flow: cl.direction,
-          band: sorted.length === 1 ? 0.5 : i === 0 ? 0.28 : 0.72,
+          band: sorted.length === 1 ? 0.5 : center,
         });
       });
     }
@@ -743,6 +755,15 @@ export function FlecheGrid({
             });
             const hasTwo = clueTexts.length >= 2;
 
+            // When two clues share a cell, the divider isn't fixed at 50%: the
+            // longer definition gets a proportionally taller band (clamped so
+            // the shorter one never collapses) so both stay legible.
+            const totalLen =
+              clueTexts.reduce((s, cl) => s + cl.text.length, 0) || 1;
+            const bandGrow = clueTexts.map((cl) =>
+              Math.min(0.66, Math.max(0.34, cl.text.length / totalLen)),
+            );
+
             return (
               <div
                 key={`${r}-${c}`}
@@ -754,13 +775,6 @@ export function FlecheGrid({
                   borderColor: clueRule,
                 }}
               >
-                {hasTwo && (
-                  <div
-                    className="absolute left-0 right-0 border-t"
-                    style={{ top: "50%", borderColor: clueRule }}
-                  />
-                )}
-
                 {clueTexts.length === 0 && (
                   <div className="flex-1 flex items-center justify-center">
                     <span className="text-[8px] text-black/20">...</span>
@@ -770,8 +784,14 @@ export function FlecheGrid({
                 {clueTexts.map((cl, i) => (
                   <div
                     key={i}
-                    className="relative flex-1 overflow-hidden"
+                    className={cn(
+                      "relative overflow-hidden",
+                      i < clueTexts.length - 1 && "border-b",
+                    )}
                     style={{
+                      flexGrow: hasTwo ? bandGrow[i] : 1,
+                      flexBasis: 0,
+                      borderColor: clueRule,
                       backgroundColor: cl.isCustom ? CUSTOM_BG : undefined,
                     }}
                     title={cl.text}

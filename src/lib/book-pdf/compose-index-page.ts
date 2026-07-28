@@ -21,12 +21,9 @@ const PAGE_BG = "#fff6ec";
 const BODY_SIZE = 8.5;
 const BODY_LINE = BODY_SIZE * 1.4;
 const HEADER_SIZE = 8;
-/** Number of word columns per page. Four keeps the index compact — most books
- * fit their whole word list on a single page. */
-const NUM_COLS = 4;
+const COLS = 4;
 const COL_GAP = 12;
-/** Vertical room taken by the "INDEX DES MOTS" heading block on page 1. The
- * band spans the full width, so every column starts below it. */
+/** Vertical room taken by the "INDEX DES MOTS" heading block on page 1. */
 const FIRST_PAGE_HEADER_H = 20 + 4 + 8 + 10;
 
 interface Line {
@@ -59,23 +56,23 @@ function paginateIndex(entries: WordIndexEntry[], g: Geometry): PlacedLine[][] {
   const pages: PlacedLine[][] = [];
   let cur: PlacedLine[] = [];
   let col = 0;
-  let onFirstPage = true;
   let cursor = 0;
+  // Top of every column on the current page. On page 1 the full-width heading
+  // block reserves the top band, so all columns (not just the first) start
+  // below it — otherwise the narrow columns 2–4 would run under the title.
+  let pageTop = 0;
 
-  // On page 1 the heading band spans the full width, so every column — not just
-  // the first — starts below it.
-  const columnTop = () => g.contentTop + (onFirstPage ? FIRST_PAGE_HEADER_H : 0);
   const startPage = (first: boolean) => {
     cur = [];
     pages.push(cur);
-    onFirstPage = first;
     col = 0;
-    cursor = columnTop();
+    pageTop = g.contentTop + (first ? FIRST_PAGE_HEADER_H : 0);
+    cursor = pageTop;
   };
   const nextColumn = () => {
-    if (col < NUM_COLS - 1) {
-      col += 1;
-      cursor = columnTop();
+    if (col < COLS - 1) {
+      col++;
+      cursor = pageTop;
     } else {
       startPage(false);
     }
@@ -108,7 +105,7 @@ export interface IndexPagesOptions {
 export function composeIndexPages({ addPage, g, fonts, entries, accentHex }: IndexPagesOptions): void {
   const accent = accentHex || DEFAULT_ACCENT_HEX;
   const total = entries.reduce((n, e) => n + e.words.length, 0);
-  const colW = (g.contentW - (NUM_COLS - 1) * COL_GAP) / NUM_COLS;
+  const colW = (g.contentW - COL_GAP * (COLS - 1)) / COLS;
   const layout = paginateIndex(entries, g);
 
   layout.forEach((placed, pi) => {
@@ -124,16 +121,11 @@ export function composeIndexPages({ addPage, g, fonts, entries, accentHex }: Ind
     for (const p of placed) {
       const x = pg.contentX + p.col * (colW + COL_GAP);
       const isHeader = p.line.kind === "header";
-      const font = isHeader ? fonts.bold : fonts.letter;
-      // With four narrow columns a long answer (grids reach 17 letters) can be
-      // wider than its column — shrink it to fit rather than overrun the gap.
-      const natural = font.widthOfTextAtSize(p.line.text, p.line.size);
-      const size = natural > colW ? Math.max(4.5, (p.line.size * colW) / natural) : p.line.size;
       page.drawText(p.line.text, {
         x,
-        y: pg.pageH - (p.yTop + size),
-        size,
-        font,
+        y: pg.pageH - (p.yTop + p.line.size),
+        size: p.line.size,
+        font: isHeader ? fonts.bold : fonts.letter,
         color: isHeader ? hex2rgb(accent) : hex2rgb(INK),
       });
     }

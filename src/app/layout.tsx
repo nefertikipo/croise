@@ -20,10 +20,9 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-// Condensed face for clue text: Barlow Semi Condensed keeps clues compact
-// enough to fit a long French definition per line, but has a large x-height and
-// open letterforms that stay legible at the tiny sizes clue cells force —
-// noticeably more readable than a narrow condensed face like Oswald.
+// Condensed face kept available for compact UI text. NOTE: clue-cell text now
+// uses --font-sans (Inter) for maximum legibility at small sizes — see FitText
+// in fleche-grid.tsx.
 const condensed = Barlow_Semi_Condensed({
   variable: "--font-condensed",
   subsets: ["latin"],

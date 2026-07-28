@@ -4,12 +4,12 @@
  * mirroring the on-screen SolutionTile. Paginates across as many pages as the
  * grid count needs.
  *
- * The column count is width-aware: we pack as many columns as possible (up to
- * MAX_COLS) while keeping the solution letters above a legibility floor
- * (letters are drawn at 22/70 of the cell, see draw-grid.ts). A solution key is
- * scanned for verification, not read like clues, so the floor is deliberately
- * low — a typical 11-wide grid on A5 gets the full 4 columns (a dense 4-up
- * answer key), stepping down only for unusually wide grids.
+ * The column count is width-aware: we pick the most columns (up to MAX_COLS)
+ * that still keep the solution letters above a low floor (letters are drawn at
+ * 22/70 of the cell, see draw-grid.ts). These are compact answer-key grids, so
+ * we favour more, smaller tiles per page: a typical 11-wide grid lands at the
+ * full 4 columns on both A5 and A4. Only unusually wide grids drop to fewer
+ * columns to avoid truly microscopic letters.
  *
  * Pagination is pure arithmetic, shared with `countSolutionsPages` so the
  * page-count prediction is exact.
@@ -31,10 +31,9 @@ const CAPTION_H = 11; // caption band height above each grid (pt)
 const CAPTION_SIZE = 8;
 /** Solution letters are drawn at 22/70 of the cell edge (draw-grid.ts). */
 const LETTER_FRAC = 22 / 70;
-/** Legibility floor for the printed solution letters. Low on purpose: an answer
- * key is checked cell-by-cell, not read as running text, so a small letter is
- * acceptable in exchange for a dense, few-page solutions section. At ~2.2 pt a
- * standard 11-wide grid packs into the full 4 columns. */
+/** Legibility floor for the printed solution letters. Kept low so the compact
+ * answer-key grids tile at the full MAX_COLS (smaller grids) per page — a
+ * typical 11-wide grid lands at 4 columns on A5 (~2.3 pt letters). */
 const MIN_LETTER_PT = 2.2;
 /** Header block ("SOLUTIONS") height above the first tile row. */
 const HEADER_H = 20 + 14;
