@@ -1,4 +1,5 @@
 import { BOOK_MIN_GRIDS } from "@/lib/books/constants";
+import { DEFAULT_GRID_FORMAT } from "@/lib/crossword/grid-formats";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import type { CreateGridOptions } from "@/components/book/grid-creator";
 import type { ClueIdea, GridDifficulty } from "@/types/book";
@@ -12,9 +13,9 @@ import type { ClueIdea, GridDifficulty } from "@/types/book";
  * side effects.
  */
 
-/** Default grid format for wizard-generated books (matches the A5 product default). */
-const WIZARD_GRID_WIDTH = 11;
-const WIZARD_GRID_HEIGHT = 17;
+/** Default grid format for wizard-generated books (classique, the A5 product default). */
+const WIZARD_GRID_WIDTH = DEFAULT_GRID_FORMAT.w;
+const WIZARD_GRID_HEIGHT = DEFAULT_GRID_FORMAT.h;
 
 /**
  * Split a free-text hidden message into per-grid hidden words.
