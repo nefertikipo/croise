@@ -1,7 +1,7 @@
 /**
  * Compose the back-of-book word index: every answer, grouped by word length
  * (shortest first) and alphabetical within each group, ONE WORD PER LINE (the
- * screen WordIndexPage is the source of truth), flowed into two columns and
+ * screen WordIndexPage is the source of truth), flowed into four columns and
  * paginated across as many pages as needed.
  *
  * Pagination is pure arithmetic (no font metrics — one word per line means no
@@ -21,7 +21,8 @@ const PAGE_BG = "#fff6ec";
 const BODY_SIZE = 8.5;
 const BODY_LINE = BODY_SIZE * 1.4;
 const HEADER_SIZE = 8;
-const COL_GAP = 18;
+const COLS = 4;
+const COL_GAP = 12;
 /** Vertical room taken by the "INDEX DES MOTS" heading block on page 1. */
 const FIRST_PAGE_HEADER_H = 20 + 4 + 8 + 10;
 
@@ -34,7 +35,7 @@ interface Line {
 
 interface PlacedLine {
   line: Line;
-  col: 0 | 1;
+  col: number;
   yTop: number;
 }
 
@@ -54,19 +55,24 @@ function paginateIndex(entries: WordIndexEntry[], g: Geometry): PlacedLine[][] {
   const contentBottom = g.contentTop + g.contentH;
   const pages: PlacedLine[][] = [];
   let cur: PlacedLine[] = [];
-  let col: 0 | 1 = 0;
+  let col = 0;
   let cursor = 0;
+  // Top of every column on the current page. On page 1 the full-width heading
+  // block reserves the top band, so all columns (not just the first) start
+  // below it — otherwise the narrow columns 2–4 would run under the title.
+  let pageTop = 0;
 
   const startPage = (first: boolean) => {
     cur = [];
     pages.push(cur);
     col = 0;
-    cursor = g.contentTop + (first ? FIRST_PAGE_HEADER_H : 0);
+    pageTop = g.contentTop + (first ? FIRST_PAGE_HEADER_H : 0);
+    cursor = pageTop;
   };
   const nextColumn = () => {
-    if (col === 0) {
-      col = 1;
-      cursor = g.contentTop;
+    if (col < COLS - 1) {
+      col++;
+      cursor = pageTop;
     } else {
       startPage(false);
     }
@@ -99,7 +105,7 @@ export interface IndexPagesOptions {
 export function composeIndexPages({ addPage, g, fonts, entries, accentHex }: IndexPagesOptions): void {
   const accent = accentHex || DEFAULT_ACCENT_HEX;
   const total = entries.reduce((n, e) => n + e.words.length, 0);
-  const colW = (g.contentW - COL_GAP) / 2;
+  const colW = (g.contentW - COL_GAP * (COLS - 1)) / COLS;
   const layout = paginateIndex(entries, g);
 
   layout.forEach((placed, pi) => {
@@ -113,7 +119,7 @@ export function composeIndexPages({ addPage, g, fonts, entries, accentHex }: Ind
       page.drawText(`${total} MOTS`, { x: pg.contentX, y: pg.pageH - (top + 8), size: 8, font: fonts.letter, color: mixHex(INK, PAGE_BG, 0.5) });
     }
     for (const p of placed) {
-      const x = pg.contentX + (p.col === 1 ? colW + COL_GAP : 0);
+      const x = pg.contentX + p.col * (colW + COL_GAP);
       const isHeader = p.line.kind === "header";
       page.drawText(p.line.text, {
         x,
