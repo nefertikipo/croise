@@ -16,7 +16,7 @@ const TESTIMONIALS = [
   },
   {
     quote:
-      "Fait maison, imprimé, relié — un cadeau qui a demandé cinq minutes et qui a marqué toute la tablée de Noël.",
+      "Fait maison, imprimé, relié, un cadeau qui a demandé cinq minutes et qui a marqué toute la tablée de Noël.",
     name: "Thomas",
   },
   {
@@ -41,7 +41,7 @@ const FAQ = [
   },
   {
     q: "Puis-je en faire un livre ?",
-    a: "Oui — regroupez plusieurs grilles en un petit livret paginé, avec les solutions à la fin, prêt à imprimer.",
+    a: "Oui, regroupez plusieurs grilles en un petit livret paginé, avec les solutions à la fin, prêt à imprimer.",
   },
 ];
 

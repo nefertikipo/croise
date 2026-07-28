@@ -9,6 +9,7 @@ import { GenerationProgress } from "@/components/shared/generation-progress";
 import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { ClueList } from "@/components/fleche/clue-list";
 import { AddToBook } from "@/components/fleche/add-to-book";
+import { CustomWordsEditor } from "@/components/book/custom-words-editor";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
 import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
@@ -24,6 +25,8 @@ import {
   computeFlechePrintScale,
 } from "@/components/fleche/fleche-print-chrome";
 import { CLUE_EXAMPLES, DIFFICULTY_INFO } from "@/lib/fleche/difficulty-guide";
+import { GRID_FORMATS, DEFAULT_GRID_FORMAT } from "@/lib/crossword/grid-formats";
+import { GridFormatPreview } from "@/components/fleche/grid-format-preview";
 
 interface ClueInCell {
   text: string;
@@ -65,8 +68,8 @@ export default function FlechePage() {
   const [loading, setLoading] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
   const [checkErrors, setCheckErrors] = useState(false);
-  const [gridWidth, setGridWidth] = useState(11);
-  const [gridHeight, setGridHeight] = useState(15);
+  const [gridWidth, setGridWidth] = useState(DEFAULT_GRID_FORMAT.w);
+  const [gridHeight, setGridHeight] = useState(DEFAULT_GRID_FORMAT.h);
   const [difficulty, setDifficulty] = useState<
     "facile" | "moyen" | "difficile" | "balanced"
   >("balanced");
@@ -85,8 +88,8 @@ export default function FlechePage() {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("intent") === "poster") {
       setPoster(true);
-      setGridWidth(11);
-      setGridHeight(17);
+      setGridWidth(DEFAULT_GRID_FORMAT.w);
+      setGridHeight(DEFAULT_GRID_FORMAT.h);
     }
   }, []);
 
@@ -237,27 +240,29 @@ export default function FlechePage() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="mr-2 font-display text-sm uppercase tracking-wide text-ink">Format</label>
-              {[
-                { w: 11, h: 17, label: "11×17" },
-                { w: 11, h: 15, label: "11×15" },
-                { w: 9, h: 13, label: "9×13" },
-                { w: 8, h: 11, label: "8×11" },
-                { w: 5, h: 7, label: "5×7" },
-              ].map((s) => (
-                <button
-                  key={s.label}
-                  onClick={() => { setGridWidth(s.w); setGridHeight(s.h); }}
-                  className={`rounded-none border-2 border-ink px-4 py-1.5 font-sans text-sm font-semibold uppercase tracking-wide transition-colors ${
-                    gridWidth === s.w && gridHeight === s.h
-                      ? "bg-ink text-paper"
-                      : "bg-paper text-ink hover:bg-accent"
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="mr-2 font-display text-sm uppercase tracking-wide text-ink">Format</label>
+                {GRID_FORMATS.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => { setGridWidth(s.w); setGridHeight(s.h); }}
+                    className={`rounded-none border-2 border-ink px-4 py-1.5 font-sans text-sm font-semibold uppercase tracking-wide transition-colors ${
+                      gridWidth === s.w && gridHeight === s.h
+                        ? "bg-ink text-paper"
+                        : "bg-paper text-ink hover:bg-accent"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-end gap-2 text-ink/60">
+                <GridFormatPreview w={gridWidth} h={gridHeight} />
+                <span className="font-sans text-xs tabular-nums">
+                  {gridWidth}×{gridHeight}
+                </span>
+              </div>
             </div>
 
             {/* Difficulty selector */}
@@ -307,89 +312,13 @@ export default function FlechePage() {
             </div>
 
             {/* Custom words — the headline feature, front and center */}
-            <div className="space-y-3 rounded-none border-2 border-ink/15 bg-muted/30 p-4">
-              <div>
-                <p className="text-sm font-bold uppercase tracking-[0.12em]">
-                  Vos mots personnalisés
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Prénoms, dates, clins d&apos;œil, ils seront placés dans la grille.
-                </p>
-                <p className="mt-1 text-sm font-medium">
-                  Grille {gridWidth}×{gridHeight} : jusqu&apos;à {capacity.recommendedMax}{" "}
-                  {capacity.recommendedMax > 1 ? "mots" : "mot"} recommandé
-                  {capacity.recommendedMax > 1 ? "s" : ""}
-                  {validCustomCount > 0 && (
-                    <span className={validCustomCount > capacity.recommendedMax ? "text-amber-600" : "text-muted-foreground"}>
-                      {" "}· {validCustomCount} ajouté{validCustomCount > 1 ? "s" : ""}
-                    </span>
-                  )}
-                </p>
-              </div>
-
-              {customClues.map((cc, i) => (
-                <div key={i} className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <input
-                      placeholder="Mot ou phrase (ex: BON ANNIVERSAIRE)"
-                      value={cc.answer}
-                      onChange={(e) => {
-                        const next = [...customClues];
-                        next[i] = { ...next[i], answer: composeInput(e.target.value) };
-                        setCustomClues(next);
-                      }}
-                      className={`w-36 rounded-none border-2 bg-white px-2 py-1 text-sm uppercase font-mono ${
-                        isWordTooLong(cc.answer) ? "border-destructive" : "border-ink/20"
-                      }`}
-                    />
-                    <input
-                      placeholder="Indice (ex: La fille du moment!)"
-                      value={cc.clue}
-                      onChange={(e) => {
-                        const next = [...customClues];
-                        next[i] = { ...next[i], clue: e.target.value };
-                        setCustomClues(next);
-                      }}
-                      className="flex-1 rounded-none border-2 border-ink/20 bg-white px-2 py-1 text-sm"
-                    />
-                    <button
-                      onClick={() => setCustomClues(customClues.filter((_, j) => j !== i))}
-                      className="text-sm text-muted-foreground hover:text-destructive"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  {isWordTooLong(cc.answer) && (
-                    <p className="text-xs text-destructive">
-                      Trop long pour une grille {gridWidth}×{gridHeight} (max {maxDim} lettres).
-                    </p>
-                  )}
-                </div>
-              ))}
-
-              <button
-                onClick={() => setCustomClues([...customClues, { answer: "", clue: "" }])}
-                className="rounded-none border-2 border-ink bg-white px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0] shadow-ink/60 transition-transform hover:-translate-y-0.5"
-              >
-                + Ajouter un mot personnalisé
-              </button>
-
-              {capacity.message && (
-                <p className="text-sm font-medium text-destructive">⚠ {capacity.message}</p>
-              )}
-              {!capacity.message && capacity.overRecommended && (
-                <p className="text-sm text-amber-600">
-                  Au-delà de {capacity.recommendedMax} mots, la génération peut être plus
-                  longue, voire échouer sur cette grille. Retirez un mot ou choisissez une
-                  grille plus grande pour un résultat fiable.
-                </p>
-              )}
-              {!capacity.message && !capacity.overRecommended && capacity.tight && (
-                <p className="text-sm text-amber-600">
-                  Grille bien remplie, la génération peut être plus longue, voire
-                  échouer. Si c&apos;est le cas, agrandissez la grille ou retirez un mot.
-                </p>
-              )}
+            <div className="rounded-none border-2 border-ink/15 bg-muted/30 p-4">
+              <CustomWordsEditor
+                width={gridWidth}
+                height={gridHeight}
+                value={customClues}
+                onChange={setCustomClues}
+              />
             </div>
 
             <WordIdeasHelper
@@ -576,47 +505,58 @@ export default function FlechePage() {
                   </span>
                 )}
               </p>
-              <div className="space-y-2">
-                {customClues.map((cc, i) => (
-                  <div key={i} className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <input
-                        placeholder="Mot ou phrase (ex: BON ANNIVERSAIRE)"
-                        value={cc.answer}
-                        onChange={(e) => {
-                          const next = [...customClues];
-                          next[i] = { ...next[i], answer: composeInput(e.target.value) };
-                          setCustomClues(next);
-                        }}
-                        className={`border-2 rounded-none px-2 py-1 text-sm w-32 uppercase font-mono bg-white ${
-                          isWordTooLong(cc.answer) ? "border-destructive" : "border-transparent"
-                        }`}
-                      />
-                      <input
-                        placeholder="Indice (ex: La fille du moment!)"
-                        value={cc.clue}
-                        onChange={(e) => {
-                          const next = [...customClues];
-                          next[i] = { ...next[i], clue: e.target.value };
-                          setCustomClues(next);
-                        }}
-                        className="border rounded-none px-2 py-1 text-sm flex-1 bg-white"
-                      />
-                      <button
-                        onClick={() => setCustomClues(customClues.filter((_, j) => j !== i))}
-                        className="text-sm text-muted-foreground hover:text-destructive"
-                      >
-                        x
-                      </button>
-                    </div>
-                    {isWordTooLong(cc.answer) && (
-                      <p className="text-xs text-destructive">
-                        Trop long pour une grille {gridWidth}×{gridHeight} (max {maxDim} lettres).
-                      </p>
-                    )}
+              {customClues.length > 0 && (
+                <div className="rounded-none border-2 border-ink/20 bg-white">
+                  <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_2.25rem] bg-accent/40 text-xs font-bold uppercase tracking-wide text-ink/70">
+                    <div className="px-3 py-2">Mot</div>
+                    <div className="border-l-2 border-ink/10 px-3 py-2">Indice</div>
+                    <div />
                   </div>
-                ))}
-              </div>
+                  {customClues.map((cc, i) => {
+                    const tooLong = isWordTooLong(cc.answer);
+                    return (
+                      <div key={i} className="border-t-2 border-ink/10">
+                        <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_2.25rem] items-stretch">
+                          <input
+                            placeholder="ex : BON ANNIVERSAIRE"
+                            value={cc.answer}
+                            onChange={(e) => {
+                              const next = [...customClues];
+                              next[i] = { ...next[i], answer: composeInput(e.target.value) };
+                              setCustomClues(next);
+                            }}
+                            className={`w-full bg-transparent px-3 py-2.5 font-mono text-base uppercase outline-none placeholder:normal-case placeholder:text-muted-foreground/60 ${
+                              tooLong ? "text-destructive" : "text-ink"
+                            }`}
+                          />
+                          <input
+                            placeholder="ex : La fille du moment !"
+                            value={cc.clue}
+                            onChange={(e) => {
+                              const next = [...customClues];
+                              next[i] = { ...next[i], clue: e.target.value };
+                              setCustomClues(next);
+                            }}
+                            className="w-full border-l-2 border-ink/10 bg-transparent px-3 py-2.5 text-base outline-none placeholder:text-muted-foreground/60"
+                          />
+                          <button
+                            onClick={() => setCustomClues(customClues.filter((_, j) => j !== i))}
+                            className="flex items-center justify-center text-muted-foreground hover:text-destructive"
+                            aria-label="Retirer ce mot"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        {tooLong && (
+                          <p className="border-t-2 border-ink/10 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">
+                            Trop long pour une grille {gridWidth}×{gridHeight} (max {maxDim} lettres).
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {capacity.message && (
                 <p className="text-sm font-medium text-destructive">⚠ {capacity.message}</p>

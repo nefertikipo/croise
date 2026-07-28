@@ -394,7 +394,7 @@ export function BookEditor({
       if (created === 0) return failReason ?? fallbackReason;
       if (created < plans.length) {
         toast.error(
-          `${created} grille${created > 1 ? "s" : ""} sur ${plans.length} créée${created > 1 ? "s" : ""} — ${failReason ?? fallbackReason}`,
+          `${created} grille${created > 1 ? "s" : ""} sur ${plans.length} créée${created > 1 ? "s" : ""} : ${failReason ?? fallbackReason}`,
         );
       }
       return null;
@@ -402,7 +402,7 @@ export function BookEditor({
       console.error(err);
       if (created > 0) {
         toast.error(
-          `${created} grille${created > 1 ? "s" : ""} sur ${plans.length} créée${created > 1 ? "s" : ""} — ${fallbackReason}`,
+          `${created} grille${created > 1 ? "s" : ""} sur ${plans.length} créée${created > 1 ? "s" : ""} : ${fallbackReason}`,
         );
         return null;
       }
@@ -672,7 +672,7 @@ export function BookEditor({
               <Link href="/connexion" className="underline hover:no-underline">
                 Connectez-vous
               </Link>{" "}
-              pour retrouver ce livre plus tard — sans compte, seul le lien y donne accès.
+              pour retrouver ce livre plus tard, sans compte, seul le lien y donne accès.
             </span>
             <button
               type="button"
@@ -751,7 +751,7 @@ export function BookEditor({
                 <div className="mb-4 flex flex-wrap items-center justify-center gap-3 border-2 border-black/20 bg-accent/30 px-4 py-2 text-sm">
                   <span>
                     <strong>{gridPages.length}</strong> grille
-                    {gridPages.length > 1 ? "s" : ""} sur {BOOK_MIN_GRIDS} — un
+                    {gridPages.length > 1 ? "s" : ""} sur {BOOK_MIN_GRIDS} : un
                     livre imprimé en compte au moins {BOOK_MIN_GRIDS}.
                   </span>
                   {busy && genBatch ? (
@@ -812,7 +812,7 @@ export function BookEditor({
                     Votre livre est vide
                   </p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Commencez par générer vos grilles — vous pourrez ensuite y
+                    Commencez par générer vos grilles, vous pourrez ensuite y
                     glisser vos mots personnalisés, ajouter des photos et
                     personnaliser la couverture.
                   </p>

@@ -219,7 +219,7 @@ export default function GrillePage() {
           {isOwner && (
             <div className="fleche-print-solution hidden print:block">
               <p className="mb-4 font-display text-xl uppercase tracking-wide text-ink">
-                Solution{title.trim() ? ` — ${title.trim()}` : ""}
+                Solution{title.trim() ? ` : ${title.trim()}` : ""}
               </p>
               <div className="fleche-print-scale fleche-print-solution-scale">
                 <FlecheGrid

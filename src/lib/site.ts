@@ -8,7 +8,7 @@ export const SITE_URL = rawSiteUrl.replace(/\/$/, "");
 export const SITE_NAME = "Les Flèches";
 export const SITE_TAGLINE = "Mots fléchés et mots croisés personnalisés";
 export const SITE_DESCRIPTION =
-  "Créez des mots fléchés et mots croisés personnalisés avec vos propres mots — une idée cadeau originale, imprimée et prête à offrir.";
+  "Créez des mots fléchés et mots croisés personnalisés avec vos propres mots, une idée cadeau originale, imprimée et prête à offrir.";
 
 export function absoluteUrl(path: string): string {
   if (!path) return SITE_URL;

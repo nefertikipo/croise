@@ -82,7 +82,7 @@ export function GenerationProgress({ estimatedMs }: { estimatedMs: number }) {
 
       {overtime && !wayOver && (
         <p className="text-sm text-muted-foreground">
-          Cette grille est dense — encore quelques instants…
+          Cette grille est dense, encore quelques instants…
         </p>
       )}
       {wayOver && (

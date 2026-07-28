@@ -71,11 +71,11 @@ const abel = Abel({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Les Flèches — Mots fléchés et mots croisés personnalisés",
+    default: "Les Flèches : mots fléchés et mots croisés personnalisés",
     template: "%s · Les Flèches",
   },
   description:
-    "Créez des mots fléchés et mots croisés personnalisés avec vos propres mots — une idée cadeau originale, imprimée et prête à offrir.",
+    "Créez des mots fléchés et mots croisés personnalisés avec vos propres mots, une idée cadeau originale, imprimée et prête à offrir.",
 };
 
 export default function RootLayout({
