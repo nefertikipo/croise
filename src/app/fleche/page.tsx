@@ -24,6 +24,8 @@ import {
   computeFlechePrintScale,
 } from "@/components/fleche/fleche-print-chrome";
 import { CLUE_EXAMPLES, DIFFICULTY_INFO } from "@/lib/fleche/difficulty-guide";
+import { GRID_FORMATS, DEFAULT_GRID_FORMAT } from "@/lib/crossword/grid-formats";
+import { GridFormatPreview } from "@/components/fleche/grid-format-preview";
 
 interface ClueInCell {
   text: string;
@@ -65,8 +67,8 @@ export default function FlechePage() {
   const [loading, setLoading] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
   const [checkErrors, setCheckErrors] = useState(false);
-  const [gridWidth, setGridWidth] = useState(11);
-  const [gridHeight, setGridHeight] = useState(15);
+  const [gridWidth, setGridWidth] = useState(DEFAULT_GRID_FORMAT.w);
+  const [gridHeight, setGridHeight] = useState(DEFAULT_GRID_FORMAT.h);
   const [difficulty, setDifficulty] = useState<
     "facile" | "moyen" | "difficile" | "balanced"
   >("balanced");
@@ -85,8 +87,8 @@ export default function FlechePage() {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("intent") === "poster") {
       setPoster(true);
-      setGridWidth(11);
-      setGridHeight(17);
+      setGridWidth(DEFAULT_GRID_FORMAT.w);
+      setGridHeight(DEFAULT_GRID_FORMAT.h);
     }
   }, []);
 
@@ -237,27 +239,29 @@ export default function FlechePage() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="mr-2 font-display text-sm uppercase tracking-wide text-ink">Format</label>
-              {[
-                { w: 11, h: 17, label: "11×17" },
-                { w: 11, h: 15, label: "11×15" },
-                { w: 9, h: 13, label: "9×13" },
-                { w: 8, h: 11, label: "8×11" },
-                { w: 5, h: 7, label: "5×7" },
-              ].map((s) => (
-                <button
-                  key={s.label}
-                  onClick={() => { setGridWidth(s.w); setGridHeight(s.h); }}
-                  className={`rounded-none border-2 border-ink px-4 py-1.5 font-sans text-sm font-semibold uppercase tracking-wide transition-colors ${
-                    gridWidth === s.w && gridHeight === s.h
-                      ? "bg-ink text-paper"
-                      : "bg-paper text-ink hover:bg-accent"
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="mr-2 font-display text-sm uppercase tracking-wide text-ink">Format</label>
+                {GRID_FORMATS.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => { setGridWidth(s.w); setGridHeight(s.h); }}
+                    className={`rounded-none border-2 border-ink px-4 py-1.5 font-sans text-sm font-semibold uppercase tracking-wide transition-colors ${
+                      gridWidth === s.w && gridHeight === s.h
+                        ? "bg-ink text-paper"
+                        : "bg-paper text-ink hover:bg-accent"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-end gap-2 text-ink/60">
+                <GridFormatPreview w={gridWidth} h={gridHeight} />
+                <span className="font-sans text-xs tabular-nums">
+                  {gridWidth}×{gridHeight}
+                </span>
+              </div>
             </div>
 
             {/* Difficulty selector */}

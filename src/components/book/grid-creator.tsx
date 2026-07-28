@@ -11,14 +11,9 @@ import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
 import { CLUE_EXAMPLES, DIFFICULTY_INFO } from "@/lib/fleche/difficulty-guide";
 import { BOOK_MIN_GRIDS } from "@/lib/books/constants";
+import { GRID_FORMATS, DEFAULT_GRID_FORMAT } from "@/lib/crossword/grid-formats";
+import { GridFormatPreview } from "@/components/fleche/grid-format-preview";
 import type { ClueIdea, GridDifficulty } from "@/types/book";
-
-const FORMATS = [
-  { w: 11, h: 17, label: "11×17" },
-  { w: 11, h: 15, label: "11×15" },
-  { w: 9, h: 13, label: "9×13" },
-  { w: 8, h: 11, label: "8×11" },
-];
 
 const DIFFICULTIES: { v: GridDifficulty; label: string }[] = [
   { v: "facile", label: "Facile" },
@@ -67,8 +62,8 @@ export function GridCreator({
   onCreate,
   onClose,
 }: GridCreatorProps) {
-  const [width, setWidth] = useState(11);
-  const [height, setHeight] = useState(17);
+  const [width, setWidth] = useState(DEFAULT_GRID_FORMAT.w);
+  const [height, setHeight] = useState(DEFAULT_GRID_FORMAT.h);
   const [count, setCount] = useState(() => Math.min(BOOK_MIN_GRIDS, Math.max(1, initialCount ?? 1)));
   const [difficulty, setDifficulty] = useState<GridDifficulty>("balanced");
   const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>([]);
@@ -151,26 +146,34 @@ export function GridCreator({
         ) : (
           <div className="space-y-6 rounded-none border-2 border-ink bg-card p-6 shadow-[4px_4px_0_0] shadow-ink/80">
             {/* Format */}
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="mr-2 font-display text-sm uppercase tracking-wide text-ink">
-                Format
-              </label>
-              {FORMATS.map((s) => (
-                <button
-                  key={s.label}
-                  onClick={() => {
-                    setWidth(s.w);
-                    setHeight(s.h);
-                  }}
-                  className={`rounded-none border-2 border-ink px-4 py-1.5 font-sans text-sm font-semibold uppercase tracking-wide transition-colors ${
-                    width === s.w && height === s.h
-                      ? "bg-ink text-paper"
-                      : "bg-paper text-ink hover:bg-accent"
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="mr-2 font-display text-sm uppercase tracking-wide text-ink">
+                  Format
+                </label>
+                {GRID_FORMATS.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      setWidth(s.w);
+                      setHeight(s.h);
+                    }}
+                    className={`rounded-none border-2 border-ink px-4 py-1.5 font-sans text-sm font-semibold uppercase tracking-wide transition-colors ${
+                      width === s.w && height === s.h
+                        ? "bg-ink text-paper"
+                        : "bg-paper text-ink hover:bg-accent"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-end gap-2 text-ink/60">
+                <GridFormatPreview w={width} h={height} />
+                <span className="font-sans text-xs tabular-nums">
+                  {width}×{height}
+                </span>
+              </div>
             </div>
 
             {/* Difficulty */}
