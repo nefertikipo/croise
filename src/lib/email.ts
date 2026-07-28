@@ -56,7 +56,7 @@ export function emailShell(opts: {
         <div style="font-size:16px;line-height:1.6">${bodyHtml}</div>
       </td></tr>
       <tr><td style="padding:8px 28px 28px"><table role="presentation" cellpadding="0" cellspacing="0">${button}</table></td></tr>
-      <tr><td style="padding:14px 28px;border-top:1px solid rgba(0,0,0,.15);font-size:12px;color:rgba(0,0,0,.55)">${footer ?? "Les Flèches — mots fléchés personnalisés à imprimer et offrir."}</td></tr>
+      <tr><td style="padding:14px 28px;border-top:1px solid rgba(0,0,0,.15);font-size:12px;color:rgba(0,0,0,.55)">${footer ?? "Les Flèches : mots fléchés personnalisés à imprimer et offrir."}</td></tr>
     </table>
   </body></html>`;
 }

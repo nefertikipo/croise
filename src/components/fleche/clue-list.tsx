@@ -55,7 +55,7 @@ export function ClueList({ words }: { words: ClueListItem[] }) {
           >
             <span className="min-w-0">
               <span className="font-semibold text-ink">{w.answer}</span>
-              <span className="text-muted-foreground"> — {w.clue}</span>
+              <span className="text-muted-foreground"> : {w.clue}</span>
             </span>
             <span className="shrink-0 text-muted-foreground">
               {difficultyLabel(w.difficulty, w.isCustom)}
