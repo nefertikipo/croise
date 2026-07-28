@@ -45,7 +45,7 @@ export function GalleryCanvas({
   readOnly = false,
 }: GalleryCanvasProps) {
   const data: SlotData = { book, gridPages, gridNumberByPage, wordIndex };
-  const slots = buildSlots(book);
+  const slots = buildSlots(book, data);
   const spreads = buildSpreads(slots);
   // Only grids and free pages can be reordered; everything else is fixed.
   const movableIds = book.pages.map((p) => p.pageId);

@@ -1,5 +1,6 @@
 "use client";
 
+import { backMatterKind } from "@/components/book/page-slot";
 import { cn } from "@/lib/utils";
 
 export interface RailItem {
@@ -30,7 +31,11 @@ export function PageRail({ items, selectedId, onSelect }: PageRailProps) {
   return (
     <nav className="flex flex-col">
       {items.map((item, idx) => {
-        const selected = item.id === selectedId;
+        // A back-matter row stays lit for any of its physical pages (index#2, …).
+        const bm = backMatterKind(item.id);
+        const selected =
+          item.id === selectedId ||
+          (bm !== null && backMatterKind(selectedId) === bm);
 
         // The divider is emitted once, just before the first tool row.
         const divider: React.ReactNode =

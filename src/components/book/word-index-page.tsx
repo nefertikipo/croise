@@ -18,7 +18,7 @@ export function WordIndexPage({ entries }: WordIndexPageProps) {
         {entries.length === 0 && (
           <p className="text-muted-foreground italic">Aucune grille pour le moment.</p>
         )}
-        <div className="columns-2 gap-6 [column-fill:balance]">
+        <div className="columns-4 gap-4 [column-fill:balance]">
           {entries.map((entry) => (
             <div key={entry.length} className="mb-3 break-inside-avoid">
               <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-0.5">

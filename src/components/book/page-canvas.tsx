@@ -5,10 +5,10 @@ import { CoverPage } from "@/components/book/cover-page";
 import { DedicationPage } from "@/components/book/dedication-page";
 import { ContentPageView } from "@/components/book/content-page";
 import { GridPageView } from "@/components/book/grid-page";
-import { SolutionTile } from "@/components/book/solution-tile";
-import { WordIndexPage } from "@/components/book/word-index-page";
+import { SolutionsPreview } from "@/components/book/solutions-preview";
+import { IndexPreview } from "@/components/book/index-preview";
+import { backMatterKind, type SlotId } from "@/components/book/page-slot";
 import type { BookData, GridPage, WordIndexEntry } from "@/types/book";
-import type { SlotId } from "@/components/book/page-slot";
 
 interface PageCanvasProps {
   book: BookData;
@@ -48,22 +48,20 @@ export function PageCanvas({
     );
   }
 
-  if (selectedId === "solutions") {
+  // Focus view for a back-matter section: show every physical page stacked, so
+  // "Page" mode reviews the whole Solutions / Index section at once.
+  const bm = backMatterKind(selectedId);
+  if (bm === "solutions") {
     return (
-      <div ref={ref} className="w-full">
-        {gridPages.length === 0 && (
-          <p className="text-muted-foreground italic">Aucune grille.</p>
-        )}
-        <div className="flex flex-wrap gap-x-3 gap-y-3">
-          {gridPages.map((p) => (
-            <SolutionTile
-              key={p.pageId}
-              page={p}
-              index={gridNumberByPage.get(p.pageId) ?? 0}
-              cellPx={10}
-            />
-          ))}
-        </div>
+      <div className="mx-auto max-w-[560px]">
+        <SolutionsPreview gridPages={gridPages} gridNumberByPage={gridNumberByPage} />
+      </div>
+    );
+  }
+  if (bm === "index") {
+    return (
+      <div className="mx-auto max-w-[560px]">
+        <IndexPreview entries={wordIndex} />
       </div>
     );
   }
@@ -71,7 +69,6 @@ export function PageCanvas({
   const inner = (() => {
     if (selectedId === "cover") return <CoverPage title={book.title} cover={book.coverConfig} />;
     if (selectedId === "dedication") return <DedicationPage text={book.dedicationText} />;
-    if (selectedId === "index") return <WordIndexPage entries={wordIndex} />;
     if (page?.kind === "content") return <ContentPageView config={page.config} />;
     return null;
   })();
