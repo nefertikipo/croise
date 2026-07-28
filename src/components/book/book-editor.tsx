@@ -21,6 +21,7 @@ import { backMatterKind } from "@/components/book/page-slot";
 import { buildWordIndex } from "@/lib/crossword/word-index";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import { BOOK_MIN_GRIDS } from "@/lib/books/constants";
+import { rehydrateDesignPreview, stripDesignPreview } from "@/lib/books/photo-preview";
 import type {
   BookData,
   ClueIdea,
@@ -160,6 +161,32 @@ export function BookEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Rebuild the cover's on-screen preview from its stored photoRef when the
+  // saved config carries no preview (we never persist the base64 data URL).
+  // Runs once on mount; leaves an already-present preview untouched.
+  const coverRehydrated = useRef(false);
+  useEffect(() => {
+    if (coverRehydrated.current) return;
+    coverRehydrated.current = true;
+    const design = initialBook.coverConfig?.design;
+    if (!design?.photoRef || design.imageUrl) return;
+    let cancelled = false;
+    void rehydrateDesignPreview(design).then((rehydrated) => {
+      if (cancelled || rehydrated.imageUrl === undefined) return;
+      setBook((b) => {
+        const cover = b.coverConfig ?? {};
+        // Only fill the preview if the user hasn't set one since mount.
+        if (cover.design?.imageUrl) return b;
+        return { ...b, coverConfig: { ...cover, design: { ...cover.design, ...rehydrated } } };
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Mount-only: rehydrate the initial photo once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /** Re-fetch the book so the UI stops showing unsaved data as saved. */
   async function resyncBook() {
     try {
@@ -175,13 +202,26 @@ export function BookEditor({
     return typeof data?.error === "string" ? data.error : fallback;
   }
 
+  // Strip the editor-only cover preview (a large base64 data URL) before saving:
+  // persisting it would blow past the coverConfig size limit, breaking every
+  // later cover edit. Print uses coverConfig.design.photoRef + crop instead.
+  function sanitizeBody(body: Record<string, unknown>): Record<string, unknown> {
+    if (!body.coverConfig || typeof body.coverConfig !== "object") return body;
+    const cover = body.coverConfig as CoverConfig;
+    if (!cover.design) return body;
+    return {
+      ...body,
+      coverConfig: { ...cover, design: stripDesignPreview(cover.design) },
+    };
+  }
+
   // --- Book-level saves -----------------------------------------------------
   async function patchBook(body: Record<string, unknown>): Promise<boolean> {
     try {
       const res = await fetch(`/api/books/${code}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(sanitizeBody(body)),
       });
       if (!res.ok) {
         toast.error(await readError(res, "Échec de l'enregistrement du livre."));
