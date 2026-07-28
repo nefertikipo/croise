@@ -31,7 +31,7 @@ export function SpreadCanvas({
   onFocus,
 }: SpreadCanvasProps) {
   const data: SlotData = { book, gridPages, gridNumberByPage, wordIndex };
-  const slots = buildSlots(book);
+  const slots = buildSlots(book, data);
   const spreads = buildSpreads(slots);
   const spread = spreads.find((s) => s.includes(selectedId)) ?? spreads[0];
   const spreadIndex = spreads.indexOf(spread);

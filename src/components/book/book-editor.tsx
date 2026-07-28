@@ -17,6 +17,7 @@ import { AddPage } from "@/components/book/add-page";
 import { GridCreator, type CreateGridOptions } from "@/components/book/grid-creator";
 import { cn } from "@/lib/utils";
 import { BookPrintLayout } from "@/components/book/book-print-layout";
+import { backMatterKind } from "@/components/book/page-slot";
 import { buildWordIndex } from "@/lib/crossword/word-index";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import { BOOK_MIN_GRIDS } from "@/lib/books/constants";
@@ -579,8 +580,8 @@ export function BookEditor({
             label: p.config.title || contentLabel(p.config.layout),
           },
     ),
-    { id: "index", kind: "index", label: "Index des mots" },
-    { id: "solutions", kind: "solutions", label: "Solutions" },
+    { id: "index#0", kind: "index", label: "Index des mots" },
+    { id: "solutions#0", kind: "solutions", label: "Solutions" },
     // Design tools, not book pages — rendered under a separate "Atelier"
     // divider. Hidden entirely in read-only mode.
     ...(readOnly
@@ -897,12 +898,12 @@ export function BookEditor({
               onAddContent={addContent}
             />
           )}
-          {selectedId === "index" && (
+          {backMatterKind(selectedId) === "index" && (
             <p className="text-sm text-muted-foreground">
               L&apos;index liste automatiquement tous les mots de chaque grille.
             </p>
           )}
-          {selectedId === "solutions" && (
+          {backMatterKind(selectedId) === "solutions" && (
             <p className="text-sm text-muted-foreground">
               Les solutions sont générées automatiquement et imprimées à la fin du livre.
             </p>

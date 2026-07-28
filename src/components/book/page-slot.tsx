@@ -6,13 +6,19 @@ import { CoverPage } from "@/components/book/cover-page";
 import { DedicationPage } from "@/components/book/dedication-page";
 import { ContentPageView } from "@/components/book/content-page";
 import { GridPageView } from "@/components/book/grid-page";
-import { SolutionTile } from "@/components/book/solution-tile";
-import { WordIndexPage } from "@/components/book/word-index-page";
+import { SolutionsPreview } from "@/components/book/solutions-preview";
+import { IndexPreview } from "@/components/book/index-preview";
+import { paginateIndex, paginateSolutionTiles } from "@/lib/books/preview-layout";
 import { cn } from "@/lib/utils";
 import type { BookData, GridPage, WordIndexEntry } from "@/types/book";
 
-/** A renderable slot in the book: derived sections + spine pages share one list. */
-export type SlotId = "cover" | "dedication" | "index" | "solutions" | string;
+/**
+ * A renderable slot in the book: derived sections + spine pages share one list.
+ * The back-matter sections span multiple physical pages, so their slot ids carry
+ * the page number — `index#0`, `solutions#2` — and the overview shows one card
+ * per real page.
+ */
+export type SlotId = "cover" | "dedication" | string;
 
 /** Everything a slot needs to render itself, bundled so views pass it through once. */
 export interface SlotData {
@@ -22,17 +28,45 @@ export interface SlotData {
   wordIndex: WordIndexEntry[];
 }
 
-/** Ordered list of every visible page slot in the book. */
-export function buildSlots(book: BookData): SlotId[] {
-  return ["cover", "dedication", ...book.pages.map((p) => p.pageId), "index", "solutions"];
+/** Which back-matter section a slot id belongs to, if any. */
+export function backMatterKind(id: SlotId): "index" | "solutions" | null {
+  if (id === "index" || id.startsWith("index#")) return "index";
+  if (id === "solutions" || id.startsWith("solutions#")) return "solutions";
+  return null;
+}
+
+/** The 0-based physical page a back-matter slot id points at (null if bare). */
+export function backMatterPage(id: SlotId): number | null {
+  const hash = id.indexOf("#");
+  if (hash < 0) return null;
+  const n = Number(id.slice(hash + 1));
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Ordered list of every visible page slot in the book. Index and Solutions each
+ * expand to one slot per physical page (mirroring the printed pagination), so
+ * the overview reflects the book's true length — never fewer than one page each.
+ */
+export function buildSlots(book: BookData, data: SlotData): SlotId[] {
+  const indexPages = Math.max(1, paginateIndex(data.wordIndex).length);
+  const solutionPages = Math.max(1, paginateSolutionTiles(data.gridPages).length);
+  return [
+    "cover",
+    "dedication",
+    ...book.pages.map((p) => p.pageId),
+    ...Array.from({ length: indexPages }, (_, i) => `index#${i}`),
+    ...Array.from({ length: solutionPages }, (_, i) => `solutions#${i}`),
+  ];
 }
 
 /** Human label for a slot, matching the rail. */
 export function slotLabel(id: SlotId, data: SlotData): string {
   if (id === "cover") return "Couverture";
   if (id === "dedication") return "Dédicace";
-  if (id === "index") return "Index des mots";
-  if (id === "solutions") return "Solutions";
+  const bm = backMatterKind(id);
+  if (bm === "index") return "Index des mots";
+  if (bm === "solutions") return "Solutions";
   const page = data.book.pages.find((p) => p.pageId === id);
   if (!page) return "";
   if (page.kind === "grid")
@@ -105,36 +139,6 @@ function GridSlot({
   );
 }
 
-/** Back-of-book solutions section: tiled plain answer-key mini grids. */
-function SolutionsPage({
-  gridPages,
-  gridNumberByPage,
-}: {
-  gridPages: GridPage[];
-  gridNumberByPage: Map<string, number>;
-}) {
-  return (
-    <BookPageFrame>
-      <div className="flex-1 flex flex-col px-10 py-10 overflow-auto">
-        <h2 className="font-heading text-3xl uppercase mb-4">Solutions</h2>
-        {gridPages.length === 0 && (
-          <p className="text-muted-foreground italic">Aucune grille.</p>
-        )}
-        <div className="flex flex-wrap gap-x-3 gap-y-3">
-          {gridPages.map((p) => (
-            <SolutionTile
-              key={p.pageId}
-              page={p}
-              index={gridNumberByPage.get(p.pageId) ?? 0}
-              cellPx={10}
-            />
-          ))}
-        </div>
-      </div>
-    </BookPageFrame>
-  );
-}
-
 /** The rendered content of a single slot — no selection chrome. */
 export function SlotInner({
   id,
@@ -148,9 +152,17 @@ export function SlotInner({
   const { book, gridPages, gridNumberByPage, wordIndex } = data;
   if (id === "cover") return <CoverPage title={book.title} cover={book.coverConfig} />;
   if (id === "dedication") return <DedicationPage text={book.dedicationText} />;
-  if (id === "index") return <WordIndexPage entries={wordIndex} />;
-  if (id === "solutions")
-    return <SolutionsPage gridPages={gridPages} gridNumberByPage={gridNumberByPage} />;
+  const bm = backMatterKind(id);
+  if (bm === "index")
+    return <IndexPreview entries={wordIndex} pageIndex={backMatterPage(id) ?? 0} />;
+  if (bm === "solutions")
+    return (
+      <SolutionsPreview
+        gridPages={gridPages}
+        gridNumberByPage={gridNumberByPage}
+        pageIndex={backMatterPage(id) ?? 0}
+      />
+    );
   const page = book.pages.find((p) => p.pageId === id);
   if (!page) return null;
   if (page.kind === "content") return <ContentPageView config={page.config} />;
