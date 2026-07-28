@@ -9,6 +9,7 @@ import { GridPageView } from "@/components/book/grid-page";
 import { SolutionsPreview } from "@/components/book/solutions-preview";
 import { IndexPreview } from "@/components/book/index-preview";
 import { paginateIndex, paginateSolutionTiles } from "@/lib/books/preview-layout";
+import { bookAuthors } from "@/lib/books/authors";
 import { cn } from "@/lib/utils";
 import type { BookData, GridPage, WordIndexEntry } from "@/types/book";
 
@@ -151,7 +152,14 @@ export function SlotInner({
 }) {
   const { book, gridPages, gridNumberByPage, wordIndex } = data;
   if (id === "cover") return <CoverPage title={book.title} cover={book.coverConfig} />;
-  if (id === "dedication") return <DedicationPage text={book.dedicationText} />;
+  if (id === "dedication")
+    return (
+      <DedicationPage
+        text={book.dedicationText}
+        title={book.title}
+        authors={bookAuthors(book.clueIdeas)}
+      />
+    );
   const bm = backMatterKind(id);
   if (bm === "index")
     return <IndexPreview entries={wordIndex} pageIndex={backMatterPage(id) ?? 0} />;

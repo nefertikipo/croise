@@ -14,6 +14,7 @@ import { embedBookFonts } from "@/lib/book-pdf/fonts";
 import { composeGridPage } from "@/lib/book-pdf/compose-grid-page";
 import { composeContentPage, composeDedicationPage } from "@/lib/book-pdf/compose-content-page";
 import { composeIndexPages, countIndexPages } from "@/lib/book-pdf/compose-index-page";
+import { bookAuthors } from "@/lib/books/authors";
 import { composePhotoPage, type PhotoPageContent } from "@/lib/book-pdf/compose-photo-page";
 import { composeSolutionsPages, countSolutionsPages } from "@/lib/book-pdf/compose-solutions-page";
 import { getPhotoLayout, type PhotoLayout } from "@/lib/book-pdf/photo-layouts";
@@ -55,7 +56,7 @@ export function countInteriorPages(book: BookData, size: PageSize = "a5"): numbe
   const grids = book.pages.filter((p): p is GridPage => p.kind === "grid");
   if (grids.length === 0) throw new EmptyBookError();
   const g = pageGeometry(PAGE_SPECS[size]); // content metrics are side-independent
-  let n = book.dedicationText ? 1 : 0;
+  let n = 1; // opening page (dedication or default title page) is always present
   n += book.pages.length;
   n += countIndexPages(book.wordIndex, g);
   n += countSolutionsPages(grids, g);
@@ -95,10 +96,19 @@ export async function generateBookInteriorPdf(book: BookData, size: PageSize = "
     return { page, g };
   };
 
-  // 1) Dedication page, when the book has one.
-  if (book.dedicationText) {
+  // 1) Opening page — always present so a grid is never the lonely first recto
+  //    facing the inside cover. A personal message makes it the dedication;
+  //    otherwise it's a title page (book title + a sign-off from the makers).
+  {
     const { page, g } = addPage();
-    composeDedicationPage({ page, g, fonts, text: book.dedicationText });
+    composeDedicationPage({
+      page,
+      g,
+      fonts,
+      text: book.dedicationText ?? "",
+      title: book.title,
+      authors: bookAuthors(book.clueIdeas),
+    });
   }
 
   // 2) The spine, in editor order. Grids are numbered by their order among

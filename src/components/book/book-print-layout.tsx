@@ -1,5 +1,6 @@
 import { CoverPage } from "@/components/book/cover-page";
 import { DedicationPage } from "@/components/book/dedication-page";
+import { bookAuthors } from "@/lib/books/authors";
 import { ContentPageView } from "@/components/book/content-page";
 import { GridPageView } from "@/components/book/grid-page";
 import { SolutionTile } from "@/components/book/solution-tile";
@@ -33,11 +34,13 @@ export function BookPrintLayout({
         <CoverPage title={book.title} cover={book.coverConfig} />
       </PrintPage>
 
-      {book.dedicationText && (
-        <PrintPage>
-          <DedicationPage text={book.dedicationText} />
-        </PrintPage>
-      )}
+      <PrintPage>
+        <DedicationPage
+          text={book.dedicationText}
+          title={book.title}
+          authors={bookAuthors(book.clueIdeas)}
+        />
+      </PrintPage>
 
       {book.pages.map((p) => (
         <PrintPage key={p.pageId}>
