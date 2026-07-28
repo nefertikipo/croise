@@ -17,7 +17,7 @@ const STEPS = [
   {
     kicker: "Prête à offrir",
     title: "Reliée en fin d'année",
-    body: "Les douze grilles se regroupent en un joli livret — un cadeau qui dure toute l'année.",
+    body: "Les douze grilles se regroupent en un joli livret, un cadeau qui dure toute l'année.",
   },
 ];
 

@@ -8,7 +8,7 @@ import { GIFT_GUIDES_QUERY } from "@/sanity/lib/queries";
 import type { GiftGuideListItem } from "@/types/sanity-content";
 
 export const metadata: Metadata = {
-  title: "Guides cadeaux — idées originales à offrir",
+  title: "Guides cadeaux : idées originales à offrir",
   description:
     "Nos guides d'idées cadeaux personnalisés : pour un couple, un anniversaire, Noël ou la fête des mères.",
   alternates: { canonical: absoluteUrl("/guides") },
@@ -33,7 +33,7 @@ export default async function GuidesIndexPage() {
       <div className="mx-auto max-w-5xl px-4 py-12">
         {guides.length === 0 ? (
           <p className="font-serif-accent text-lg italic text-ink/60">
-            Aucun guide pour le moment — revenez bientôt.
+            Aucun guide pour le moment, revenez bientôt.
           </p>
         ) : (
           <div className="grid gap-8 sm:grid-cols-2">

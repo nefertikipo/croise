@@ -28,7 +28,7 @@ function DifficultyBreakdown({ words }: { words: BookWord[] }) {
   if (total === 0) {
     return (
       <p className="text-xs text-muted-foreground">
-        Répartition indisponible — régénérez la grille pour la calculer.
+        Répartition indisponible : régénérez la grille pour la calculer.
       </p>
     );
   }
@@ -184,7 +184,7 @@ export function GridPageProperties({
         <p className="text-xs text-destructive">
           ⚠ Impossible à placer
           {missingLetters.length > 0 && (
-            <> — lettres absentes de la grille : {missingLetters.join(", ")}</>
+            <>, lettres absentes de la grille : {missingLetters.join(", ")}</>
           )}
           . Changez de mot ou régénérez la grille.
         </p>

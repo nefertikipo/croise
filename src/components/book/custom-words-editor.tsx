@@ -54,46 +54,59 @@ export function CustomWordsEditor({ width, height, value, onChange }: CustomWord
         </p>
       </div>
 
-      {value.map((cc, i) => (
-        <div key={i} className="space-y-1">
-          <div className="flex items-center gap-2">
-            <input
-              placeholder="Mot ou phrase (ex: BON ANNIVERSAIRE)"
-              value={cc.answer}
-              onChange={(e) => {
-                const next = [...value];
-                next[i] = { ...next[i], answer: composeInput(e.target.value) };
-                onChange(next);
-              }}
-              className={`w-36 rounded-none border-2 bg-white px-2 py-1 text-sm uppercase font-mono ${
-                isWordTooLong(cc.answer) ? "border-destructive" : "border-ink/20"
-              }`}
-            />
-            <input
-              placeholder="Indice (ex: La fille du moment!)"
-              value={cc.clue}
-              onChange={(e) => {
-                const next = [...value];
-                next[i] = { ...next[i], clue: e.target.value };
-                onChange(next);
-              }}
-              className="flex-1 rounded-none border-2 border-ink/20 bg-white px-2 py-1 text-sm"
-            />
-            <button
-              onClick={() => onChange(value.filter((_, j) => j !== i))}
-              className="text-sm text-muted-foreground hover:text-destructive"
-              aria-label="Retirer ce mot"
-            >
-              ✕
-            </button>
+      {value.length > 0 && (
+        <div className="rounded-none border-2 border-ink/20 bg-white">
+          {/* Header row */}
+          <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_2.25rem] bg-accent/40 text-xs font-bold uppercase tracking-wide text-ink/70">
+            <div className="px-3 py-2">Mot</div>
+            <div className="border-l-2 border-ink/10 px-3 py-2">Indice</div>
+            <div />
           </div>
-          {isWordTooLong(cc.answer) && (
-            <p className="text-xs text-destructive">
-              Trop long pour une grille {width}×{height} (max {maxDim} lettres).
-            </p>
-          )}
+          {value.map((cc, i) => {
+            const tooLong = isWordTooLong(cc.answer);
+            return (
+              <div key={i} className="border-t-2 border-ink/10">
+                <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_2.25rem] items-stretch">
+                  <input
+                    placeholder="ex : BON ANNIVERSAIRE"
+                    value={cc.answer}
+                    onChange={(e) => {
+                      const next = [...value];
+                      next[i] = { ...next[i], answer: composeInput(e.target.value) };
+                      onChange(next);
+                    }}
+                    className={`w-full bg-transparent px-3 py-2.5 font-mono text-base uppercase outline-none placeholder:normal-case placeholder:text-muted-foreground/60 ${
+                      tooLong ? "text-destructive" : "text-ink"
+                    }`}
+                  />
+                  <input
+                    placeholder="ex : La fille du moment !"
+                    value={cc.clue}
+                    onChange={(e) => {
+                      const next = [...value];
+                      next[i] = { ...next[i], clue: e.target.value };
+                      onChange(next);
+                    }}
+                    className="w-full border-l-2 border-ink/10 bg-transparent px-3 py-2.5 text-base outline-none placeholder:text-muted-foreground/60"
+                  />
+                  <button
+                    onClick={() => onChange(value.filter((_, j) => j !== i))}
+                    className="flex items-center justify-center text-muted-foreground hover:text-destructive"
+                    aria-label="Retirer ce mot"
+                  >
+                    ✕
+                  </button>
+                </div>
+                {tooLong && (
+                  <p className="border-t-2 border-ink/10 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">
+                    Trop long pour une grille {width}×{height} (max {maxDim} lettres).
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
-      ))}
+      )}
 
       <button
         onClick={() => onChange([...value, { answer: "", clue: "" }])}

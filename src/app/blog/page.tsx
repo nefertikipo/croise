@@ -37,7 +37,7 @@ export default async function BlogIndexPage() {
       <div className="mx-auto max-w-5xl px-4 py-12">
         {articles.length === 0 ? (
           <p className="font-serif-accent text-lg italic text-ink/60">
-            Aucun article pour le moment — revenez bientôt.
+            Aucun article pour le moment, revenez bientôt.
           </p>
         ) : (
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
