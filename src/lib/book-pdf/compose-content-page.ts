@@ -10,6 +10,7 @@ import type { PDFPage } from "pdf-lib";
 import type { BookFonts } from "@/lib/book-pdf/fonts";
 import { hex2rgb, mixHex, type Geometry } from "@/lib/book-pdf/geometry";
 import { nfc, wrapParagraphs, wrapText } from "@/lib/book-pdf/text";
+import { formatAuthorList } from "@/lib/books/authors";
 import type { ContentPageConfig } from "@/types/book";
 
 const INK = "#2f2a26";
@@ -20,41 +21,88 @@ export interface DedicationPageOptions {
   page: PDFPage;
   g: Geometry;
   fonts: BookFonts;
+  /** Personal message; empty falls back to the default title page. */
   text: string;
+  /** Book title, shown on the default title page. */
+  title: string;
+  /** Contributor names credited on the default title page. */
+  authors: string[];
 }
 
-/** The dedication / personal message page: centered, with a short primary rule
- * below — mirrors DedicationPage. */
-export function composeDedicationPage({ page, g, fonts, text }: DedicationPageOptions): void {
+/**
+ * The book's opening page (mirrors DedicationPage). With a personal message it's
+ * the dedication — centered, with a short primary rule below. Without one it's a
+ * title page: the book title and a warm sign-off from the contributors.
+ */
+export function composeDedicationPage({ page, g, fonts, text, title, authors }: DedicationPageOptions): void {
   page.drawRectangle({ x: 0, y: 0, width: g.pageW, height: g.pageH, color: hex2rgb(PAPER) });
 
-  const body = nfc(text);
-  const maxW = g.contentW * 0.82;
-  // Shrink until the block fits comfortably (floor 9pt).
-  let size = 14;
-  let lines = wrapParagraphs(fonts.heading, body, size, maxW);
-  while (size > 9 && lines.length * size * 1.5 > g.contentH * 0.7) {
-    size -= 0.5;
-    lines = wrapParagraphs(fonts.heading, body, size, maxW);
-  }
-  const lineH = size * 1.5;
-  const ruleGap = 24;
-  const blockH = lines.length * lineH + ruleGap + 1;
   const cx = g.contentX + g.contentW / 2;
+  const drawCentered = (line: string, y: number, size: number, font = fonts.heading, color = INK) => {
+    const w = font.widthOfTextAtSize(line, size);
+    page.drawText(line, { x: cx - w / 2, y: g.pageH - (y + size), size, font, color: hex2rgb(color) });
+  };
+  const rule = (y: number) =>
+    page.drawLine({
+      start: { x: cx - 24, y: g.pageH - y },
+      end: { x: cx + 24, y: g.pageH - y },
+      thickness: 1,
+      color: hex2rgb(PRIMARY),
+    });
+
+  if (text.trim()) {
+    const body = nfc(text);
+    const maxW = g.contentW * 0.82;
+    // Shrink until the block fits comfortably (floor 9pt).
+    let size = 14;
+    let lines = wrapParagraphs(fonts.heading, body, size, maxW);
+    while (size > 9 && lines.length * size * 1.5 > g.contentH * 0.7) {
+      size -= 0.5;
+      lines = wrapParagraphs(fonts.heading, body, size, maxW);
+    }
+    const lineH = size * 1.5;
+    const ruleGap = 24;
+    const blockH = lines.length * lineH + ruleGap + 1;
+    let yTop = g.contentTop + Math.max(0, (g.contentH - blockH) / 2);
+    for (const line of lines) {
+      drawCentered(line, yTop, size);
+      yTop += lineH;
+    }
+    rule(yTop + ruleGap);
+    return;
+  }
+
+  // Default title page: book title + a warm sign-off from the makers.
+  const maxW = g.contentW * 0.9;
+  const titleSize = 30;
+  const titleLines = wrapText(fonts.heading, nfc(title).toUpperCase(), titleSize, maxW);
+  const titleLineH = titleSize * 1.12;
+
+  const love = authors.length > 1 ? "Avec tout notre amour," : "Avec tout mon amour,";
+  const names = formatAuthorList(authors);
+  const signSize = 13;
+  const signLineH = signSize * 1.35;
+  const signLines = authors.length > 0 ? [love, ...wrapText(fonts.heading, names, signSize, maxW)] : [];
+
+  const ruleGap = 20;
+  const signGap = signLines.length > 0 ? 34 : 0;
+  const blockH =
+    titleLines.length * titleLineH + ruleGap + 1 + signGap + signLines.length * signLineH;
   let yTop = g.contentTop + Math.max(0, (g.contentH - blockH) / 2);
 
-  for (const line of lines) {
-    const w = fonts.heading.widthOfTextAtSize(line, size);
-    page.drawText(line, { x: cx - w / 2, y: g.pageH - (yTop + size), size, font: fonts.heading, color: hex2rgb(INK) });
-    yTop += lineH;
+  for (const line of titleLines) {
+    drawCentered(line, yTop, titleSize);
+    yTop += titleLineH;
   }
   yTop += ruleGap;
-  page.drawLine({
-    start: { x: cx - 24, y: g.pageH - yTop },
-    end: { x: cx + 24, y: g.pageH - yTop },
-    thickness: 1,
-    color: hex2rgb(PRIMARY),
-  });
+  rule(yTop);
+  if (signLines.length > 0) {
+    yTop += signGap;
+    for (const line of signLines) {
+      drawCentered(line, yTop, signSize);
+      yTop += signLineH;
+    }
+  }
 }
 
 export interface ContentPageOptions {

@@ -1,22 +1,49 @@
 import { BookPageFrame } from "@/components/book/book-page-frame";
+import { formatAuthorList } from "@/lib/books/authors";
 
 interface DedicationPageProps {
   text: string | null;
+  /** Book title, shown on the default opening page when there's no message. */
+  title?: string;
+  /** Contributor names credited on the default opening page. */
+  authors?: string[];
 }
 
-/** The dedication / personal message page, set in from the fore-edge. */
-export function DedicationPage({ text }: DedicationPageProps) {
-  return (
-    <BookPageFrame>
-      <div className="flex-1 flex flex-col items-center justify-center px-14 py-20 text-center">
-        {text ? (
+/**
+ * The book's opening page (always page 1, so a grid is never the lonely first
+ * recto). With a personal message it's the dedication; without one it falls back
+ * to a title page — the book title and a warm sign-off from the contributors.
+ */
+export function DedicationPage({ text, title, authors = [] }: DedicationPageProps) {
+  if (text) {
+    return (
+      <BookPageFrame>
+        <div className="flex-1 flex flex-col items-center justify-center px-14 py-20 text-center">
           <p className="font-heading text-2xl italic leading-relaxed text-foreground whitespace-pre-wrap">
             {text}
           </p>
-        ) : (
-          <p className="text-muted-foreground italic">Aucune dédicace</p>
+          <div className="mt-10 h-px w-16 bg-primary" />
+        </div>
+      </BookPageFrame>
+    );
+  }
+
+  const love = authors.length > 1 ? "Avec tout notre amour," : "Avec tout mon amour,";
+  return (
+    <BookPageFrame>
+      <div className="flex-1 flex flex-col items-center justify-center px-14 py-20 text-center">
+        <h1 className="font-heading text-4xl uppercase leading-tight text-foreground">
+          {title}
+        </h1>
+        <div className="mt-8 h-px w-16 bg-primary" />
+        {authors.length > 0 && (
+          <div className="mt-10">
+            <p className="font-heading text-lg italic text-foreground">{love}</p>
+            <p className="mt-1 font-heading text-lg text-foreground">
+              {formatAuthorList(authors)}
+            </p>
+          </div>
         )}
-        <div className="mt-10 h-px w-16 bg-primary" />
       </div>
     </BookPageFrame>
   );

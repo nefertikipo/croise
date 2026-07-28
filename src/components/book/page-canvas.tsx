@@ -8,6 +8,7 @@ import { GridPageView } from "@/components/book/grid-page";
 import { SolutionsPreview } from "@/components/book/solutions-preview";
 import { IndexPreview } from "@/components/book/index-preview";
 import { backMatterKind, type SlotId } from "@/components/book/page-slot";
+import { bookAuthors } from "@/lib/books/authors";
 import type { BookData, GridPage, WordIndexEntry } from "@/types/book";
 
 interface PageCanvasProps {
@@ -68,7 +69,14 @@ export function PageCanvas({
 
   const inner = (() => {
     if (selectedId === "cover") return <CoverPage title={book.title} cover={book.coverConfig} />;
-    if (selectedId === "dedication") return <DedicationPage text={book.dedicationText} />;
+    if (selectedId === "dedication")
+      return (
+        <DedicationPage
+          text={book.dedicationText}
+          title={book.title}
+          authors={bookAuthors(book.clueIdeas)}
+        />
+      );
     if (page?.kind === "content") return <ContentPageView config={page.config} />;
     return null;
   })();
