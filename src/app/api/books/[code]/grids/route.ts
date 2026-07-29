@@ -9,6 +9,7 @@ import { collectUsedWordsAndClues } from "@/lib/books/used-clues";
 import { authorizeBookEdit, touchBookStatement } from "@/lib/books/authorize";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import { checkCapacity } from "@/lib/crossword/check-capacity";
+import { hardCustomWordsHint } from "@/lib/crossword/generation-hint";
 import { placedWords } from "@/db/schema/placed-words";
 import type { BookPageData } from "@/types/book";
 
@@ -110,10 +111,14 @@ export async function POST(
 
       if (!grid) {
         if (createdPageIds.length === 0) {
+          // Same per-word hints as /fleche when a custom word is provably hard;
+          // generic advice otherwise. Response shape unchanged ({ error }).
+          const hint = hardCustomWordsHint(gridParams.customClues);
           return NextResponse.json(
             {
-              error:
-                "Impossible de générer la grille. Essayez avec moins de mots personnalisés, des mots plus courts ou une grille plus grande.",
+              error: hint
+                ? `Impossible de générer la grille. ${hint}`
+                : "Impossible de générer la grille. Essayez avec moins de mots personnalisés, des mots plus courts ou une grille plus grande.",
             },
             { status: 422 },
           );

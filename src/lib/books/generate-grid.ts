@@ -1,8 +1,9 @@
 import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
-import { generateFlecheVector, type DifficultyMode } from "@/lib/crossword/fleche-vector-gen";
+import { generateFlecheVector, type DifficultyMode, type VectorGenResult } from "@/lib/crossword/fleche-vector-gen";
 import { getFrenchWordList, getFrenchClueDb, getFrenchClueDifficulty, ensureLoaded } from "@/lib/crossword/load-french-clues";
+import { getFlechePool } from "@/lib/crossword/fleche-pool-singleton";
 import { generateCrosswordCode, retryOnUniqueViolation } from "@/lib/code";
 import { normalizeAnswer, normalizeClueText } from "@/lib/crossword/normalize";
 
@@ -62,59 +63,95 @@ interface GenerateGridResult {
 export async function generateAndSaveGrid(
   input: GenerateGridInput,
 ): Promise<GenerateGridResult | null> {
-  await ensureLoaded();
-  const wordList = getFrenchWordList();
-  const rawClueDb = getFrenchClueDb();
-  const clueDifficulty = getFrenchClueDifficulty();
+  const hiddenWord = input.hiddenWord?.trim() || undefined;
+  const genParams = {
+    width: input.width,
+    height: input.height,
+    customClues: input.customClues,
+    hiddenWord,
+    difficulty: input.difficulty,
+  };
 
   // Stored clue texts went through normalizeClueText (trim + sentence case,
   // ALL-CAPS lowercased) but the corpus strings are raw — so fold BOTH sides to
   // the normalized, case-insensitive form before comparing, mirroring the
   // in-grid de-dup. Without this, corpus "palace londonien" (stored as "Palace
-  // londonien") escapes the filter and the clue repeats across grids.
+  // londonien") escapes the filter and the clue repeats across grids. The pool
+  // path sends the pre-folded set (with foldExcludedClues so workers fold the
+  // corpus side too); the fallback path folds against its own filtered copy.
   const usedCluesFolded = new Set<string>();
   for (const c of input.usedClues) {
     usedCluesFolded.add(normalizeClueText(c).toUpperCase());
   }
 
-  // Filter the clue DB to enforce the book's exclusions: drop any substantive
-  // word already placed on another grid (hard word exclusion, ≥ MIN_LOCKED_WORD_
-  // LENGTH — see the constant for why short filler is exempt), and drop any clue
-  // text already used elsewhere (clue de-dup). Dropping a word from clueDb removes
-  // it from every fill domain — the generator only ever places words that have a
-  // real clue. ALWAYS pass a copy so the process-wide cached clueDb can never be
-  // mutated (the generator also copy-on-writes; this is defense-in-depth —
-  // shallow-copying ~80K entries of shared array refs is cheap).
-  let clueDb: Map<string, string[]>;
-  if (usedCluesFolded.size > 0 || input.usedWords.size > 0) {
-    clueDb = new Map();
-    for (const [word, clues] of rawClueDb) {
-      // word already on another grid in the book
-      if (word.length >= MIN_LOCKED_WORD_LENGTH && input.usedWords.has(word)) continue;
-      const filtered =
-        usedCluesFolded.size > 0
-          ? clues.filter((c) => !usedCluesFolded.has(normalizeClueText(c).toUpperCase()))
-          : clues;
-      if (filtered.length > 0) clueDb.set(word, filtered);
+  // Prefer the warm worker pool — the same mechanism as /fleche: every worker
+  // holds its own corpus copy and races a different random layout, so dense
+  // custom-word/hidden-word grids succeed far more often per wall-second. The
+  // book's no-repeat invariant holds unchanged: workers drop excludeAnswers and
+  // excludeClues from their per-job corpus copy exactly like the fallback filter
+  // below (word exclusion pre-filtered to ≥ MIN_LOCKED_WORD_LENGTH here, since
+  // short structural filler must stay available — see the constant). Custom-word
+  // jobs get a freshly rebuilt word list + cloned clue DB inside the worker, so
+  // one user's custom words never leak into shared state. Fall back to
+  // single-threaded only when the pool is unavailable (disabled, failed init in
+  // this environment) or ERRORS — a pool that ran and found no solution is a
+  // real failure, so re-running single-threaded would just fail again.
+  let result: VectorGenResult | null = null;
+  let handledByPool = false;
+  const pool = await getFlechePool();
+  if (pool) {
+    try {
+      const excludeAnswers: string[] = [];
+      for (const w of input.usedWords) {
+        if (w.length >= MIN_LOCKED_WORD_LENGTH) excludeAnswers.push(w);
+      }
+      const r = await pool.generate(genParams, {
+        excludeAnswers,
+        excludeClues: [...usedCluesFolded],
+        foldExcludedClues: true,
+        maxWaitMs: 118000,
+      });
+      result = r.result;
+      handledByPool = true;
+    } catch (poolErr) {
+      console.error("[book-grid] pool error, single-threaded fallback:", poolErr);
     }
-  } else {
-    clueDb = new Map(rawClueDb);
   }
 
-  const hiddenWord = input.hiddenWord?.trim() || undefined;
-  const result = generateFlecheVector(
-    {
-      width: input.width,
-      height: input.height,
-      customClues: input.customClues,
-      hiddenWord,
-      difficulty: input.difficulty,
-    },
-    wordList,
-    clueDb,
-    clueDifficulty,
-  );
-  if (!result.success) return null;
+  if (!handledByPool) {
+    await ensureLoaded();
+    const wordList = getFrenchWordList();
+    const rawClueDb = getFrenchClueDb();
+    const clueDifficulty = getFrenchClueDifficulty();
+
+    // Filter the clue DB to enforce the book's exclusions: drop any substantive
+    // word already placed on another grid (hard word exclusion, ≥ MIN_LOCKED_WORD_
+    // LENGTH — see the constant for why short filler is exempt), and drop any clue
+    // text already used elsewhere (clue de-dup). Dropping a word from clueDb removes
+    // it from every fill domain — the generator only ever places words that have a
+    // real clue. ALWAYS pass a copy so the process-wide cached clueDb can never be
+    // mutated (the generator also copy-on-writes; this is defense-in-depth —
+    // shallow-copying ~80K entries of shared array refs is cheap).
+    let clueDb: Map<string, string[]>;
+    if (usedCluesFolded.size > 0 || input.usedWords.size > 0) {
+      clueDb = new Map();
+      for (const [word, clues] of rawClueDb) {
+        // word already on another grid in the book
+        if (word.length >= MIN_LOCKED_WORD_LENGTH && input.usedWords.has(word)) continue;
+        const filtered =
+          usedCluesFolded.size > 0
+            ? clues.filter((c) => !usedCluesFolded.has(normalizeClueText(c).toUpperCase()))
+            : clues;
+        if (filtered.length > 0) clueDb.set(word, filtered);
+      }
+    } else {
+      clueDb = new Map(rawClueDb);
+    }
+
+    result = generateFlecheVector(genParams, wordList, clueDb, clueDifficulty);
+  }
+
+  if (!result || !result.success) return null;
 
   const { grid, words } = result;
   let pattern = "";

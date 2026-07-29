@@ -91,7 +91,13 @@ export class FlechePool {
    */
   generate(
     params: VectorGenParams,
-    opts?: { excludeAnswers?: string[]; excludeClues?: string[]; maxWaitMs?: number },
+    opts?: {
+      excludeAnswers?: string[];
+      excludeClues?: string[];
+      /** See fleche-worker JobMessage: compare excluded clues in folded form. */
+      foldExcludedClues?: boolean;
+      maxWaitMs?: number;
+    },
   ): Promise<{ result: VectorGenResult | null; ms: number }> {
     const jobId = ++this.jobSeq;
     const abort = new SharedArrayBuffer(4);
@@ -138,6 +144,7 @@ export class FlechePool {
           params,
           excludeAnswers: opts?.excludeAnswers,
           excludeClues: opts?.excludeClues,
+          foldExcludedClues: opts?.foldExcludedClues,
           abort,
         });
       }

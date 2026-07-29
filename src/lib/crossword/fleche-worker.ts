@@ -19,6 +19,7 @@ import {
 } from "@/lib/crossword/load-french-clues";
 import { generateFlecheVector, type VectorGenParams } from "@/lib/crossword/fleche-vector-gen";
 import { WordList } from "@/lib/crossword/word-list";
+import { normalizeClueText } from "@/lib/crossword/normalize";
 
 if (!parentPort) throw new Error("fleche-worker must run as a worker thread");
 const port = parentPort;
@@ -29,6 +30,13 @@ interface JobMessage {
   params: VectorGenParams;
   excludeAnswers?: string[];
   excludeClues?: string[];
+  /**
+   * When true, `excludeClues` are pre-folded (normalizeClueText + uppercase) and
+   * corpus clues are folded the same way before comparing. The book path needs
+   * this because stored clue texts went through normalizeClueText while corpus
+   * strings are raw. /fleche keeps the default raw comparison.
+   */
+  foldExcludedClues?: boolean;
   abort: SharedArrayBuffer;
 }
 
@@ -57,10 +65,16 @@ async function main() {
     // mutation stays isolated to this run. Plain jobs reuse the shared map.
     let db = baseDb;
     if (hasExcludes) {
+      const fold = msg.foldExcludedClues === true;
       db = new Map();
       for (const [word, clues] of baseDb) {
         if (exclA.has(word)) continue;
-        const filtered = exclC.size > 0 ? clues.filter((c) => !exclC.has(c)) : clues;
+        const filtered =
+          exclC.size > 0
+            ? clues.filter(
+                (c) => !exclC.has(fold ? normalizeClueText(c).toUpperCase() : c),
+              )
+            : clues;
         if (filtered.length > 0) db.set(word, filtered);
       }
     } else if (hasCustom) {
