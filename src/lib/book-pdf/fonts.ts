@@ -3,14 +3,20 @@
  * type: Inter for clue text (screen `--font-sans`, switched from the condensed
  * face for legibility at small sizes — see fleche-grid.tsx), Barlow Semi
  * Condensed for grid letters, Anton for the deco headings (screen
- * `--font-heading` falls back to Anton). Raw TTF bytes are cached across
- * requests; the embedded `PDFFont` handles are per-document.
+ * `--font-heading` falls back to Anton). The dedication message is drawn in the
+ * maker's chosen face (see `dedication`, keyed by DedicationFontKey). Raw TTF
+ * bytes are cached across requests; the embedded `PDFFont` handles are
+ * per-document.
  */
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import fontkit from "@pdf-lib/fontkit";
 import type { PDFDocument, PDFFont } from "pdf-lib";
+import {
+  DEDICATION_FONTS,
+  type DedicationFontKey,
+} from "@/lib/books/dedication-fonts";
 
 const bytesCache = new Map<string, Buffer>();
 
@@ -23,6 +29,10 @@ async function loadFontBytes(file: string): Promise<Buffer> {
   return bytes;
 }
 
+async function embedFile(doc: PDFDocument, file: string): Promise<PDFFont> {
+  return doc.embedFont(await loadFontBytes(file), { subset: true });
+}
+
 /** The set of fonts every interior page draws with. */
 export interface BookFonts {
   /** Clue text — Inter Medium (matches the screen clue face, --font-sans). */
@@ -33,21 +43,24 @@ export interface BookFonts {
   bold: PDFFont;
   /** Deco headings — Anton. */
   heading: PDFFont;
+  /** Maker-selectable dedication faces, keyed by DedicationFontKey. */
+  dedication: Record<DedicationFontKey, PDFFont>;
 }
 
 export async function embedBookFonts(doc: PDFDocument): Promise<BookFonts> {
   doc.registerFontkit(fontkit);
-  const [clueB, letterB, boldB, headingB] = await Promise.all([
-    loadFontBytes("Inter-Medium.ttf"),
-    loadFontBytes("BarlowSemiCondensed-SemiBold.ttf"),
-    loadFontBytes("BarlowSemiCondensed-Bold.ttf"),
-    loadFontBytes("Anton-Regular.ttf"),
-  ]);
   const [clue, letter, bold, heading] = await Promise.all([
-    doc.embedFont(clueB, { subset: true }),
-    doc.embedFont(letterB, { subset: true }),
-    doc.embedFont(boldB, { subset: true }),
-    doc.embedFont(headingB, { subset: true }),
+    embedFile(doc, "Inter-Medium.ttf"),
+    embedFile(doc, "BarlowSemiCondensed-SemiBold.ttf"),
+    embedFile(doc, "BarlowSemiCondensed-Bold.ttf"),
+    embedFile(doc, "Anton-Regular.ttf"),
   ]);
-  return { clue, letter, bold, heading };
+  const dedicationEntries = await Promise.all(
+    DEDICATION_FONTS.map(async (f) => [f.key, await embedFile(doc, f.pdfFile)] as const),
+  );
+  const dedication = Object.fromEntries(dedicationEntries) as Record<
+    DedicationFontKey,
+    PDFFont
+  >;
+  return { clue, letter, bold, heading, dedication };
 }

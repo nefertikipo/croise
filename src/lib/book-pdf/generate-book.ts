@@ -106,6 +106,7 @@ export async function generateBookInteriorPdf(book: BookData, size: PageSize = "
       g,
       fonts,
       text: book.dedicationText ?? "",
+      font: book.dedicationFont,
       title: book.title,
       authors: bookAuthors(book.clueIdeas),
     });

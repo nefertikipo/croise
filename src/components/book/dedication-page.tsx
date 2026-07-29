@@ -1,8 +1,11 @@
 import { BookPageFrame } from "@/components/book/book-page-frame";
 import { formatAuthorList } from "@/lib/books/authors";
+import { resolveDedicationFont } from "@/lib/books/dedication-fonts";
 
 interface DedicationPageProps {
   text: string | null;
+  /** Maker's chosen typeface for the message (a DedicationFontKey); null = default. */
+  font?: string | null;
   /** Book title, shown on the default opening page when there's no message. */
   title?: string;
   /** Contributor names credited on the default opening page. */
@@ -14,12 +17,13 @@ interface DedicationPageProps {
  * recto). With a personal message it's the dedication; without one it falls back
  * to a title page — the book title and a warm sign-off from the contributors.
  */
-export function DedicationPage({ text, title, authors = [] }: DedicationPageProps) {
+export function DedicationPage({ text, font, title, authors = [] }: DedicationPageProps) {
   if (text) {
+    const { className } = resolveDedicationFont(font);
     return (
       <BookPageFrame>
         <div className="flex-1 flex flex-col items-center justify-center px-14 py-20 text-center">
-          <p className="font-heading text-2xl italic leading-relaxed text-foreground whitespace-pre-wrap">
+          <p className={`${className} text-2xl leading-relaxed text-foreground whitespace-pre-wrap`}>
             {text}
           </p>
           <div className="mt-10 h-px w-16 bg-primary" />
@@ -38,8 +42,8 @@ export function DedicationPage({ text, title, authors = [] }: DedicationPageProp
         <div className="mt-8 h-px w-16 bg-primary" />
         {authors.length > 0 && (
           <div className="mt-10">
-            <p className="font-heading text-lg italic text-foreground">{love}</p>
-            <p className="mt-1 font-heading text-lg text-foreground">
+            <p className="font-serif-accent text-lg italic text-foreground">{love}</p>
+            <p className="mt-1 font-serif-accent text-lg text-foreground">
               {formatAuthorList(authors)}
             </p>
           </div>

@@ -1,8 +1,9 @@
 /**
  * Compose the text-led interior pages: the dedication page and the note /
  * quote content pages. Mirrors the on-screen DedicationPage and
- * ContentPageView (content-page.tsx): same fonts (Anton headings, Barlow body),
- * same palette, centered layouts. SVG motifs/frames from PageDesignLayer are
+ * ContentPageView (content-page.tsx): same fonts (Anton headings, the maker's
+ * chosen face for the dedication message + sign-off, Barlow body), same palette,
+ * centered layouts. SVG motifs/frames from PageDesignLayer are
  * not reproduced in print yet (decoration layer TODO).
  */
 
@@ -11,6 +12,7 @@ import type { BookFonts } from "@/lib/book-pdf/fonts";
 import { hex2rgb, mixHex, type Geometry } from "@/lib/book-pdf/geometry";
 import { nfc, wrapParagraphs, wrapText } from "@/lib/book-pdf/text";
 import { formatAuthorList } from "@/lib/books/authors";
+import { resolveDedicationFont } from "@/lib/books/dedication-fonts";
 import type { ContentPageConfig } from "@/types/book";
 
 const INK = "#2f2a26";
@@ -23,6 +25,8 @@ export interface DedicationPageOptions {
   fonts: BookFonts;
   /** Personal message; empty falls back to the default title page. */
   text: string;
+  /** Maker's chosen typeface for the message (a DedicationFontKey); null = default. */
+  font: string | null;
   /** Book title, shown on the default title page. */
   title: string;
   /** Contributor names credited on the default title page. */
@@ -34,8 +38,10 @@ export interface DedicationPageOptions {
  * the dedication — centered, with a short primary rule below. Without one it's a
  * title page: the book title and a warm sign-off from the contributors.
  */
-export function composeDedicationPage({ page, g, fonts, text, title, authors }: DedicationPageOptions): void {
+export function composeDedicationPage({ page, g, fonts, text, font, title, authors }: DedicationPageOptions): void {
   page.drawRectangle({ x: 0, y: 0, width: g.pageW, height: g.pageH, color: hex2rgb(PAPER) });
+
+  const dedicationFont = fonts.dedication[resolveDedicationFont(font).key];
 
   const cx = g.contentX + g.contentW / 2;
   const drawCentered = (line: string, y: number, size: number, font = fonts.heading, color = INK) => {
@@ -54,18 +60,18 @@ export function composeDedicationPage({ page, g, fonts, text, title, authors }: 
     const body = nfc(text);
     const maxW = g.contentW * 0.82;
     // Shrink until the block fits comfortably (floor 9pt).
-    let size = 14;
-    let lines = wrapParagraphs(fonts.heading, body, size, maxW);
+    let size = 16;
+    let lines = wrapParagraphs(dedicationFont, body, size, maxW);
     while (size > 9 && lines.length * size * 1.5 > g.contentH * 0.7) {
       size -= 0.5;
-      lines = wrapParagraphs(fonts.heading, body, size, maxW);
+      lines = wrapParagraphs(dedicationFont, body, size, maxW);
     }
     const lineH = size * 1.5;
     const ruleGap = 24;
     const blockH = lines.length * lineH + ruleGap + 1;
     let yTop = g.contentTop + Math.max(0, (g.contentH - blockH) / 2);
     for (const line of lines) {
-      drawCentered(line, yTop, size);
+      drawCentered(line, yTop, size, dedicationFont);
       yTop += lineH;
     }
     rule(yTop + ruleGap);
@@ -82,7 +88,7 @@ export function composeDedicationPage({ page, g, fonts, text, title, authors }: 
   const names = formatAuthorList(authors);
   const signSize = 13;
   const signLineH = signSize * 1.35;
-  const signLines = authors.length > 0 ? [love, ...wrapText(fonts.heading, names, signSize, maxW)] : [];
+  const signLines = authors.length > 0 ? [love, ...wrapText(dedicationFont, names, signSize, maxW)] : [];
 
   const ruleGap = 20;
   const signGap = signLines.length > 0 ? 34 : 0;
@@ -99,7 +105,7 @@ export function composeDedicationPage({ page, g, fonts, text, title, authors }: 
   if (signLines.length > 0) {
     yTop += signGap;
     for (const line of signLines) {
-      drawCentered(line, yTop, signSize);
+      drawCentered(line, yTop, signSize, dedicationFont);
       yTop += signLineH;
     }
   }
