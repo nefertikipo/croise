@@ -156,6 +156,7 @@ export function SlotInner({
     return (
       <DedicationPage
         text={book.dedicationText}
+        font={book.dedicationFont}
         title={book.title}
         authors={bookAuthors(book.clueIdeas)}
       />

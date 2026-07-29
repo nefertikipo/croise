@@ -148,6 +148,8 @@ export interface BookData {
   title: string;
   description: string | null;
   dedicationText: string | null;
+  /** Maker's chosen dedication typeface (a DedicationFontKey); null = default. */
+  dedicationFont: string | null;
   coverConfig: CoverConfig | null;
   /** Design-time clue-idea notepad (not printed). Empty when never used. */
   clueIdeas: ClueIdea[];

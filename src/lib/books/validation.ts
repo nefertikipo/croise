@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEDICATION_FONTS } from "@/lib/books/dedication-fonts";
 
 /**
  * Shared field validators for book payloads, used by both `POST /api/books`
@@ -9,6 +10,10 @@ import { z } from "zod";
 export const bookTitleSchema = z.string().min(1).max(120);
 
 export const bookDedicationSchema = z.string().max(2000);
+
+export const bookDedicationFontSchema = z.enum(
+  DEDICATION_FONTS.map((f) => f.key) as [string, ...string[]],
+);
 
 /** One clue-idea notepad entry (see `ClueIdea` in src/types/book.ts). */
 export const clueIdeaSchema = z.object({

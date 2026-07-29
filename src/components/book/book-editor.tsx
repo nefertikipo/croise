@@ -22,6 +22,7 @@ import { buildWordIndex } from "@/lib/crossword/word-index";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import { BOOK_MIN_GRIDS } from "@/lib/books/constants";
 import { rehydrateDesignPreview, stripDesignPreview } from "@/lib/books/photo-preview";
+import type { DedicationFontKey } from "@/lib/books/dedication-fonts";
 import type {
   BookData,
   ClueIdea,
@@ -303,6 +304,11 @@ export function BookEditor({
     debounce("book-dedication", () =>
       patchBook({ dedicationText: bookRef.current.dedicationText ?? "" }),
     );
+  }
+
+  function updateDedicationFont(font: DedicationFontKey) {
+    setBook((b) => ({ ...b, dedicationFont: font }));
+    patchBook({ dedicationFont: font });
   }
 
   function updateClueIdeas(clueIdeas: ClueIdea[]) {
@@ -919,7 +925,12 @@ export function BookEditor({
         {showProps && (
         <aside className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-auto lg:self-start">
           {selectedId === "dedication" && (
-            <DedicationEditor text={book.dedicationText ?? ""} onChange={updateDedication} />
+            <DedicationEditor
+              text={book.dedicationText ?? ""}
+              font={book.dedicationFont}
+              onChange={updateDedication}
+              onFontChange={updateDedicationFont}
+            />
           )}
           {selectedId === "ideas" && (
             <ClueIdeasEditor

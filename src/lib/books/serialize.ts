@@ -139,6 +139,7 @@ export async function loadBook(code: string): Promise<BookData | null> {
     title: book.title,
     description: book.description,
     dedicationText: book.dedicationText,
+    dedicationFont: book.dedicationFont,
     coverConfig: (book.coverConfig as CoverConfig) ?? null,
     clueIdeas: (book.clueIdeas as ClueIdea[]) ?? [],
     language: book.language,
