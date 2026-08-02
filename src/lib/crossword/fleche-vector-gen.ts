@@ -82,6 +82,14 @@ export interface VectorGenParams {
   hiddenWord?: string;
   /** Which clue to pick per word when multiple exist. Default "balanced". */
   difficulty?: DifficultyMode;
+  /**
+   * Total wall-clock budget (ms) for the layout search. Overrides the default
+   * (25s plain / 110s with custom words). Callers running on a higher-memory
+   * (more-vCPU) function with a larger `maxDuration` raise this so hard grids
+   * get enough time to solve instead of giving up early. Flows through the pool
+   * to each worker unchanged.
+   */
+  timeBudgetMs?: number;
 }
 
 /** Generation result */
@@ -1525,7 +1533,10 @@ function generateFlecheVectorImpl(
 
   const hasCustom = customClues.length > 0;
   const customCount = customClues.length;
-  const TOTAL_TIME_MS = hasCustom ? 110000 : 25000; // 110s for custom (API maxDuration=120)
+  // Default: 110s for custom / 25s plain. A caller on a boosted (more-vCPU,
+  // higher-maxDuration) function can raise this via params.timeBudgetMs so hard
+  // grids get enough time to solve instead of giving up at 110s.
+  const TOTAL_TIME_MS = params.timeBudgetMs ?? (hasCustom ? 110000 : 25000);
   const totalDeadline = Date.now() + TOTAL_TIME_MS;
   // Time is the real limiter (via totalDeadline); keep the attempt cap high so
   // it never cuts a run short. Each failed attempt is cheap thanks to the AC-3
