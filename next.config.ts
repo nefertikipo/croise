@@ -7,7 +7,15 @@ const nextConfig: NextConfig = {
   // Ship the embedded cover fonts into the API function bundle. (sharp's native
   // binary is bundled correctly by the webpack build — see the --webpack flag.)
   outputFileTracingIncludes: {
-    "/api/**": ["./public/fonts/**", "./public/motifs/**"],
+    // The fléché worker pool loads this esbuild-prebuilt standalone bundle at
+    // runtime (built by scripts/build-fleche-worker.mjs). It must be traced into
+    // the API function or the pool can't spawn workers and generation falls back
+    // to the slow single-threaded path. See src/lib/crossword/fleche-pool.ts.
+    "/api/**": [
+      "./public/fonts/**",
+      "./public/motifs/**",
+      "./worker-dist/**",
+    ],
   },
   images: {
     remotePatterns: [
