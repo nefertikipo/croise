@@ -152,6 +152,57 @@ export function analyzeCapacity(
 }
 
 /**
+ * Blocking check for an impossible mot caché — a hidden word the grid can't
+ * spell out no matter how it fills. Returns a French error, or null if the word
+ * is empty (no mot caché) or plausibly placeable.
+ *
+ * We only block the provably/near-certainly impossible, since the generator
+ * already falls back gracefully and the UI reports a miss after the fact —
+ * over-blocking a word that WOULD work is worse than letting a borderline one
+ * through:
+ *  - fewer than 2 letters once folded (nothing to hide),
+ *  - longer than the grid can supply distinct letter cells for,
+ *  - needs 3+ of one scarce letter (J/K/Q/W/X/Y/Z), or 5+ scarce letters total —
+ *    French fill can seed a rare letter or two, never a pile of them.
+ */
+export function checkHiddenWord(
+  width: number,
+  height: number,
+  hiddenWord: string | undefined,
+): string | null {
+  const raw = (hiddenWord ?? "").trim();
+  if (!raw) return null; // no mot caché requested
+  const word = normalizeAnswer(raw);
+  if (word.length < 2) {
+    return "Le mot caché doit contenir au moins 2 lettres.";
+  }
+
+  // Rough count of letter (white) cells: comb borders + interior, minus the
+  // ~15% that become clue cells. Conservative, so we only flag the clearly-too-long.
+  const letterCells = Math.floor(width * height * 0.5);
+  if (word.length > letterCells) {
+    return `Le mot caché « ${word} » (${word.length} lettres) est trop long pour être caché dans une grille ${width}×${height}.`;
+  }
+
+  const rareByLetter = new Map<string, number>();
+  for (const ch of word) {
+    if (RARE_LETTERS.has(ch)) rareByLetter.set(ch, (rareByLetter.get(ch) ?? 0) + 1);
+  }
+  let rareTotal = 0;
+  for (const [ch, n] of rareByLetter) {
+    rareTotal += n;
+    if (n >= 3) {
+      return `Le mot caché « ${word} » demande trop de « ${ch} » : cette lettre est trop rare pour apparaître autant de fois dans la grille.`;
+    }
+  }
+  if (rareTotal >= 5) {
+    return `Le mot caché « ${word} » contient trop de lettres rares pour être caché de façon fiable dans une grille ${width}×${height}.`;
+  }
+
+  return null;
+}
+
+/**
  * Returns a user-facing French error string if the request cannot possibly fit
  * the grid, else null. Thin wrapper over {@link analyzeCapacity} for the server
  * guard.

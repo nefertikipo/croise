@@ -10,7 +10,7 @@ import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { ClueList } from "@/components/fleche/clue-list";
 import { AddToBook } from "@/components/fleche/add-to-book";
 import { CustomWordsEditor } from "@/components/book/custom-words-editor";
-import { analyzeCapacity, needsBoostedCompute } from "@/lib/crossword/check-capacity";
+import { analyzeCapacity, checkHiddenWord, needsBoostedCompute } from "@/lib/crossword/check-capacity";
 import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
 import {
@@ -114,6 +114,9 @@ export default function FlechePage() {
     const w = normalizeAnswer(answer);
     return w.length >= 2 && w.length >= minDim;
   };
+
+  // Block an impossible mot caché before generation (too long / too rare).
+  const hiddenError = checkHiddenWord(gridWidth, gridHeight, hiddenWord);
 
   // Hidden word is a post-hoc highlight over the generated grid, recomputed live
   // as the user edits it so the strip + feedback stay in sync without a regen.
@@ -348,14 +351,19 @@ export default function FlechePage() {
                 placeholder="ex: ANNIVERSAIRE"
                 value={hiddenWord}
                 onChange={(e) => setHiddenWord(composeInput(e.target.value))}
-                className="w-48 rounded-none border px-2 py-1 text-sm uppercase font-mono"
+                className={`w-48 rounded-none border px-2 py-1 text-sm uppercase font-mono ${
+                  hiddenError ? "border-destructive text-destructive" : ""
+                }`}
               />
+              {hiddenError && (
+                <p className="text-sm font-medium text-destructive">⚠ {hiddenError}</p>
+              )}
             </div>
 
             <div className="flex items-center gap-3">
               <button
                 onClick={generate}
-                disabled={loading || capacity.message !== null}
+                disabled={loading || capacity.message !== null || hiddenError !== null}
                 className="btn-lapos rounded-none bg-brand px-7 py-3 text-base text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
               >
                 Créer ma grille
@@ -628,7 +636,7 @@ export default function FlechePage() {
                 </button>
                 <button
                   onClick={generate}
-                  disabled={loading || capacity.message !== null}
+                  disabled={loading || capacity.message !== null || hiddenError !== null}
                   className="btn-lapos rounded-none bg-brand px-6 py-2.5 text-sm text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
                 >
                   Régénérer

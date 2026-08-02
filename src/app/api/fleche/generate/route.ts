@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
 import { generateCrosswordCode } from "@/lib/code";
-import { checkCapacity, needsBoostedCompute } from "@/lib/crossword/check-capacity";
+import { checkCapacity, checkHiddenWord, needsBoostedCompute } from "@/lib/crossword/check-capacity";
 import { normalizeAnswer, answerBreaks } from "@/lib/crossword/normalize";
 import { auth } from "@/lib/auth";
 import type { Coord } from "@/lib/crossword/fleche-math";
@@ -50,6 +50,13 @@ export async function POST(request: Request) {
     );
     if (capacityError) {
       return NextResponse.json({ error: capacityError }, { status: 400 });
+    }
+
+    // Reject an impossible mot caché up front (too long / too many rare letters)
+    // instead of generating a grid that silently can't hide it.
+    const hiddenError = checkHiddenWord(params.width, params.height, params.hiddenWord);
+    if (hiddenError) {
+      return NextResponse.json({ error: hiddenError }, { status: 400 });
     }
 
     // Hard grids get a much larger time budget (they run on the boosted-CPU

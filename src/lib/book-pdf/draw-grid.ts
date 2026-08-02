@@ -143,16 +143,27 @@ function wrapLines(
       cur = word;
       return;
     }
-    // Hard char-break an over-long word.
+    // Hard char-break an over-long word into chunks that each fit the box.
+    const chunks: string[] = [];
     let chunk = "";
     for (const ch of word) {
       if (w(chunk + ch) <= boxW || !chunk) chunk += ch;
       else {
-        lines.push(chunk);
+        chunks.push(chunk);
         chunk = ch;
       }
     }
-    cur = chunk;
+    chunks.push(chunk);
+    // Never leave a lone trailing letter ("NEGATIO" + "N"): pull one character
+    // down from the previous chunk so the last line has at least two letters.
+    const n = chunks.length;
+    if (n >= 2 && chunks[n - 1].length === 1) {
+      const prev = chunks[n - 2];
+      chunks[n - 2] = prev.slice(0, -1);
+      chunks[n - 1] = prev.slice(-1) + chunks[n - 1];
+    }
+    for (let i = 0; i < chunks.length - 1; i++) lines.push(chunks[i]);
+    cur = chunks[chunks.length - 1];
   };
   for (const word of words) {
     const cand = cur ? `${cur} ${word}` : word;

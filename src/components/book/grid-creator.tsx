@@ -6,7 +6,7 @@ import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { CustomWordsEditor } from "@/components/book/custom-words-editor";
 import { ClueIdeaPicker } from "@/components/book/clue-idea-picker";
 import { addPickedIdeas } from "@/components/book/pick-ideas";
-import { analyzeCapacity } from "@/lib/crossword/check-capacity";
+import { analyzeCapacity, checkHiddenWord } from "@/lib/crossword/check-capacity";
 import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
 import { CLUE_EXAMPLES, DIFFICULTY_INFO } from "@/lib/fleche/difficulty-guide";
@@ -84,7 +84,8 @@ export function GridCreator({
   }
   const effectiveCount = hasCustom ? 1 : count;
   const capacity = analyzeCapacity(width, height, customClues);
-  const canCreate = !busy && capacity.message === null;
+  const hiddenError = checkHiddenWord(width, height, hiddenWord);
+  const canCreate = !busy && capacity.message === null && hiddenError === null;
   // Per-grid estimate: the batch runs one grid per request and the bar remounts
   // for each (keyed on genBatch.current), so it paces a single grid, not the sum.
   const gridEstimateMs = estimateGenerationMs({
@@ -254,8 +255,13 @@ export function GridCreator({
                 placeholder="ex: ANNIVERSAIRE"
                 value={hiddenWord}
                 onChange={(e) => setHiddenWord(composeInput(e.target.value))}
-                className="w-48 rounded-none border px-2 py-1 text-sm uppercase font-mono"
+                className={`w-48 rounded-none border px-2 py-1 text-sm uppercase font-mono ${
+                  hiddenError ? "border-destructive text-destructive" : ""
+                }`}
               />
+              {hiddenError && (
+                <p className="w-full text-sm font-medium text-destructive">⚠ {hiddenError}</p>
+              )}
             </div>
 
             {/* Count — automatic grids only (a personalized grid is unique) */}
