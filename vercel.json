@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "src/app/api/fleche/generate/boost/route.ts": { "memory": 3009 },
+    "src/app/api/books/[code]/grids/route.ts": { "memory": 3009 },
+    "src/app/api/books/[code]/pages/[pageId]/regenerate/route.ts": { "memory": 3009 }
+  }
+}

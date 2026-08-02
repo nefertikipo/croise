@@ -24,11 +24,13 @@ export function CustomWordsEditor({ width, height, value, onChange }: CustomWord
   const validCount = value.filter(
     (c) => c.answer.trim().length >= 2 && c.clue.trim().length > 0,
   ).length;
-  const maxDim = Math.max(width, height);
+  const minDim = Math.min(width, height);
 
+  /** Blocked: as long as / longer than the short side (only fits one way, breaks
+   *  generation). Matches the hard block in analyzeCapacity. */
   function isWordTooLong(answer: string): boolean {
     const w = normalizeAnswer(answer);
-    return w.length >= 2 && w.length > maxDim;
+    return w.length >= 2 && w.length >= minDim;
   }
 
   return (
@@ -99,7 +101,7 @@ export function CustomWordsEditor({ width, height, value, onChange }: CustomWord
                 </div>
                 {tooLong && (
                   <p className="border-t-2 border-ink/10 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">
-                    Trop long pour une grille {width}×{height} (max {maxDim} lettres).
+                    Trop long pour une grille {width}×{height} (max {minDim - 1} lettres).
                   </p>
                 )}
               </div>

@@ -7,12 +7,14 @@ import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
 import { generateCrosswordCode } from "@/lib/code";
-import { checkCapacity } from "@/lib/crossword/check-capacity";
+import { checkCapacity, needsBoostedCompute } from "@/lib/crossword/check-capacity";
 import { normalizeAnswer, answerBreaks } from "@/lib/crossword/normalize";
 import { auth } from "@/lib/auth";
 import type { Coord } from "@/lib/crossword/fleche-math";
 
-export const maxDuration = 120;
+// 300s (Vercel Pro max) so a hard grid on the boosted endpoint has time to solve
+// without the function being killed mid-generation. Easy grids still return fast.
+export const maxDuration = 300;
 
 const requestSchema = z.object({
   width: z.number().min(5).max(20).default(10),
@@ -50,12 +52,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: capacityError }, { status: 400 });
     }
 
+    // Hard grids get a much larger time budget (they run on the boosted-CPU
+    // endpoint, whose maxDuration is 300s). Easy grids keep the default budget so
+    // they still fail fast rather than hanging.
+    const hard = needsBoostedCompute(
+      params.width,
+      params.height,
+      params.customClues,
+      params.hiddenWord,
+    );
+
     const genParams = {
       width: params.width,
       height: params.height,
       customClues: params.customClues,
       hiddenWord: params.hiddenWord,
       difficulty: params.difficulty,
+      timeBudgetMs: hard ? 240000 : undefined,
     };
 
     // Prefer the warm worker pool (races layouts across cores → higher success
@@ -72,7 +85,9 @@ export async function POST(request: Request) {
         const r = await pool.generate(genParams, {
           excludeAnswers: params.excludeAnswers,
           excludeClues: params.excludeClues,
-          maxWaitMs: 118000,
+          // Safety net above the worker's own time budget (240s for hard grids),
+          // under the 300s maxDuration. The worker returns as soon as it solves.
+          maxWaitMs: 285000,
         });
         result = r.result;
         handledByPool = true;

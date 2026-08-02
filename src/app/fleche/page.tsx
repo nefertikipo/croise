@@ -10,7 +10,7 @@ import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { ClueList } from "@/components/fleche/clue-list";
 import { AddToBook } from "@/components/fleche/add-to-book";
 import { CustomWordsEditor } from "@/components/book/custom-words-editor";
-import { analyzeCapacity } from "@/lib/crossword/check-capacity";
+import { analyzeCapacity, needsBoostedCompute } from "@/lib/crossword/check-capacity";
 import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
 import {
@@ -106,10 +106,13 @@ export default function FlechePage() {
   // Live feasibility flagging: warn before the user hits generate when the
   // custom words can't fit (too long / too many) rather than after a long wait.
   const maxDim = Math.max(gridWidth, gridHeight);
+  const minDim = Math.min(gridWidth, gridHeight);
   const capacity = analyzeCapacity(gridWidth, gridHeight, customClues);
+  // Blocked: a word as long as / longer than the short side only fits one way and
+  // reliably breaks generation. Matches the hard block in analyzeCapacity.
   const isWordTooLong = (answer: string) => {
     const w = normalizeAnswer(answer);
-    return w.length >= 2 && w.length > maxDim;
+    return w.length >= 2 && w.length >= minDim;
   };
 
   // Hidden word is a post-hoc highlight over the generated grid, recomputed live
@@ -134,7 +137,16 @@ export default function FlechePage() {
       );
       const cleanHidden = normalizeHiddenWord(hiddenWord);
 
-      const res = await fetch("/api/fleche/generate", {
+      // Route hard-but-doable grids (many/long/rare words, demanding mot caché)
+      // to the boosted-CPU endpoint; easy grids stay on the cheaper classic one.
+      const boost = needsBoostedCompute(
+        gridWidth,
+        gridHeight,
+        validCustom,
+        cleanHidden || undefined,
+      );
+
+      const res = await fetch(boost ? "/api/fleche/generate/boost" : "/api/fleche/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -549,7 +561,7 @@ export default function FlechePage() {
                         </div>
                         {tooLong && (
                           <p className="border-t-2 border-ink/10 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">
-                            Trop long pour une grille {gridWidth}×{gridHeight} (max {maxDim} lettres).
+                            Trop long pour une grille {gridWidth}×{gridHeight} (max {minDim - 1} lettres).
                           </p>
                         )}
                       </div>
