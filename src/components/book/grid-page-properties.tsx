@@ -86,7 +86,15 @@ export function GridPageProperties({
   onRegenerate,
   onDelete,
 }: GridPagePropertiesProps) {
-  const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>([]);
+  // Seed with the grid's already-placed custom words so regenerating (e.g. to
+  // change the difficulty level) keeps them instead of dropping every custom
+  // word. The editor then also lets the maker review/edit/remove them.
+  // Remounts per page (key={pageId} in the parent), so this reads the right grid.
+  const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>(() =>
+    page.words
+      .filter((w) => w.isCustom)
+      .map((w) => ({ answer: w.answer, clue: w.clue })),
+  );
 
   const addedAnswers = new Set(customClues.map((c) => normalizeAnswer(c.answer)));
   function pickIdea(idea: ClueIdea) {
