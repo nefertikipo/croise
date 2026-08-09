@@ -109,6 +109,12 @@ export function analyzeCapacity(
   width: number,
   height: number,
   customClues: { answer: string; clue: string }[],
+  /**
+   * Cells reserved for a photo block (see photo-presets.ts). They can hold no
+   * fill, so they shrink the grid the custom letters must share — the fill ratio
+   * is measured against the USABLE cells, not the raw area.
+   */
+  reservedCells = 0,
 ): CapacityAnalysis {
   const words = customClues
     .map((c) => normalizeAnswer(c.answer))
@@ -121,7 +127,8 @@ export function analyzeCapacity(
   // the long direction, so it's cross-constrained and hard to place.
   const longWords = words.filter((w) => w.length <= maxDim && w.length >= minDim);
   const customLetters = words.reduce((n, w) => n + w.length, 0);
-  const fillRatio = width * height > 0 ? customLetters / (width * height) : 0;
+  const usableCells = Math.max(1, width * height - Math.max(0, reservedCells));
+  const fillRatio = customLetters / usableCells;
   const overCapacity = fillRatio > HARD_FILL_RATIO;
 
   let message: string | null = null;
@@ -160,6 +167,7 @@ export function checkCapacity(
   width: number,
   height: number,
   customClues: { answer: string; clue: string }[],
+  reservedCells = 0,
 ): string | null {
-  return analyzeCapacity(width, height, customClues).message;
+  return analyzeCapacity(width, height, customClues, reservedCells).message;
 }

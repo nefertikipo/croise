@@ -48,6 +48,12 @@ interface GenerateGridInput {
   /** Target clue difficulty. Default "balanced". */
   difficulty?: DifficultyMode;
   /**
+   * Optional photo block: a rectangle of cells reserved for a picture. The
+   * generator fills around it and those cells persist as `*` in gridPattern
+   * (rendered as an empty block). See `photo-presets.ts`.
+   */
+  reservedRect?: { x: number; y: number; w: number; h: number };
+  /**
    * Wall-clock budget (ms) for the layout search. Book grids are personalized
    * (custom words / mot caché), so they get a generous budget — but a BATCH
    * caller must keep this small enough that N grids still fit the function's
@@ -91,6 +97,7 @@ export async function generateAndSaveGrid(
       customClues: input.customClues,
       hiddenWord,
       difficulty: input.difficulty,
+      reservedRect: input.reservedRect,
       timeBudgetMs: input.timeBudgetMs ?? 240000,
     },
     {
@@ -102,11 +109,19 @@ export async function generateAndSaveGrid(
   if (!result || !result.success) return null;
 
   const { grid, words } = result;
+  // Reserved (photo-block) cells persist as `*` in gridPattern so the render +
+  // print layers show an empty block; they never carry a letter.
+  const reserved = grid.reserved;
   let pattern = "";
   let solution = "";
   for (let y = 0; y < grid.height; y++) {
     for (let x = 0; x < grid.width; x++) {
       const cell = grid.cells[y][x];
+      if (reserved?.has(`${x},${y}`)) {
+        pattern += "*";
+        solution += "#";
+        continue;
+      }
       pattern += cell.kind === "blue" ? "#" : ".";
       solution += cell.kind === "white" && cell.letter ? cell.letter : "#";
     }

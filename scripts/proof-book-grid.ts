@@ -51,7 +51,8 @@ async function main() {
 
   for (const mode of ["puzzle", "solution", "plain"] as const) {
     const page = doc.addPage([g.pageW, g.pageH]);
-    composeGridPage({
+    await composeGridPage({
+      doc,
       page,
       g,
       fonts,

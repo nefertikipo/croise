@@ -580,6 +580,9 @@ export function BookEditor({
           hiddenWord: page.config.hiddenWord,
           gridColor: page.config.gridColor,
           difficulty: page.config.difficulty,
+          // Explicit so the reserved photo block is applied race-free (not
+          // dependent on the debounced config save landing first). null = none.
+          photo: page.config.photo ?? null,
         }),
       });
       if (!res.ok) {

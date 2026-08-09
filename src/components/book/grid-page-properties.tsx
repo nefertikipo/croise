@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Field, TextField, ColorPicker } from "@/components/book/field";
 import { DifficultyPicker } from "@/components/book/difficulty-picker";
 import { CustomWordsEditor } from "@/components/book/custom-words-editor";
+import { GridPhotoField } from "@/components/book/grid-photo-field";
 import { ClueIdeaPicker } from "@/components/book/clue-idea-picker";
 import { ConfirmButton } from "@/components/book/confirm-button";
 import { addPickedIdeas } from "@/components/book/pick-ideas";
@@ -173,6 +174,13 @@ export function GridPageProperties({
       <p className="text-xs text-muted-foreground -mt-2">
         Appliquée à la prochaine régénération de cette grille.
       </p>
+
+      <GridPhotoField
+        photo={page.config.photo}
+        width={page.width}
+        height={page.height}
+        onChange={(photo) => onConfigChange({ photo })}
+      />
 
       <Field label="Mot caché">
         <TextField

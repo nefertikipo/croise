@@ -5,12 +5,15 @@
  * GridPageView layout so the printed book matches the editor.
  */
 
-import { type PDFPage } from "pdf-lib";
+import { type PDFDocument, type PDFPage } from "pdf-lib";
+import sharp from "sharp";
 import type { BookFonts } from "@/lib/book-pdf/fonts";
 import { drawFlecheGrid, type GridMode } from "@/lib/book-pdf/draw-grid";
-import { hex2rgb, mixHex, type Geometry } from "@/lib/book-pdf/geometry";
+import { hex2rgb, mixHex, pt2px, type Geometry } from "@/lib/book-pdf/geometry";
 import { ellipsize, nfc } from "@/lib/book-pdf/text";
 import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
+import { reservedRectForPreset } from "@/lib/crossword/photo-presets";
+import { getOriginal, MissingPhotoError } from "@/lib/book-pdf/photo-store";
 import type { GridPage } from "@/types/book";
 
 const INK = "#2f2a26";
@@ -19,6 +22,8 @@ const PAGE_BG = "#fff6ec";
 const PRIMARY = "#0f4c81";
 
 export interface GridPageOptions {
+  /** Owning document — needed to embed a grid photo. */
+  doc: PDFDocument;
   page: PDFPage;
   g: Geometry;
   fonts: BookFonts;
@@ -29,7 +34,30 @@ export interface GridPageOptions {
   headingOverride?: string;
 }
 
-export function composeGridPage({ page, g, fonts, grid, gridNumber, mode, headingOverride }: GridPageOptions) {
+/**
+ * Crop the original per crop fractions and cover-fit it to a target px box.
+ * Mirrors compose-photo-page's crop math (kept local to avoid coupling the two).
+ */
+async function cropToBox(
+  bytes: Buffer,
+  box: { w: number; h: number },
+  crop?: { x: number; y: number; w: number; h: number },
+): Promise<Buffer> {
+  let buf = bytes;
+  if (crop) {
+    const meta = await sharp(buf).rotate().metadata();
+    const W = meta.width ?? 0;
+    const H = meta.height ?? 0;
+    const left = Math.min(W - 1, Math.max(0, Math.round(crop.x * W)));
+    const top = Math.min(H - 1, Math.max(0, Math.round(crop.y * H)));
+    const width = Math.max(1, Math.min(W - left, Math.round(crop.w * W)));
+    const height = Math.max(1, Math.min(H - top, Math.round(crop.h * H)));
+    buf = await sharp(buf).rotate().extract({ left, top, width, height }).toBuffer();
+  }
+  return sharp(buf).rotate().resize(box.w, box.h, { fit: "cover" }).jpeg({ quality: 92 }).toBuffer();
+}
+
+export async function composeGridPage({ doc, page, g, fonts, grid, gridNumber, mode, headingOverride }: GridPageOptions): Promise<void> {
   const inkRgb = hex2rgb(INK);
   const muted = mixHex(INK, PAGE_BG, 0.5);
 
@@ -143,6 +171,38 @@ export function composeGridPage({ page, g, fonts, grid, gridNumber, mode, headin
         const ls = 12;
         const lw = fonts.letter.widthOfTextAtSize(cleanHidden[i], ls);
         page.drawText(cleanHidden[i], { x: bx + (BOX - lw) / 2, y: by + (BOX - ls * 0.7) / 2, size: ls, font: fonts.letter, color: inkRgb });
+      }
+    }
+  }
+
+  // ---- Photo block: composite the picture over its reserved cell-span ----
+  const photo = grid.config.photo;
+  const photoRect = photo?.photoRef
+    ? reservedRectForPreset(photo.preset, grid.width, grid.height)
+    : null;
+  if (photo?.photoRef && photoRect) {
+    try {
+      const original = await getOriginal(photo.photoRef);
+      const boxW = photoRect.w * cellPt;
+      const boxH = photoRect.h * cellPt;
+      const jpeg = await cropToBox(
+        original,
+        { w: Math.max(1, Math.round(pt2px(boxW))), h: Math.max(1, Math.round(pt2px(boxH))) },
+        photo.crop,
+      );
+      const img = await doc.embedJpg(jpeg);
+      const px = originX + photoRect.x * cellPt;
+      const py = g.pageH - (originTop + (photoRect.y + photoRect.h) * cellPt);
+      page.drawImage(img, { x: px, y: py, width: boxW, height: boxH });
+      // Match the on-screen 2px frame around the photo.
+      page.drawRectangle({ x: px, y: py, width: boxW, height: boxH, borderColor: inkRgb, borderWidth: 1.4, opacity: 0 });
+    } catch (err) {
+      // A missing/broken photo must not sink the whole book render — the grid
+      // still prints with an empty block where the picture would sit.
+      if (err instanceof MissingPhotoError) {
+        console.error(`[book-pdf] grid photo missing (${photo.photoRef}); printing empty block`);
+      } else {
+        console.error("[book-pdf] grid photo composite failed:", err);
       }
     }
   }
