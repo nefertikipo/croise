@@ -23,6 +23,7 @@ import {
 } from "@/lib/book-pdf/geometry";
 import { getOriginal } from "@/lib/book-pdf/photo-store";
 import { nfc } from "@/lib/book-pdf/text";
+import { LULU_SADDLE_COVER_SPREAD_MM } from "@/lib/lulu/product";
 import type { CoverConfig, PageDesign } from "@/types/book";
 
 /** Apply the user's fractional crop to the full-res original, if any. */
@@ -78,15 +79,28 @@ export async function generateCoverSpreadPdf(input: CoverSpreadInput): Promise<U
 
   // --- Spread geometry: back | spine | front, plus bleed all around. --------
   const bleedPt = mm2pt(template.bleedMm);
-  const trimWpt = mm2pt(template.trimWidthMm);
-  const trimHpt = mm2pt(template.trimHeightMm);
   // Saddle-stitch covers have no spine panel (staples, not a flat spine);
   // spineWidthMm only applies to perfect binding.
   const spineMm =
     BOOK_BINDING === "saddle-stitch" ? 0 : spineWidthMm(input.interiorPageCount);
   const spinePt = mm2pt(spineMm);
-  const pageW = 2 * trimWpt + spinePt + 2 * bleedPt;
-  const pageH = trimHpt + 2 * bleedPt;
+
+  // Saddle stitch: size the canvas to Lulu's exact verified spread and derive
+  // the trim panels from it, so the file matches Lulu's coverDimensions to the
+  // 1/100 mm (their trim runs a hair over nominal A5 — see the constant).
+  // Perfect binding keeps the trim + computed-spine formula.
+  let pageW: number, pageH: number, trimWpt: number, trimHpt: number;
+  if (BOOK_BINDING === "saddle-stitch") {
+    pageW = mm2pt(LULU_SADDLE_COVER_SPREAD_MM.width);
+    pageH = mm2pt(LULU_SADDLE_COVER_SPREAD_MM.height);
+    trimWpt = (pageW - spinePt - 2 * bleedPt) / 2;
+    trimHpt = pageH - 2 * bleedPt;
+  } else {
+    trimWpt = mm2pt(template.trimWidthMm);
+    trimHpt = mm2pt(template.trimHeightMm);
+    pageW = 2 * trimWpt + spinePt + 2 * bleedPt;
+    pageH = trimHpt + 2 * bleedPt;
+  }
 
   const doc = await PDFDocument.create();
   const fonts = await embedBookFonts(doc);
