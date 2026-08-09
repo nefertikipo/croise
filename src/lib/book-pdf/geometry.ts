@@ -54,11 +54,12 @@ export interface PageSpec {
 }
 
 export const PAGE_SPECS: Record<PageSize, PageSpec> = {
-  // POD interior: mirrored margins — 15 mm on the spine side (binding gutter),
-  // 10 mm on the fore-edge, 12 mm top/bottom (unchanged).
-  // Bleed is Lulu's exact 0.125in. Inner margin covers their 0.2in gutter
-  // minimum with room; outer/top/bottom sit near their 0.5in safety guidance.
-  a5: { trimWmm: 148, trimHmm: 210, bleedMm: 3.175, marginTopMm: 12, marginBottomMm: 12, marginInnerMm: 15, marginOuterMm: 10 },
+  // POD interior: mirrored margins — 12 mm on the spine side (binding gutter),
+  // 8 mm on the fore-edge, 10 mm top/bottom. Tightened from the original
+  // 15/10/12 so the grid fills more of the page while staying print-safe.
+  // Bleed is Lulu's exact 0.125in. Inner margin still covers their 0.2in gutter
+  // minimum with room (12 mm ≈ 2.4×); outer/top/bottom stay clear of the trim.
+  a5: { trimWmm: 148, trimHmm: 210, bleedMm: 3.175, marginTopMm: 10, marginBottomMm: 10, marginInnerMm: 12, marginOuterMm: 8 },
   // Print-at-home: TRUE A4, no bleed, symmetric ~10 mm margins.
   a4: { trimWmm: 210, trimHmm: 297, bleedMm: 0, marginTopMm: 10, marginBottomMm: 10, marginInnerMm: 10, marginOuterMm: 10 },
 };
