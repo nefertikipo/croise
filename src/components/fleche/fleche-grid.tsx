@@ -8,6 +8,10 @@ import {
   useLayoutEffect,
 } from "react";
 import { cn } from "@/lib/utils";
+import {
+  insertSoftBreaks,
+  preventFrenchOrphans,
+} from "@/lib/crossword/french-typography";
 
 // useLayoutEffect warns during SSR; fall back to useEffect on the server.
 const useIsomorphicLayoutEffect =
@@ -119,7 +123,7 @@ function FitText({
       <span
         ref={spanRef}
         className={cn(
-          "block text-center uppercase break-words hyphens-auto",
+          "block text-center uppercase",
           italic && "italic opacity-60",
         )}
         style={{
@@ -127,10 +131,14 @@ function FitText({
           fontSize: `${size}px`,
           fontWeight: 500,
           lineHeight: `${size * lineRatio}px`,
-          wordBreak: "break-word",
+          // Break only at spaces and the safe soft-break points inserted below,
+          // never at an arbitrary character — so a forced wrap can't strand a
+          // single letter on a line.
+          wordBreak: "normal",
+          overflowWrap: "normal",
         }}
       >
-        {text}
+        {insertSoftBreaks(preventFrenchOrphans(text))}
       </span>
     </div>
   );
@@ -1029,7 +1037,7 @@ export function FlecheGrid({
                   {currentClue.dir === "right" ? "→" : "↓"}
                 </span>
                 <span className="text-sm font-medium uppercase leading-tight" style={{ color: INK }}>
-                  {currentClue.text}
+                  {insertSoftBreaks(preventFrenchOrphans(currentClue.text))}
                 </span>
               </span>
             ) : (
