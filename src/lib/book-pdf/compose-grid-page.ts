@@ -84,7 +84,7 @@ export function composeGridPage({ page, g, fonts, grid, gridNumber, mode, headin
   const stripLabelW = fonts.bold.widthOfTextAtSize(stripLabel, 7) + 12;
   const boxesPerRow = Math.max(1, Math.floor((g.contentW - stripLabelW + BOX_GAP) / (BOX + BOX_GAP)));
   const stripRows = hasStrip ? Math.ceil(hiddenCells.size / boxesPerRow) : 0;
-  const gridTop = headTop + headSize + 16;
+  const gridTop = headTop + headSize + 10;
   const stripH = hasStrip ? 12 + stripRows * BOX + (stripRows - 1) * ROW_GAP + 8 : 0;
   const availH = g.contentTop + g.contentH - gridTop - stripH;
   const cellPt = Math.min(g.contentW / grid.width, availH / grid.height);

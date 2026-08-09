@@ -110,7 +110,7 @@ function GridSlot({
     <BookPageFrame>
       <div
         ref={frameRef}
-        className="flex-1 flex items-center justify-center p-3 overflow-hidden"
+        className="flex-1 flex items-center justify-center p-2 overflow-hidden"
       >
         <div
           style={{
