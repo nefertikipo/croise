@@ -4,6 +4,8 @@ import { bookPages } from "@/db/schema/books";
 import { crosswords } from "@/db/schema/crosswords";
 import { and, eq } from "drizzle-orm";
 import { authorizeBookEdit, touchBookStatement } from "@/lib/books/authorize";
+import { loadBook } from "@/lib/books/serialize";
+import { interiorPageCountForCapacity } from "@/lib/book-pdf/generate-book";
 import type { BatchItem } from "drizzle-orm/batch";
 
 /** Update a page's config (grid styling or content-page fields). */
@@ -90,7 +92,12 @@ export async function DELETE(
     }
     await db.batch(statements as [BatchItem<"pg">, ...BatchItem<"pg">[]]);
 
-    return NextResponse.json({ success: true });
+    // Report the freed page count so the editor can re-enable add controls.
+    const afterDelete = await loadBook(code);
+    const interiorPages = afterDelete
+      ? interiorPageCountForCapacity(afterDelete)
+      : undefined;
+    return NextResponse.json({ success: true, interiorPages });
   } catch (error) {
     console.error("Page deletion error:", error);
     return NextResponse.json({ error: "Failed to delete page" }, { status: 500 });

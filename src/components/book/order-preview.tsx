@@ -4,13 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { BOOK_MIN_GRIDS } from "@/lib/books/constants";
+import {
+  BOOK_MIN_GRIDS,
+  BOOK_MIN_INTERIOR_PAGES,
+  SADDLE_MAX_INTERIOR_PAGES,
+} from "@/lib/books/constants";
 import { cn } from "@/lib/utils";
 
 interface OrderPreviewProps {
   code: string;
   title: string;
   gridCount: number;
+  /** Final interior page count — must sit inside the printable window to order. */
+  interiorPages: number;
   hasCoverPhoto: boolean;
   /** Signed-in viewer's email, used to register order intent without a form. */
   sessionEmail: string | null;
@@ -21,7 +27,7 @@ interface OrderPreviewProps {
  * a readiness checklist, and the explicit "j'ai vérifié" confirmation.
  * Until checkout ships, the CTA records order intent via /api/leads.
  */
-export function OrderPreview({ code, title, gridCount, hasCoverPhoto, sessionEmail }: OrderPreviewProps) {
+export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPhoto, sessionEmail }: OrderPreviewProps) {
   const [checked, setChecked] = useState(false);
   const [email, setEmail] = useState(sessionEmail ?? "");
   const [sent, setSent] = useState(false);
@@ -30,6 +36,11 @@ export function OrderPreview({ code, title, gridCount, hasCoverPhoto, sessionEma
   const interiorUrl = `/api/books/${code}/book.pdf?size=a5`;
   const coverUrl = `/api/books/${code}/cover.pdf`;
   const enoughGrids = gridCount >= BOOK_MIN_GRIDS;
+  // HARD printable window: the printer binds 24–48 interior pages.
+  const tooThin = interiorPages < BOOK_MIN_INTERIOR_PAGES;
+  const tooThick = interiorPages > SADDLE_MAX_INTERIOR_PAGES;
+  const printablePages = !tooThin && !tooThick;
+  const canOrder = checked && printablePages && hasCoverPhoto;
 
   async function registerIntent() {
     if (sending || sent) return;
@@ -82,6 +93,19 @@ export function OrderPreview({ code, title, gridCount, hasCoverPhoto, sessionEma
             )}
           >
             {gridCount} grille{gridCount > 1 ? "s" : ""} / {BOOK_MIN_GRIDS}
+          </span>
+          <span
+            className={cn(
+              "border px-2 py-1 font-bold uppercase tracking-wide",
+              printablePages ? "border-ink bg-accent/40" : "border-destructive text-destructive",
+            )}
+          >
+            {interiorPages} pages
+            {tooThin
+              ? ` / ${BOOK_MIN_INTERIOR_PAGES} min`
+              : tooThick
+                ? ` / ${SADDLE_MAX_INTERIOR_PAGES} max`
+                : " ✓"}
           </span>
           <span
             className={cn(
@@ -166,11 +190,15 @@ export function OrderPreview({ code, title, gridCount, hasCoverPhoto, sessionEma
                   className="rounded-none border-2 border-ink/20 bg-white px-3 py-2 text-sm"
                 />
               )}
-              <Button disabled={!checked || sending} onClick={registerIntent}>
+              <Button disabled={!canOrder || sending} onClick={registerIntent}>
                 {sending ? "Un instant…" : "Commander mon livre"}
               </Button>
               <span className="text-xs text-muted-foreground">
-                Ouverture des commandes très prochainement.
+                {tooThin
+                  ? `Ajoutez des grilles : un livre imprimé compte au moins ${BOOK_MIN_INTERIOR_PAGES} pages.`
+                  : tooThick
+                    ? `Retirez des pages : la reliure accepte au maximum ${SADDLE_MAX_INTERIOR_PAGES} pages.`
+                    : "Ouverture des commandes très prochainement."}
               </span>
             </div>
           )}

@@ -20,7 +20,11 @@ import { BookPrintLayout } from "@/components/book/book-print-layout";
 import { backMatterKind } from "@/components/book/page-slot";
 import { buildWordIndex } from "@/lib/crossword/word-index";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
-import { BOOK_MIN_GRIDS } from "@/lib/books/constants";
+import {
+  BOOK_MIN_GRIDS,
+  BOOK_MIN_INTERIOR_PAGES,
+  SADDLE_MAX_INTERIOR_PAGES,
+} from "@/lib/books/constants";
 import { rehydrateDesignPreview, stripDesignPreview } from "@/lib/books/photo-preview";
 import type { DedicationFontKey } from "@/lib/books/dedication-fonts";
 import type {
@@ -37,6 +41,9 @@ import type {
 interface BookEditorProps {
   code: string;
   initialBook: BookData;
+  /** Interior page count of the book as loaded (drives the printable-window
+   * capacity guard in the UI; the server enforces it authoritatively). */
+  initialInteriorPages: number;
   /** True when the viewer may not edit (owned book opened by a non-owner). */
   readOnly?: boolean;
   /** True when the viewer is anonymous and the book has no owner. */
@@ -53,10 +60,14 @@ function contentLabel(layout: ContentLayout): string {
 export function BookEditor({
   code,
   initialBook,
+  initialInteriorPages,
   readOnly = false,
   showSigninNudge = false,
 }: BookEditorProps) {
   const [book, setBook] = useState<BookData>(initialBook);
+  // Live interior page count, kept in sync from the add/delete responses so the
+  // "Ajouter une page" controls know when the book has hit the printable ceiling.
+  const [interiorPages, setInteriorPages] = useState(initialInteriorPages);
   const [selectedId, setSelectedId] = useState<string>("cover");
   // "gallery" = zoom-out overview of every page; "spread" = facing pages for
   // arranging; "page" = one page big, for editing grids.
@@ -357,13 +368,9 @@ export function BookEditor({
   }
 
   // --- Structural mutations -------------------------------------------------
-  /** Top up the book to BOOK_MIN_GRIDS with generic grids (defaults, no custom
-   * words) — the user can regenerate any of them later with personal touches.
-   * Difficulty follows what the book already uses (most common among its
-   * grids), falling back to the recommended "facile". */
-  function completeWithGenericGrids() {
-    const missing = BOOK_MIN_GRIDS - gridPages.length;
-    if (missing <= 0 || busy) return;
+  /** Difficulty a generic top-up should use: whatever the book leans on most,
+   * falling back to the recommended "facile". */
+  function mostCommonDifficulty(): GridDifficulty {
     const counts = new Map<GridDifficulty, number>();
     for (const p of gridPages) {
       const d = p.config.difficulty ?? "balanced";
@@ -377,13 +384,61 @@ export function BookEditor({
         difficulty = d;
       }
     }
+    return difficulty;
+  }
+
+  /** Top up the book to BOOK_MIN_GRIDS with generic grids (defaults, no custom
+   * words) — the user can regenerate any of them later with personal touches. */
+  function completeWithGenericGrids() {
+    const missing = BOOK_MIN_GRIDS - gridPages.length;
+    if (missing <= 0 || busy) return;
     void addGrids({
       width: 11,
       height: 17,
       count: missing,
-      difficulty,
+      difficulty: mostCommonDifficulty(),
       customClues: [],
     });
+  }
+
+  /** Top up with ready-made community "filler" grids from the shared bank —
+   * fun pop / tech / culture words, attached instantly (copies, no generation).
+   * Whatever the bank can't cover (conflicts / exhausted) is filled with generic
+   * grids so the book still reaches BOOK_MIN_GRIDS. */
+  async function completeWithFillerGrids() {
+    const missing = BOOK_MIN_GRIDS - gridPages.length;
+    if (missing <= 0 || busy) return;
+    setBusy(true);
+    let attached = 0;
+    try {
+      const res = await fetch(`/api/books/${code}/pages/add-filler`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count: missing }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { pages: BookData["pages"] };
+        attached = data.pages.length;
+        if (data.pages.length > 0) {
+          setBook((b) => ({ ...b, pages: [...b.pages, ...data.pages] }));
+          setSelectedId(data.pages[0].pageId);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBusy(false);
+    }
+    const remainder = missing - attached;
+    if (remainder > 0) {
+      void addGrids({
+        width: 11,
+        height: 17,
+        count: remainder,
+        difficulty: mostCommonDifficulty(),
+        customClues: [],
+      });
+    }
   }
 
   /** Batch add of identical grids (the grid creator / generic top-up path). */
@@ -426,8 +481,10 @@ export function BookEditor({
         }
         const data = (await res.json()) as {
           pages: BookData["pages"];
+          interiorPages?: number;
           failed?: { requested: number; created: number; reason: string };
         };
+        if (typeof data.interiorPages === "number") setInteriorPages(data.interiorPages);
         if (data.pages.length === 0) {
           failReason = data.failed?.reason ?? fallbackReason;
           break;
@@ -473,7 +530,10 @@ export function BookEditor({
         toast.error(await readError(res, "Impossible d'ajouter la page."));
         return;
       }
-      const page = (await res.json()) as BookData["pages"][number];
+      const page = (await res.json()) as BookData["pages"][number] & {
+        interiorPages?: number;
+      };
+      if (typeof page.interiorPages === "number") setInteriorPages(page.interiorPages);
       setBook((b) => ({ ...b, pages: [...b.pages, page] }));
       setSelectedId(page.pageId);
     } catch (err) {
@@ -494,6 +554,9 @@ export function BookEditor({
       if (!res.ok) {
         toast.error(await readError(res, "Impossible de supprimer la page."));
         await resyncBook();
+      } else {
+        const data = (await res.json().catch(() => ({}))) as { interiorPages?: number };
+        if (typeof data.interiorPages === "number") setInteriorPages(data.interiorPages);
       }
     } catch {
       toast.error("Impossible de supprimer la page. Vérifiez votre connexion.");
@@ -751,7 +814,10 @@ export function BookEditor({
               setSelectedId(id);
               // "Ajouter une grille" jumps straight into the creator; the
               // add screen behind it keeps the note/citation/photo options.
-              if (id === "add") setGridCreator({});
+              // At the printable-page ceiling, just show the capacity notice.
+              if (id === "add" && interiorPages < SADDLE_MAX_INTERIOR_PAGES) {
+                setGridCreator({});
+              }
             }}
           />
         </aside>
@@ -762,6 +828,9 @@ export function BookEditor({
             <div className="mx-auto max-w-sm pt-12">
               <AddPage
                 busy={busy}
+                interiorPages={interiorPages}
+                maxPages={SADDLE_MAX_INTERIOR_PAGES}
+                minPages={BOOK_MIN_INTERIOR_PAGES}
                 onCreateGrid={() => setGridCreator({})}
                 onAddContent={addContent}
               />
@@ -816,15 +885,24 @@ export function BookEditor({
                     <span className="text-muted-foreground">
                       Génération {genBatch.current}/{genBatch.total}…
                     </span>
+                  ) : busy ? (
+                    <span className="text-muted-foreground">Ajout des grilles…</span>
                   ) : (
                     <>
+                      <Button
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => void completeWithFillerGrids()}
+                      >
+                        Compléter avec des grilles toutes prêtes
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         disabled={busy}
                         onClick={completeWithGenericGrids}
                       >
-                        Compléter avec des grilles génériques
+                        Grilles génériques
                       </Button>
                       <Button
                         size="sm"
