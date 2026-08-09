@@ -18,6 +18,17 @@
 export const LULU_POD_PACKAGE_ID =
   process.env.LULU_POD_PACKAGE_ID ?? "0583X0827.FC.PRE.SS.060UW444.GXX";
 
+/**
+ * Lulu's exact wraparound cover spread for our saddle-stitch A5 SKU, straight
+ * from the Print API `coverDimensions` endpoint. Verified against production
+ * 2026-08-09: a constant 302.510 × 216.410 mm across page counts (saddle stitch
+ * has no spine) and identical for the FC and BW inks. The cover generator sizes
+ * its canvas to this so the file matches Lulu's spec to the 1/100 mm — their
+ * trim is 5.83 × 8.27 in = 148.08 × 210.06 mm (a hair over nominal A5 148×210)
+ * plus a uniform 0.125 in bleed, which is where our old ~0.18 mm gap came from.
+ */
+export const LULU_SADDLE_COVER_SPREAD_MM = { width: 302.51, height: 216.41 };
+
 /** Public base URL Lulu fetches the PDFs from (must be reachable from Lulu). */
 export const LULU_SOURCE_BASE =
   process.env.LULU_SOURCE_BASE ?? "https://lesfleches.com";
