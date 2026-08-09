@@ -92,6 +92,9 @@ const IDX_GROUP_GAP = 10;
 const IDX_HEADER_GAP = 3;
 /** Height reserved for the "Index des mots" heading + count on the first page. */
 const IDX_HEADER_H = 46;
+/** Breathing room below the last line of each column (mirrors the PDF's
+ * COLUMN_BOTTOM_PAD), so the word lists don't hug the bottom margin. */
+const IDX_BOTTOM_PAD = 13;
 
 function buildIndexLines(entries: WordIndexEntry[]): IndexLine[] {
   const lines: IndexLine[] = [];
@@ -140,10 +143,11 @@ export function paginateIndex(entries: WordIndexEntry[]): IndexPage[] {
     }
   };
 
+  const indexBottom = USABLE_H - IDX_BOTTOM_PAD;
   startPage(true);
   for (const line of lines) {
     const lineH = line.kind === "header" ? IDX_HEADER_LINE : IDX_WORD_LINE;
-    if (cursor + line.gapBefore + lineH > USABLE_H) nextColumn();
+    if (cursor + line.gapBefore + lineH > indexBottom) nextColumn();
     cursor += line.gapBefore + lineH;
     cur[col].push(line);
   }

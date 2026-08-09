@@ -25,6 +25,9 @@ const COLS = 4;
 const COL_GAP = 12;
 /** Vertical room taken by the "INDEX DES MOTS" heading block on page 1. */
 const FIRST_PAGE_HEADER_H = 20 + 4 + 8 + 10;
+/** Extra breathing room kept below the last line of each column, so the tightly
+ * packed word lists don't run right up to the (now 10 mm) bottom margin. */
+const COLUMN_BOTTOM_PAD = 10;
 
 interface Line {
   text: string;
@@ -52,7 +55,7 @@ function buildLines(entries: WordIndexEntry[]): Line[] {
 /** Flow the lines into columns/pages. Deterministic — geometry only. */
 function paginateIndex(entries: WordIndexEntry[], g: Geometry): PlacedLine[][] {
   const lines = buildLines(entries);
-  const contentBottom = g.contentTop + g.contentH;
+  const contentBottom = g.contentTop + g.contentH - COLUMN_BOTTOM_PAD;
   const pages: PlacedLine[][] = [];
   let cur: PlacedLine[] = [];
   let col = 0;
