@@ -1,10 +1,10 @@
 import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
-import { generateFlecheVector, type DifficultyMode } from "@/lib/crossword/fleche-vector-gen";
-import { getFrenchWordList, getFrenchClueDb, getFrenchClueDifficulty, ensureLoaded } from "@/lib/crossword/load-french-clues";
+import type { DifficultyMode } from "@/lib/crossword/fleche-vector-gen";
+import { runFlecheGeneration } from "@/lib/crossword/run-fleche-generation";
 import { generateCrosswordCode, retryOnUniqueViolation } from "@/lib/code";
-import { normalizeAnswer, normalizeClueText } from "@/lib/crossword/normalize";
+import { normalizeAnswer } from "@/lib/crossword/normalize";
 
 interface CustomClue {
   answer: string;
@@ -47,6 +47,15 @@ interface GenerateGridInput {
   hiddenWord?: string;
   /** Target clue difficulty. Default "balanced". */
   difficulty?: DifficultyMode;
+  /**
+   * Wall-clock budget (ms) for the layout search. Book grids are personalized
+   * (custom words / mot caché), so they get a generous budget — but a BATCH
+   * caller must keep this small enough that N grids still fit the function's
+   * maxDuration. Defaults to the hard-grid budget for a single grid.
+   */
+  timeBudgetMs?: number;
+  /** Safety-net cap on the pool wait (ms); should sit under maxDuration. */
+  maxWaitMs?: number;
 }
 
 interface GenerateGridResult {
@@ -62,59 +71,35 @@ interface GenerateGridResult {
 export async function generateAndSaveGrid(
   input: GenerateGridInput,
 ): Promise<GenerateGridResult | null> {
-  await ensureLoaded();
-  const wordList = getFrenchWordList();
-  const rawClueDb = getFrenchClueDb();
-  const clueDifficulty = getFrenchClueDifficulty();
-
-  // Stored clue texts went through normalizeClueText (trim + sentence case,
-  // ALL-CAPS lowercased) but the corpus strings are raw — so fold BOTH sides to
-  // the normalized, case-insensitive form before comparing, mirroring the
-  // in-grid de-dup. Without this, corpus "palace londonien" (stored as "Palace
-  // londonien") escapes the filter and the clue repeats across grids.
-  const usedCluesFolded = new Set<string>();
-  for (const c of input.usedClues) {
-    usedCluesFolded.add(normalizeClueText(c).toUpperCase());
-  }
-
-  // Filter the clue DB to enforce the book's exclusions: drop any substantive
-  // word already placed on another grid (hard word exclusion, ≥ MIN_LOCKED_WORD_
-  // LENGTH — see the constant for why short filler is exempt), and drop any clue
-  // text already used elsewhere (clue de-dup). Dropping a word from clueDb removes
-  // it from every fill domain — the generator only ever places words that have a
-  // real clue. ALWAYS pass a copy so the process-wide cached clueDb can never be
-  // mutated (the generator also copy-on-writes; this is defense-in-depth —
-  // shallow-copying ~80K entries of shared array refs is cheap).
-  let clueDb: Map<string, string[]>;
-  if (usedCluesFolded.size > 0 || input.usedWords.size > 0) {
-    clueDb = new Map();
-    for (const [word, clues] of rawClueDb) {
-      // word already on another grid in the book
-      if (word.length >= MIN_LOCKED_WORD_LENGTH && input.usedWords.has(word)) continue;
-      const filtered =
-        usedCluesFolded.size > 0
-          ? clues.filter((c) => !usedCluesFolded.has(normalizeClueText(c).toUpperCase()))
-          : clues;
-      if (filtered.length > 0) clueDb.set(word, filtered);
-    }
-  } else {
-    clueDb = new Map(rawClueDb);
-  }
+  // Book exclusions: hard-exclude only substantive words (≥ MIN_LOCKED_WORD_
+  // LENGTH — see the constant for why short filler must stay in the pool), and
+  // drop clues already used elsewhere. The shared filter folds clue casing (see
+  // filterClueDb) so a normalized stored clue still matches its raw corpus form.
+  const excludeAnswers = [...input.usedWords].filter(
+    (w) => w.length >= MIN_LOCKED_WORD_LENGTH,
+  );
 
   const hiddenWord = input.hiddenWord?.trim() || undefined;
-  const result = generateFlecheVector(
+
+  // Race the worker pool across cores, same as /fleche — this is what lets a
+  // personalized book grid fit more than a couple of custom words. Falls back to
+  // single-threaded only if the pool errors.
+  const result = await runFlecheGeneration(
     {
       width: input.width,
       height: input.height,
       customClues: input.customClues,
       hiddenWord,
       difficulty: input.difficulty,
+      timeBudgetMs: input.timeBudgetMs ?? 240000,
     },
-    wordList,
-    clueDb,
-    clueDifficulty,
+    {
+      excludeAnswers,
+      excludeClues: [...input.usedClues],
+      maxWaitMs: input.maxWaitMs ?? 285000,
+    },
   );
-  if (!result.success) return null;
+  if (!result || !result.success) return null;
 
   const { grid, words } = result;
   let pattern = "";

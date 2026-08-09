@@ -65,6 +65,16 @@ export function distributeIdeas(
 }
 
 /**
+ * Words the wizard places per grid before overflowing the rest to the notepad.
+ * The default fléchés format reliably fills this many personalized (proper-noun /
+ * invented) words when generation races the worker pool — measured 100% at 6 even
+ * with a full book's words locked out, and the wizard's early grids face fewer
+ * locks than that. The old cap of 3 left books artificially thin (the rest of the
+ * maker's words sat unused in the notepad).
+ */
+const WIZARD_MAX_WORDS_PER_GRID = 6;
+
+/**
  * Build the full generation plan for a wizard-created book: BOOK_MIN_GRIDS
  * single-grid requests at the default book format, each carrying its share of
  * the user's ideas (via `distributeIdeas`) and one word of the hidden message
@@ -79,7 +89,7 @@ export function buildWizardPlan({
   messageWords: string[];
   difficulty: GridDifficulty;
 }): CreateGridOptions[] {
-  const { perGrid } = distributeIdeas(ideas, BOOK_MIN_GRIDS);
+  const { perGrid } = distributeIdeas(ideas, BOOK_MIN_GRIDS, WIZARD_MAX_WORDS_PER_GRID);
   return Array.from({ length: BOOK_MIN_GRIDS }, (_, i) => ({
     width: WIZARD_GRID_WIDTH,
     height: WIZARD_GRID_HEIGHT,

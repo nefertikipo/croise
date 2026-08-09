@@ -12,7 +12,10 @@ import { checkCapacity } from "@/lib/crossword/check-capacity";
 import type { GridPageConfig } from "@/types/book";
 import type { BatchItem } from "drizzle-orm/batch";
 
-export const maxDuration = 120;
+// 300s (Vercel Pro max) so a hard, personalized grid racing the worker pool has
+// time to solve. Matches /fleche; the function already gets boosted memory/vCPUs
+// via vercel.json so the pool actually has cores to race across.
+export const maxDuration = 300;
 
 const requestSchema = z.object({
   width: z.number().min(8).max(20).default(11),

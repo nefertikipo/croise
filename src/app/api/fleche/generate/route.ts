@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { generateFlecheVector, type VectorGenResult } from "@/lib/crossword/fleche-vector-gen";
-import { getFrenchWordList, getFrenchClueDb, getFrenchClueDifficulty, ensureLoaded } from "@/lib/crossword/load-french-clues";
-import { getFlechePool } from "@/lib/crossword/fleche-pool-singleton";
+import { runFlecheGeneration } from "@/lib/crossword/run-fleche-generation";
 import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
@@ -71,53 +69,16 @@ export async function POST(request: Request) {
       timeBudgetMs: hard ? 240000 : undefined,
     };
 
-    // Prefer the warm worker pool (races layouts across cores → higher success
-    // on dense custom-word grids). Its workers hold their own corpus copy and
-    // apply the excludes themselves, so the main thread only loads the corpus
-    // when it actually has to fall back. Fall back to single-threaded only when
-    // the pool ERRORS — a pool that ran and found no solution is a real failure,
-    // so re-running single-threaded would just waste another budget and fail again.
-    let result: VectorGenResult | null = null;
-    let handledByPool = false;
-    const pool = await getFlechePool();
-    if (pool) {
-      try {
-        const r = await pool.generate(genParams, {
-          excludeAnswers: params.excludeAnswers,
-          excludeClues: params.excludeClues,
-          // Safety net above the worker's own time budget (240s for hard grids),
-          // under the 300s maxDuration. The worker returns as soon as it solves.
-          maxWaitMs: 285000,
-        });
-        result = r.result;
-        handledByPool = true;
-      } catch (poolErr) {
-        console.error("[fleche] pool error, single-threaded fallback:", poolErr);
-      }
-    }
-    if (!handledByPool) {
-      await ensureLoaded();
-      const wordList = getFrenchWordList();
-      const rawClueDb = getFrenchClueDb();
-      const clueDifficulty = getFrenchClueDifficulty();
-
-      // Filter out excluded clues and answers (regeneration variety).
-      let clueDb = rawClueDb;
-      const excludedClues = new Set(params.excludeClues);
-      const excludedAnswers = new Set(params.excludeAnswers.map((a) => a.toUpperCase()));
-      if (excludedClues.size > 0 || excludedAnswers.size > 0) {
-        clueDb = new Map();
-        for (const [word, clues] of rawClueDb) {
-          if (excludedAnswers.has(word)) continue; // skip entire word
-          const filtered = excludedClues.size > 0
-            ? clues.filter((c) => !excludedClues.has(c))
-            : clues;
-          if (filtered.length > 0) clueDb.set(word, filtered);
-        }
-      }
-
-      result = generateFlecheVector(genParams, wordList, clueDb, clueDifficulty);
-    }
+    // Race the warm worker pool across cores (higher success on dense custom-word
+    // grids), falling back to single-threaded only when the pool errors. Shared
+    // with the book grid path so both get the same multi-core treatment.
+    const result = await runFlecheGeneration(genParams, {
+      excludeAnswers: params.excludeAnswers,
+      excludeClues: params.excludeClues,
+      // Safety net above the worker's own time budget (240s for hard grids),
+      // under the 300s maxDuration. The worker returns as soon as it solves.
+      maxWaitMs: 285000,
+    });
 
     if (!result || !result.success) {
       const customWords = (params.customClues ?? [])
