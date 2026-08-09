@@ -3,10 +3,12 @@ import { z } from "zod";
 import { db } from "@/db";
 import { bookPages } from "@/db/schema/books";
 import { eq } from "drizzle-orm";
-import { serializePage } from "@/lib/books/serialize";
+import { serializePage, loadBook } from "@/lib/books/serialize";
 import { generateAndSaveGrid } from "@/lib/books/generate-grid";
 import { collectUsedWordsAndClues } from "@/lib/books/used-clues";
 import { authorizeBookEdit, touchBookStatement } from "@/lib/books/authorize";
+import { interiorPageCountForCapacity } from "@/lib/book-pdf/generate-book";
+import { SADDLE_MAX_INTERIOR_PAGES } from "@/lib/books/constants";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import { checkCapacity } from "@/lib/crossword/check-capacity";
 import { placedWords } from "@/db/schema/placed-words";
@@ -85,6 +87,22 @@ export async function POST(
       ...(gridParams.difficulty ? { difficulty: gridParams.difficulty } : {}),
     };
 
+    // HARD page ceiling: never grow a book past the saddle-stitch printable
+    // window. Measured now and re-measured after every grid, because a grid
+    // adds not just its own page but index + solutions entries too.
+    const loadedForCapacity = await loadBook(code);
+    let interiorPages = loadedForCapacity
+      ? interiorPageCountForCapacity(loadedForCapacity)
+      : 1;
+    if (interiorPages >= SADDLE_MAX_INTERIOR_PAGES) {
+      return NextResponse.json(
+        {
+          error: `Votre livre atteint la limite de ${SADDLE_MAX_INTERIOR_PAGES} pages imprimables. Supprimez des pages pour ajouter une grille.`,
+        },
+        { status: 409 },
+      );
+    }
+
     const startedAt = Date.now();
     const requested = gridParams.count;
     const target = Math.min(requested, MAX_GRIDS_PER_REQUEST);
@@ -161,6 +179,23 @@ export async function POST(
 
       createdPageIds.push(pageId);
       nextPosition += 1;
+
+      // Re-measure and stop before starting a grid that would breach the
+      // ceiling. Because padded counts are multiples of 4 and one grid adds at
+      // most a handful of pages, a book at < MAX before this add lands ≤ MAX
+      // after it — so we never overshoot the printable window.
+      const afterGrid = await loadBook(code);
+      if (afterGrid) interiorPages = interiorPageCountForCapacity(afterGrid);
+      if (interiorPages >= SADDLE_MAX_INTERIOR_PAGES) {
+        if (n < target - 1) {
+          failed = {
+            requested,
+            created: createdPageIds.length,
+            reason: `Limite de ${SADDLE_MAX_INTERIOR_PAGES} pages imprimables atteinte : les grilles créées ont été conservées.`,
+          };
+        }
+        break;
+      }
     }
 
     if (!failed && requested > target) {
@@ -177,8 +212,8 @@ export async function POST(
       if (p) pages.push(p);
     }
 
-    // `failed` is additive — existing UI only reads `pages`.
-    return NextResponse.json(failed ? { pages, failed } : { pages });
+    // `failed` and `interiorPages` are additive — existing UI reads `pages`.
+    return NextResponse.json({ pages, interiorPages, ...(failed ? { failed } : {}) });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Requête invalide." }, { status: 400 });

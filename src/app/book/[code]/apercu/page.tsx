@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { loadBook } from "@/lib/books/serialize";
+import { interiorPageCountForCapacity } from "@/lib/book-pdf/generate-book";
 import { OrderPreview } from "@/components/book/order-preview";
 
 /**
@@ -29,6 +30,7 @@ export default async function BookPreviewPage({
       code={code}
       title={book.title}
       gridCount={gridCount}
+      interiorPages={interiorPageCountForCapacity(book)}
       hasCoverPhoto={Boolean(book.coverConfig?.design?.photoRef)}
       sessionEmail={session?.user?.email ?? null}
     />
