@@ -12,16 +12,21 @@ import { checkCapacity } from "@/lib/crossword/check-capacity";
 import { placedWords } from "@/db/schema/placed-words";
 import type { BookPageData } from "@/types/book";
 
-export const maxDuration = 120;
+// 300s (Vercel Pro max), matching /fleche and the regenerate route. The function
+// gets boosted memory/vCPUs via vercel.json so each grid can race the worker pool.
+export const maxDuration = 300;
 
 /**
- * Each grid can burn up to ~25s of solver budget (more with custom words) and
- * the first request also pays the corpus cold load, so a batch can overrun the
- * function's 120s maxDuration. Cap the batch size and stop generating past
- * this wall-clock budget, returning the partial result instead of timing out.
+ * Each grid races the worker pool for up to PER_GRID_BUDGET_MS (more than a plain
+ * grid needs, but the ceiling for a hard custom-word one), and the first request
+ * also pays the corpus cold load — so a batch can overrun maxDuration. Cap the
+ * batch size and stop STARTING new grids past the wall-clock budget, returning
+ * the partial result instead of timing out. The budget leaves headroom below
+ * maxDuration for one in-flight grid to finish (200s + 90s < 300s).
  */
 const MAX_GRIDS_PER_REQUEST = 5;
-const WALL_CLOCK_BUDGET_MS = 90_000;
+const WALL_CLOCK_BUDGET_MS = 200_000;
+const PER_GRID_BUDGET_MS = 90_000;
 
 const requestSchema = z.object({
   width: z.number().min(8).max(20).default(11),
@@ -106,6 +111,9 @@ export async function POST(
         difficulty: gridParams.difficulty,
         usedClues,
         usedWords,
+        // Keep each grid's budget small enough that a batch still fits maxDuration.
+        timeBudgetMs: PER_GRID_BUDGET_MS,
+        maxWaitMs: PER_GRID_BUDGET_MS + 5_000,
       });
 
       if (!grid) {
