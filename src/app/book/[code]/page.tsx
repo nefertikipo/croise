@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { books } from "@/db/schema/books";
 import { loadBook } from "@/lib/books/serialize";
+import { interiorPageCountForCapacity } from "@/lib/book-pdf/generate-book";
 import { BookEditor } from "@/components/book/book-editor";
 
 export default async function BookPage({
@@ -37,6 +38,7 @@ export default async function BookPage({
     <BookEditor
       code={code}
       initialBook={book}
+      initialInteriorPages={interiorPageCountForCapacity(book)}
       readOnly={readOnly}
       showSigninNudge={showSigninNudge}
     />

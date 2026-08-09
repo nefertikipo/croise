@@ -3,8 +3,10 @@ import { z } from "zod";
 import { db } from "@/db";
 import { bookPages } from "@/db/schema/books";
 import { eq } from "drizzle-orm";
-import { serializePage } from "@/lib/books/serialize";
+import { serializePage, loadBook } from "@/lib/books/serialize";
 import { authorizeBookEdit, touchBookStatement } from "@/lib/books/authorize";
+import { interiorPageCountForCapacity } from "@/lib/book-pdf/generate-book";
+import { SADDLE_MAX_INTERIOR_PAGES } from "@/lib/books/constants";
 
 const requestSchema = z.object({
   layout: z.enum(["note", "quote", "photo"]).default("note"),
@@ -33,6 +35,21 @@ export async function POST(
     }
     const book = authz.book;
 
+    // HARD page ceiling: refuse to grow a book past the saddle-stitch printable
+    // window (a content page adds exactly one interior page).
+    const loadedForCapacity = await loadBook(code);
+    if (
+      loadedForCapacity &&
+      interiorPageCountForCapacity(loadedForCapacity) >= SADDLE_MAX_INTERIOR_PAGES
+    ) {
+      return NextResponse.json(
+        {
+          error: `Votre livre atteint la limite de ${SADDLE_MAX_INTERIOR_PAGES} pages imprimables. Supprimez des pages pour en ajouter une autre.`,
+        },
+        { status: 409 },
+      );
+    }
+
     const existing = await db
       .select({ position: bookPages.position })
       .from(bookPages)
@@ -54,7 +71,9 @@ export async function POST(
     ]);
 
     const serialized = await serializePage(pageId);
-    return NextResponse.json(serialized);
+    const afterAdd = await loadBook(code);
+    const interiorPages = afterAdd ? interiorPageCountForCapacity(afterAdd) : undefined;
+    return NextResponse.json({ ...serialized, interiorPages });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Requête invalide." }, { status: 400 });

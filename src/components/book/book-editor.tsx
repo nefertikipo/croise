@@ -20,7 +20,11 @@ import { BookPrintLayout } from "@/components/book/book-print-layout";
 import { backMatterKind } from "@/components/book/page-slot";
 import { buildWordIndex } from "@/lib/crossword/word-index";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
-import { BOOK_MIN_GRIDS } from "@/lib/books/constants";
+import {
+  BOOK_MIN_GRIDS,
+  BOOK_MIN_INTERIOR_PAGES,
+  SADDLE_MAX_INTERIOR_PAGES,
+} from "@/lib/books/constants";
 import { rehydrateDesignPreview, stripDesignPreview } from "@/lib/books/photo-preview";
 import type { DedicationFontKey } from "@/lib/books/dedication-fonts";
 import type {
@@ -37,6 +41,9 @@ import type {
 interface BookEditorProps {
   code: string;
   initialBook: BookData;
+  /** Interior page count of the book as loaded (drives the printable-window
+   * capacity guard in the UI; the server enforces it authoritatively). */
+  initialInteriorPages: number;
   /** True when the viewer may not edit (owned book opened by a non-owner). */
   readOnly?: boolean;
   /** True when the viewer is anonymous and the book has no owner. */
@@ -53,10 +60,14 @@ function contentLabel(layout: ContentLayout): string {
 export function BookEditor({
   code,
   initialBook,
+  initialInteriorPages,
   readOnly = false,
   showSigninNudge = false,
 }: BookEditorProps) {
   const [book, setBook] = useState<BookData>(initialBook);
+  // Live interior page count, kept in sync from the add/delete responses so the
+  // "Ajouter une page" controls know when the book has hit the printable ceiling.
+  const [interiorPages, setInteriorPages] = useState(initialInteriorPages);
   const [selectedId, setSelectedId] = useState<string>("cover");
   // "gallery" = zoom-out overview of every page; "spread" = facing pages for
   // arranging; "page" = one page big, for editing grids.
@@ -468,8 +479,10 @@ export function BookEditor({
         }
         const data = (await res.json()) as {
           pages: BookData["pages"];
+          interiorPages?: number;
           failed?: { requested: number; created: number; reason: string };
         };
+        if (typeof data.interiorPages === "number") setInteriorPages(data.interiorPages);
         if (data.pages.length === 0) {
           failReason = data.failed?.reason ?? fallbackReason;
           break;
@@ -515,7 +528,10 @@ export function BookEditor({
         toast.error(await readError(res, "Impossible d'ajouter la page."));
         return;
       }
-      const page = (await res.json()) as BookData["pages"][number];
+      const page = (await res.json()) as BookData["pages"][number] & {
+        interiorPages?: number;
+      };
+      if (typeof page.interiorPages === "number") setInteriorPages(page.interiorPages);
       setBook((b) => ({ ...b, pages: [...b.pages, page] }));
       setSelectedId(page.pageId);
     } catch (err) {
@@ -536,6 +552,9 @@ export function BookEditor({
       if (!res.ok) {
         toast.error(await readError(res, "Impossible de supprimer la page."));
         await resyncBook();
+      } else {
+        const data = (await res.json().catch(() => ({}))) as { interiorPages?: number };
+        if (typeof data.interiorPages === "number") setInteriorPages(data.interiorPages);
       }
     } catch {
       toast.error("Impossible de supprimer la page. Vérifiez votre connexion.");
@@ -998,6 +1017,9 @@ export function BookEditor({
               genBatch={genBatch}
               ideas={book.clueIdeas}
               ideaUsage={ideaUsage}
+              interiorPages={interiorPages}
+              maxPages={SADDLE_MAX_INTERIOR_PAGES}
+              minPages={BOOK_MIN_INTERIOR_PAGES}
               onAddGrids={addGrids}
               onAddContent={addContent}
             />
