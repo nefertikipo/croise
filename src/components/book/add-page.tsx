@@ -1,34 +1,23 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { GridCreator, type CreateGridOptions } from "@/components/book/grid-creator";
-import type { ClueIdea, ContentLayout } from "@/types/book";
+import type { ContentLayout } from "@/types/book";
 
 interface AddPageProps {
   busy: boolean;
-  /** Per-grid progress while a batch add is running; null when idle. */
-  genBatch: { current: number; total: number } | null;
-  /** The book's saved clue ideas, forwarded to the grid creator's idea picker. */
-  ideas: ClueIdea[];
-  /** Normalized custom answer → grid numbers, for the idea picker's "used" hints. */
-  ideaUsage: Map<string, number[]>;
-  onAddGrids: (opts: CreateGridOptions) => Promise<string | null> | void;
+  /** Open the full-screen grid creator (owned by the book editor). */
+  onCreateGrid: () => void;
   onAddContent: (layout: ContentLayout) => void;
 }
 
-export function AddPage({ busy, genBatch, ideas, ideaUsage, onAddGrids, onAddContent }: AddPageProps) {
-  const [creating, setCreating] = useState(false);
-
+export function AddPage({ busy, onCreateGrid, onAddContent }: AddPageProps) {
   return (
     <div className="space-y-4">
-      <h3 className="font-heading text-xl uppercase">Ajouter une page</h3>
-
       <div className="space-y-2">
         <p className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">
           Grille
         </p>
-        <Button className="w-full" disabled={busy} onClick={() => setCreating(true)}>
+        <Button className="w-full" disabled={busy} onClick={onCreateGrid}>
           + Créer une grille
         </Button>
         <p className="text-xs text-muted-foreground">
@@ -53,17 +42,6 @@ export function AddPage({ busy, genBatch, ideas, ideaUsage, onAddGrids, onAddCon
           + Photos
         </Button>
       </div>
-
-      {creating && (
-        <GridCreator
-          busy={busy}
-          genBatch={genBatch}
-          ideas={ideas}
-          ideaUsage={ideaUsage}
-          onCreate={onAddGrids}
-          onClose={() => setCreating(false)}
-        />
-      )}
     </div>
   );
 }
