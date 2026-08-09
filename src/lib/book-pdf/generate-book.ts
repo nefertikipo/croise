@@ -119,7 +119,7 @@ export async function generateBookInteriorPdf(book: BookData, size: PageSize = "
     const { page, g } = addPage();
     if (p.kind === "grid") {
       gridNumber += 1;
-      composeGridPage({ page, g, fonts, grid: p, gridNumber, mode: "puzzle" });
+      await composeGridPage({ doc, page, g, fonts, grid: p, gridNumber, mode: "puzzle" });
     } else if (p.config.layout === "photo") {
       const layout = getPhotoLayout(p.config.photoLayout);
       const content = await loadPhotoContent(layout, p.config);

@@ -9,7 +9,8 @@ import { generateAndSaveGrid } from "@/lib/books/generate-grid";
 import { collectUsedWordsAndClues } from "@/lib/books/used-clues";
 import { authorizeBookEdit, touchBookStatement } from "@/lib/books/authorize";
 import { checkCapacity } from "@/lib/crossword/check-capacity";
-import type { GridPageConfig } from "@/types/book";
+import { reservedRectForPreset } from "@/lib/crossword/photo-presets";
+import type { GridPageConfig, GridPhoto } from "@/types/book";
 import type { BatchItem } from "drizzle-orm/batch";
 
 // 300s (Vercel Pro max) so a hard, personalized grid racing the worker pool has
@@ -26,6 +27,17 @@ const requestSchema = z.object({
     .array(z.object({ answer: z.string(), clue: z.string() }))
     .default([]),
   difficulty: z.enum(["facile", "moyen", "difficile", "balanced"]).optional(),
+  photo: z
+    .object({
+      preset: z.string(),
+      photoRef: z.string().optional(),
+      imageUrl: z.string().optional(),
+      crop: z
+        .object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() })
+        .optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 /** Regenerate a grid page's puzzle in place, keeping its position in the spine. */
@@ -37,7 +49,18 @@ export async function POST(
     const { code, pageId } = await params;
     const input = requestSchema.parse(await request.json());
 
-    const capacityError = checkCapacity(input.width, input.height, input.customClues);
+    // If the request carries a photo, account for its reserved cells in the
+    // guard (a stored-only photo just runs the guard conservatively, which is safe).
+    const reqRect = input.photo
+      ? reservedRectForPreset(input.photo.preset, input.width, input.height)
+      : null;
+    const reservedCells = reqRect ? reqRect.w * reqRect.h : 0;
+    const capacityError = checkCapacity(
+      input.width,
+      input.height,
+      input.customClues,
+      reservedCells,
+    );
     if (capacityError) {
       return NextResponse.json({ error: capacityError }, { status: 400 });
     }
@@ -79,6 +102,15 @@ export async function POST(
     const hiddenWord =
       input.hiddenWord !== undefined ? input.hiddenWord : prevConfig.hiddenWord;
 
+    // Photo block: the request's value wins (including null to remove it), else
+    // keep the stored one. Resolve its preset to the reserved cell rectangle the
+    // generator must fill around.
+    const photo: GridPhoto | undefined =
+      input.photo !== undefined ? (input.photo ?? undefined) : prevConfig.photo;
+    const reservedRect = photo
+      ? (reservedRectForPreset(photo.preset, input.width, input.height) ?? undefined)
+      : undefined;
+
     const grid = await generateAndSaveGrid({
       width: input.width,
       height: input.height,
@@ -86,6 +118,7 @@ export async function POST(
       customClues: input.customClues,
       hiddenWord,
       difficulty: input.difficulty,
+      reservedRect,
       usedClues,
       usedWords,
     });
@@ -102,6 +135,9 @@ export async function POST(
       ...(input.gridColor !== undefined ? { gridColor: input.gridColor } : {}),
       ...(input.hiddenWord !== undefined ? { hiddenWord: input.hiddenWord } : {}),
       ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
+      // Only a resolvable photo (its preset produced a real block) is persisted;
+      // otherwise the grid stays plain.
+      ...(input.photo !== undefined ? { photo: reservedRect ? photo : undefined } : {}),
     };
 
     // Repoint the page and drop the replaced crossword in one atomic batch

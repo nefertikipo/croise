@@ -93,7 +93,10 @@ export function reconstructCells(
   for (let y = 0; y < grid.height; y++) {
     const row: FlecheCell[] = [];
     for (let x = 0; x < grid.width; x++) {
-      if (isBlue(x, y)) {
+      // `*` = a cell reserved for a photo block: neither clue nor letter.
+      if (grid.gridPattern[y * grid.width + x] === "*") {
+        row.push({ type: "empty" });
+      } else if (isBlue(x, y)) {
         row.push({ type: "clue", clues: cluesByCell.get(`${x},${y}`) ?? [] });
       } else {
         const letter = grid.gridSolution[y * grid.width + x];

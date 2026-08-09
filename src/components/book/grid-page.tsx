@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
 import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
+import { reservedRectForPreset } from "@/lib/crossword/photo-presets";
 import type { GridPage } from "@/types/book";
 
 const CELL_SIZE = 70;
@@ -39,6 +40,14 @@ export function GridPageView({
   const hasHiddenStrip = !!highlightedCells && highlightedCells.size > 0;
   const scale = Math.min(1, maxWidth / gridW);
 
+  // Photo block overlay: the picture sits over the reserved cells (drawn from the
+  // preset so it previews even before the next regeneration carves the hole).
+  const photo = page.config.photo;
+  const photoRect = photo ? reservedRectForPreset(photo.preset, page.width, page.height) : null;
+  const photoSrc =
+    photo?.imageUrl ??
+    (photo?.photoRef ? `/api/books/photo?ref=${encodeURIComponent(photo.photoRef)}` : null);
+
   /* Magazine composition: thin editorial title band, grid edge-to-edge,
      hidden-word band at the bottom — the grid is the page. */
   return (
@@ -59,7 +68,7 @@ export function GridPageView({
       </div>
 
       <div style={{ width: gridW * scale, height: gridH * scale }}>
-        <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: gridW, height: gridH }}>
+        <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: gridW, height: gridH, position: "relative" }}>
           <FlecheGrid
             cells={page.cells}
             width={page.width}
@@ -69,6 +78,22 @@ export function GridPageView({
             highlightedCells={highlightedCells}
             accentColor={page.config.gridColor}
           />
+          {photoRect && photoSrc && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={photoSrc}
+              alt=""
+              style={{
+                position: "absolute",
+                left: photoRect.x * CELL_SIZE,
+                top: photoRect.y * CELL_SIZE,
+                width: photoRect.w * CELL_SIZE,
+                height: photoRect.h * CELL_SIZE,
+                objectFit: "cover",
+                border: "2px solid var(--ink, #2f2a26)",
+              }}
+            />
+          )}
         </div>
       </div>
 
