@@ -11,8 +11,9 @@ import { interiorPageCountForCapacity } from "@/lib/book-pdf/generate-book";
 import { SADDLE_MAX_INTERIOR_PAGES } from "@/lib/books/constants";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
 import { checkCapacity } from "@/lib/crossword/check-capacity";
+import { reservedRectForPreset } from "@/lib/crossword/photo-presets";
 import { placedWords } from "@/db/schema/placed-words";
-import type { BookPageData } from "@/types/book";
+import type { BookPageData, GridPhoto } from "@/types/book";
 
 // 300s (Vercel Pro max), matching /fleche and the regenerate route. The function
 // gets boosted memory/vCPUs via vercel.json so each grid can race the worker pool.
@@ -40,6 +41,17 @@ const requestSchema = z.object({
     .array(z.object({ answer: z.string(), clue: z.string() }))
     .default([]),
   difficulty: z.enum(["facile", "moyen", "difficile", "balanced"]).optional(),
+  photo: z
+    .object({
+      preset: z.string(),
+      photoRef: z.string().optional(),
+      imageUrl: z.string().optional(),
+      crop: z
+        .object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() })
+        .optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 interface BatchFailure {
@@ -56,10 +68,19 @@ export async function POST(
     const { code } = await params;
     const gridParams = requestSchema.parse(await request.json());
 
+    // Photo block: resolve the preset to a reserved cell rectangle the generator
+    // must fill around. Only a resolvable photo is kept on the page config.
+    const photo: GridPhoto | undefined = gridParams.photo ?? undefined;
+    const reservedRect = photo
+      ? (reservedRectForPreset(photo.preset, gridParams.width, gridParams.height) ?? undefined)
+      : undefined;
+    const reservedCells = reservedRect ? reservedRect.w * reservedRect.h : 0;
+
     const capacityError = checkCapacity(
       gridParams.width,
       gridParams.height,
       gridParams.customClues,
+      reservedCells,
     );
     if (capacityError) {
       return NextResponse.json({ error: capacityError }, { status: 400 });
@@ -85,6 +106,7 @@ export async function POST(
       ...(gridParams.gridColor ? { gridColor: gridParams.gridColor } : {}),
       ...(gridParams.hiddenWord ? { hiddenWord: gridParams.hiddenWord } : {}),
       ...(gridParams.difficulty ? { difficulty: gridParams.difficulty } : {}),
+      ...(reservedRect && photo ? { photo } : {}),
     };
 
     // HARD page ceiling: never grow a book past the saddle-stitch printable
@@ -127,6 +149,7 @@ export async function POST(
         customClues: gridParams.customClues,
         hiddenWord: gridParams.hiddenWord,
         difficulty: gridParams.difficulty,
+        reservedRect,
         usedClues,
         usedWords,
         // Keep each grid's budget small enough that a batch still fits maxDuration.

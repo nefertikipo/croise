@@ -17,6 +17,8 @@ interface GridPhotoFieldProps {
   width: number;
   height: number;
   onChange: (photo: GridPhoto | undefined) => void;
+  /** Context hint under the picker. Defaults to the regenerate wording (edit). */
+  hint?: string;
 }
 
 const label = "text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground";
@@ -26,7 +28,13 @@ const label = "text-xs font-bold uppercase tracking-[0.15em] text-muted-foregrou
  * crop a picture, and preview it. The reserved block only takes effect on the
  * next regeneration, so we say so.
  */
-export function GridPhotoField({ photo, width, height, onChange }: GridPhotoFieldProps) {
+export function GridPhotoField({
+  photo,
+  width,
+  height,
+  onChange,
+  hint = "Régénérez la grille pour intégrer la photo à la disposition.",
+}: GridPhotoFieldProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,9 +123,7 @@ export function GridPhotoField({ photo, width, height, onChange }: GridPhotoFiel
             </Button>
           )}
 
-          <p className="text-xs text-muted-foreground">
-            Régénérez la grille pour intégrer la photo à la disposition.
-          </p>
+          <p className="text-xs text-muted-foreground">{hint}</p>
         </>
       )}
 
