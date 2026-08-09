@@ -20,3 +20,7 @@ export const BOOK_BINDING: "saddle-stitch" | "perfect" = "saddle-stitch";
 
 /** Lulu's saddle-stitch page ceiling; above this the book must go perfect-bound. */
 export const SADDLE_MAX_INTERIOR_PAGES = 48;
+
+/** `crosswords.theme` value marking a shared "filler" grid — a pre-made grid
+ * built from the community `/contribuer` words, used to top up short books. */
+export const FILLER_THEME = "filler-contribuer";

@@ -355,13 +355,9 @@ export function BookEditor({
   }
 
   // --- Structural mutations -------------------------------------------------
-  /** Top up the book to BOOK_MIN_GRIDS with generic grids (defaults, no custom
-   * words) — the user can regenerate any of them later with personal touches.
-   * Difficulty follows what the book already uses (most common among its
-   * grids), falling back to the recommended "facile". */
-  function completeWithGenericGrids() {
-    const missing = BOOK_MIN_GRIDS - gridPages.length;
-    if (missing <= 0 || busy) return;
+  /** Difficulty a generic top-up should use: whatever the book leans on most,
+   * falling back to the recommended "facile". */
+  function mostCommonDifficulty(): GridDifficulty {
     const counts = new Map<GridDifficulty, number>();
     for (const p of gridPages) {
       const d = p.config.difficulty ?? "balanced";
@@ -375,13 +371,61 @@ export function BookEditor({
         difficulty = d;
       }
     }
+    return difficulty;
+  }
+
+  /** Top up the book to BOOK_MIN_GRIDS with generic grids (defaults, no custom
+   * words) — the user can regenerate any of them later with personal touches. */
+  function completeWithGenericGrids() {
+    const missing = BOOK_MIN_GRIDS - gridPages.length;
+    if (missing <= 0 || busy) return;
     void addGrids({
       width: 11,
       height: 17,
       count: missing,
-      difficulty,
+      difficulty: mostCommonDifficulty(),
       customClues: [],
     });
+  }
+
+  /** Top up with ready-made community "filler" grids from the shared bank —
+   * fun pop / tech / culture words, attached instantly (copies, no generation).
+   * Whatever the bank can't cover (conflicts / exhausted) is filled with generic
+   * grids so the book still reaches BOOK_MIN_GRIDS. */
+  async function completeWithFillerGrids() {
+    const missing = BOOK_MIN_GRIDS - gridPages.length;
+    if (missing <= 0 || busy) return;
+    setBusy(true);
+    let attached = 0;
+    try {
+      const res = await fetch(`/api/books/${code}/pages/add-filler`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count: missing }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { pages: BookData["pages"] };
+        attached = data.pages.length;
+        if (data.pages.length > 0) {
+          setBook((b) => ({ ...b, pages: [...b.pages, ...data.pages] }));
+          setSelectedId(data.pages[0].pageId);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBusy(false);
+    }
+    const remainder = missing - attached;
+    if (remainder > 0) {
+      void addGrids({
+        width: 11,
+        height: 17,
+        count: remainder,
+        difficulty: mostCommonDifficulty(),
+        customClues: [],
+      });
+    }
   }
 
   /** Batch add of identical grids (the grid creator / generic top-up path). */
@@ -804,15 +848,24 @@ export function BookEditor({
                     <span className="text-muted-foreground">
                       Génération {genBatch.current}/{genBatch.total}…
                     </span>
+                  ) : busy ? (
+                    <span className="text-muted-foreground">Ajout des grilles…</span>
                   ) : (
                     <>
+                      <Button
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => void completeWithFillerGrids()}
+                      >
+                        Compléter avec des grilles toutes prêtes
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         disabled={busy}
                         onClick={completeWithGenericGrids}
                       >
-                        Compléter avec des grilles génériques
+                        Grilles génériques
                       </Button>
                       <Button
                         size="sm"
