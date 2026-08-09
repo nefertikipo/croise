@@ -83,8 +83,10 @@ export function BookEditor({
   } | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  // Grid creator opened from the empty-book onboarding (not the add-page panel).
-  const [onboardingCreator, setOnboardingCreator] = useState(false);
+  // Full-screen grid creator. Opened directly from the rail's "Ajouter une
+  // grille" button and from the empty-book onboarding (which presets the count).
+  // null = closed; the object carries the optional starting grid count.
+  const [gridCreator, setGridCreator] = useState<null | { initialCount?: number }>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   // Wizard handoff (/livre/nouveau): true while the wizard's generation plan is
   // running, to show the "we're preparing your grids" banner.
@@ -697,7 +699,7 @@ export function BookEditor({
       ? []
       : ([
           { id: "ideas", kind: "ideas", label: "Carnet d'idées" },
-          { id: "add", kind: "add", label: "+ Ajouter une page" },
+          { id: "add", kind: "add", label: "+ Ajouter une grille" },
         ] satisfies RailItem[])),
   ];
 
@@ -708,9 +710,11 @@ export function BookEditor({
   // width. Read-only viewers never get the panel.
   const showProps = readOnly
     ? false
-    : selectedId === "add" || selectedId === "ideas"
+    : selectedId === "ideas"
       ? true
-      : view === "gallery"
+      : selectedId === "add"
+        ? false
+        : view === "gallery"
         ? false
         : selectedId === "cover"
           ? false
@@ -806,16 +810,30 @@ export function BookEditor({
           <PageRail
             items={railItems}
             selectedId={selectedId}
-            onSelect={setSelectedId}
+            onSelect={(id) => {
+              setSelectedId(id);
+              // "Ajouter une grille" jumps straight into the creator; the
+              // add screen behind it keeps the note/citation/photo options.
+              // At the printable-page ceiling, just show the capacity notice.
+              if (id === "add" && interiorPages < SADDLE_MAX_INTERIOR_PAGES) {
+                setGridCreator({});
+              }
+            }}
           />
         </aside>
 
         {/* Canvas: gallery (overview) · spread (arrange) · page (edit one page) */}
         <section className="min-w-0">
           {selectedId === "add" ? (
-            <div className="text-muted-foreground italic pt-20 text-center">
-              Choisissez le type de page à ajouter dans le panneau «&nbsp;Ajouter une
-              page&nbsp;».
+            <div className="mx-auto max-w-sm pt-12">
+              <AddPage
+                busy={busy}
+                interiorPages={interiorPages}
+                maxPages={SADDLE_MAX_INTERIOR_PAGES}
+                minPages={BOOK_MIN_INTERIOR_PAGES}
+                onCreateGrid={() => setGridCreator({})}
+                onAddContent={addContent}
+              />
             </div>
           ) : selectedId === "ideas" ? (
             <div className="mx-auto max-w-md pt-16 text-center">
@@ -937,7 +955,7 @@ export function BookEditor({
                   <Button
                     className="mt-6"
                     disabled={busy}
-                    onClick={() => setOnboardingCreator(true)}
+                    onClick={() => setGridCreator({ initialCount: BOOK_MIN_GRIDS })}
                   >
                     Générer mes grilles
                   </Button>
@@ -1011,19 +1029,6 @@ export function BookEditor({
               onChange={updateClueIdeas}
             />
           )}
-          {selectedId === "add" && (
-            <AddPage
-              busy={busy}
-              genBatch={genBatch}
-              ideas={book.clueIdeas}
-              ideaUsage={ideaUsage}
-              interiorPages={interiorPages}
-              maxPages={SADDLE_MAX_INTERIOR_PAGES}
-              minPages={BOOK_MIN_INTERIOR_PAGES}
-              onAddGrids={addGrids}
-              onAddContent={addContent}
-            />
-          )}
           {backMatterKind(selectedId) === "index" && (
             <p className="text-sm text-muted-foreground">
               L&apos;index liste automatiquement tous les mots de chaque grille.
@@ -1063,17 +1068,17 @@ export function BookEditor({
         )}
       </div>
 
-      {/* Grid creator opened from the empty-book onboarding, preset to the
-          product default of 5 grids. */}
-      {onboardingCreator && (
+      {/* Full-screen grid creator: opened by the rail's "Ajouter une grille"
+          button and by the empty-book onboarding (which presets the count). */}
+      {gridCreator && (
         <GridCreator
           busy={busy}
           genBatch={genBatch}
           ideas={book.clueIdeas}
           ideaUsage={ideaUsage}
-          initialCount={BOOK_MIN_GRIDS}
+          initialCount={gridCreator.initialCount}
           onCreate={addGrids}
-          onClose={() => setOnboardingCreator(false)}
+          onClose={() => setGridCreator(null)}
         />
       )}
 

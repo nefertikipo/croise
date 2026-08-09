@@ -1,39 +1,27 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { GridCreator, type CreateGridOptions } from "@/components/book/grid-creator";
-import type { ClueIdea, ContentLayout } from "@/types/book";
+import type { ContentLayout } from "@/types/book";
 
 interface AddPageProps {
   busy: boolean;
-  /** Per-grid progress while a batch add is running; null when idle. */
-  genBatch: { current: number; total: number } | null;
-  /** The book's saved clue ideas, forwarded to the grid creator's idea picker. */
-  ideas: ClueIdea[];
-  /** Normalized custom answer → grid numbers, for the idea picker's "used" hints. */
-  ideaUsage: Map<string, number[]>;
   /** Live interior page count, and the printable window it must stay inside. */
   interiorPages: number;
   maxPages: number;
   minPages: number;
-  onAddGrids: (opts: CreateGridOptions) => Promise<string | null> | void;
+  /** Open the full-screen grid creator (owned by the book editor). */
+  onCreateGrid: () => void;
   onAddContent: (layout: ContentLayout) => void;
 }
 
 export function AddPage({
   busy,
-  genBatch,
-  ideas,
-  ideaUsage,
   interiorPages,
   maxPages,
   minPages,
-  onAddGrids,
+  onCreateGrid,
   onAddContent,
 }: AddPageProps) {
-  const [creating, setCreating] = useState(false);
-
   // The printer binds a fixed page window; block adds once the book is full.
   const atCapacity = interiorPages >= maxPages;
   const belowMin = interiorPages < minPages;
@@ -41,8 +29,6 @@ export function AddPage({
 
   return (
     <div className="space-y-4">
-      <h3 className="font-heading text-xl uppercase">Ajouter une page</h3>
-
       <div
         className={`border-2 px-3 py-2 text-xs ${
           atCapacity ? "border-destructive text-destructive" : "border-black/10 text-muted-foreground"
@@ -70,7 +56,7 @@ export function AddPage({
         <p className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">
           Grille
         </p>
-        <Button className="w-full" disabled={addDisabled} onClick={() => setCreating(true)}>
+        <Button className="w-full" disabled={addDisabled} onClick={onCreateGrid}>
           + Créer une grille
         </Button>
         <p className="text-xs text-muted-foreground">
@@ -95,17 +81,6 @@ export function AddPage({
           + Photos
         </Button>
       </div>
-
-      {creating && (
-        <GridCreator
-          busy={busy}
-          genBatch={genBatch}
-          ideas={ideas}
-          ideaUsage={ideaUsage}
-          onCreate={onAddGrids}
-          onClose={() => setCreating(false)}
-        />
-      )}
     </div>
   );
 }
