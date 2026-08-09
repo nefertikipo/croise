@@ -112,6 +112,27 @@ export function countInteriorPages(book: BookData, size: PageSize = "a5"): numbe
   return n;
 }
 
+/**
+ * Like {@link countInteriorPages} but never throws on a grid-less book: a book
+ * being built can hold content pages (or nothing) before its first grid, and
+ * the capacity guards still need a page count for it. A grid-less book has no
+ * index or solutions, so it is just the opening page + its content pages, padded
+ * to a signature. Use this for the printable-window guards (add-page routes,
+ * order gate); use countInteriorPages when a real PDF is about to be rendered.
+ */
+export function interiorPageCountForCapacity(book: BookData, size: PageSize = "a5"): number {
+  try {
+    return countInteriorPages(book, size);
+  } catch (err) {
+    if (err instanceof EmptyBookError) {
+      let n = 1 + book.pages.length; // opening page + any content pages
+      if (n % 4 !== 0) n += 4 - (n % 4);
+      return n;
+    }
+    throw err;
+  }
+}
+
 /** Fetch the full-res photos for a photo page's PHOTO slots, in slot order. */
 async function loadPhotoContent(layout: PhotoLayout, config: ContentPageConfig): Promise<PhotoPageContent> {
   const photoSlotCount = layout.slots.filter((s) => s.kind !== "graphic").length;
