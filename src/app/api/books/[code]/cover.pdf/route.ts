@@ -2,6 +2,7 @@ import { loadBook } from "@/lib/books/serialize";
 import { generateCoverSpreadPdf, MissingCoverPhotoError } from "@/lib/book-pdf/generate-cover";
 import { countInteriorPages, EmptyBookError } from "@/lib/book-pdf/generate-book";
 import { MissingPhotoError } from "@/lib/book-pdf/photo-store";
+import { bookAuthors } from "@/lib/books/authors";
 
 /** PDF composition (photo at 300 DPI) can exceed the default duration. */
 export const maxDuration = 60;
@@ -19,9 +20,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
     const interiorPageCount = countInteriorPages(book, "a5");
     const pdf = await generateCoverSpreadPdf({
       title: book.title,
-      code: book.code,
       cover: book.coverConfig,
       interiorPageCount,
+      authors: bookAuthors(book.clueIdeas),
     });
     return new Response(Buffer.from(pdf), {
       headers: {

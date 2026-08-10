@@ -13,7 +13,6 @@ import sharp from "sharp";
 import { composeCoverPanel, embedCoverTitleFont } from "@/lib/book-pdf/compose-cover";
 import { composeBackCoverPanel } from "@/lib/book-pdf/compose-back-cover";
 import { getCoverTemplate, resolveCoverColor, resolveCoverFont } from "@/lib/book-pdf/cover-templates";
-import { embedBookFonts } from "@/lib/book-pdf/fonts";
 import {
   hex2rgb,
   mm2pt,
@@ -48,10 +47,11 @@ export class MissingCoverPhotoError extends Error {
 
 export interface CoverSpreadInput {
   title: string;
-  code: string;
   cover: CoverConfig | null;
   /** Final interior page count (see countInteriorPages) — drives spine width. */
   interiorPageCount: number;
+  /** Contributors credited on the notepad, for the back-cover maker credit. */
+  authors?: string[];
 }
 
 export async function generateCoverSpreadPdf(input: CoverSpreadInput): Promise<Uint8Array> {
@@ -89,20 +89,23 @@ export async function generateCoverSpreadPdf(input: CoverSpreadInput): Promise<U
   const pageH = trimHpt + 2 * bleedPt;
 
   const doc = await PDFDocument.create();
-  const fonts = await embedBookFonts(doc);
   const page = doc.addPage([pageW, pageH]);
+  // The cover title font (customer's choice) is the single face used across the
+  // spread's typography — front title, back cover and spine — so the whole
+  // object reads as one design.
+  const coverTitleFont = await embedCoverTitleFont(doc, titleFontFile);
 
   // Shared background across the full spread (back, spine, front + bleed).
   page.drawRectangle({ x: 0, y: 0, width: pageW, height: pageH, color: hex2rgb(bg) });
 
   // Back cover — left panel.
   const backPanel: PanelRect = { x: bleedPt, y: bleedPt, w: trimWpt, h: trimHpt };
-  composeBackCoverPanel({ page, fonts, panel: backPanel, title: input.title, code: input.code, cover: input.cover });
+  composeBackCoverPanel({ page, font: coverTitleFont, panel: backPanel, title: input.title, cover: input.cover, authors: input.authors });
 
   // Spine — solid background (already painted); title vertically only when the
   // spine is wide enough to carry text.
   if (spineMm >= SPINE_TEXT_MIN_MM) {
-    const spineFont = await embedCoverTitleFont(doc, titleFontFile);
+    const spineFont = coverTitleFont;
     const text = nfc(input.title).toUpperCase();
     const maxLen = trimHpt - 40;
     let size = Math.min(spinePt * 0.55, 14);

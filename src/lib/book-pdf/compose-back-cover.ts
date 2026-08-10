@@ -1,41 +1,60 @@
 /**
- * Back cover panel of the wraparound cover spread: the wordmark, a short
- * tagline, the book title and its share code, drawn into the left-hand panel
- * in the same brand colours the customer chose for the front. The caller fills
- * the shared page background.
+ * Back cover panel of the wraparound cover spread: a quiet, gift-like layout —
+ * a small arrow motif, the "Les Flèches" imprint, the book title (the hero) and
+ * an "imaginé avec amour par …" maker credit, optically centred in the panel,
+ * with the site as a discreet footer. Everything is set in the SAME face as the
+ * front-cover title, so the object reads as one design; hierarchy comes from
+ * size and colour, not from mixing typefaces.
  */
 
-import type { PDFPage } from "pdf-lib";
-import type { BookFonts } from "@/lib/book-pdf/fonts";
+import type { PDFFont, PDFPage } from "pdf-lib";
 import { resolveCoverColor } from "@/lib/book-pdf/cover-templates";
 import { hex2rgb, mixHex, type PanelRect } from "@/lib/book-pdf/geometry";
-import { ellipsize, nfc } from "@/lib/book-pdf/text";
+import { formatAuthorList } from "@/lib/books/authors";
+import { ellipsize, nfc, wrapText } from "@/lib/book-pdf/text";
 import type { CoverConfig } from "@/types/book";
 
 export interface BackCoverPanelOptions {
   page: PDFPage;
-  fonts: BookFonts;
+  /** The cover title font — the single face used across the whole back panel. */
+  font: PDFFont;
   /** Trim rect of the back-cover panel (bottom-left origin, pt). */
   panel: PanelRect;
   title: string;
-  code: string;
   cover: CoverConfig | null;
+  /** Contributors credited on the notepad, for the "imaginé par" line. */
+  authors?: string[];
 }
 
-export function composeBackCoverPanel({ page, fonts, panel, title, code, cover }: BackCoverPanelOptions): void {
+/** A small mots-fléchés arrow (down-then-right elbow), the brand's signature
+ * clue glyph, centred at (cx, yBaseline) within an `s`-point box. */
+function drawArrowMotif(page: PDFPage, cx: number, yBaseline: number, s: number, color: ReturnType<typeof hex2rgb>): void {
+  const th = Math.max(1, s * 0.09);
+  const x0 = cx - s / 2;
+  const top = yBaseline + s * 0.55;
+  const bend = yBaseline - s * 0.15;
+  page.drawLine({ start: { x: x0, y: top }, end: { x: x0, y: bend }, thickness: th, color });
+  page.drawLine({ start: { x: x0 - th / 2, y: bend }, end: { x: cx + s * 0.28, y: bend }, thickness: th, color });
+  const hx = cx + s * 0.28;
+  page.drawLine({ start: { x: hx, y: bend }, end: { x: hx - s * 0.16, y: bend + s * 0.14 }, thickness: th, color });
+  page.drawLine({ start: { x: hx, y: bend }, end: { x: hx - s * 0.16, y: bend - s * 0.14 }, thickness: th, color });
+}
+
+export function composeBackCoverPanel({ page, font, panel, title, cover, authors = [] }: BackCoverPanelOptions): void {
   const { bg, border } = resolveCoverColor(cover?.coverColor);
 
-  const titleRgb = hex2rgb(border);
-  const faint = mixHex(border, bg, 0.35);
+  const inkRgb = hex2rgb(border);
+  const soft = mixHex(border, bg, 0.16);
+  const faint = mixHex(border, bg, 0.42);
   const cx = panel.x + panel.w / 2;
   const panelTopY = panel.y + panel.h;
-  const centered = (text: string, yTop: number, size: number, font: typeof fonts.heading, color = titleRgb) => {
+  const centered = (text: string, yTop: number, size: number, color = inkRgb) => {
     const w = font.widthOfTextAtSize(text, size);
     page.drawText(text, { x: cx - w / 2, y: panelTopY - (yTop + size), size, font, color });
   };
 
-  // Thin keyline frame inside the trim, echoing the front cover accent.
-  const inset = 10;
+  // Discreet keyline frame inside the trim.
+  const inset = 12;
   page.drawRectangle({
     x: panel.x + inset,
     y: panel.y + inset,
@@ -43,27 +62,63 @@ export function composeBackCoverPanel({ page, fonts, panel, title, code, cover }
     height: panel.h - 2 * inset,
     borderColor: faint,
     borderWidth: 1,
-    opacity: 0,
   });
 
-  // Wordmark + tagline, optically centred on the panel.
-  const midTop = panel.h * 0.42;
-  centered("LES FLÈCHES", midTop, 22, fonts.heading);
-  const rW = panel.w * 0.18;
-  page.drawLine({ start: { x: cx - rW, y: panelTopY - (midTop + 34) }, end: { x: cx + rW, y: panelTopY - (midTop + 34) }, thickness: 1, color: faint });
-  centered("MOTS FLÉCHÉS PERSONNALISÉS", midTop + 46, 8.5, fonts.letter);
-  centered("À FABRIQUER, À OFFRIR", midTop + 60, 8.5, fonts.letter);
+  // --- One optically-centred block: motif · imprint · title · credit. -------
+  const maxW = panel.w - 2 * inset - 24;
 
-  // Book title (the customer's) below — shrink-to-fit inside the keyline,
-  // floored at 7pt then ellipsized.
   const bookTitle = nfc(title).toUpperCase();
-  const titleMaxW = panel.w - 2 * inset - 12;
-  let titleSize = 11;
-  while (titleSize > 7 && fonts.bold.widthOfTextAtSize(bookTitle, titleSize) > titleMaxW) titleSize -= 0.5;
-  centered(ellipsize(fonts.bold, bookTitle, titleSize, titleMaxW), midTop + 96, titleSize, fonts.bold);
+  let titleSize = 27;
+  while (titleSize > 14 && font.widthOfTextAtSize(bookTitle, titleSize) > maxW) titleSize -= 0.5;
+  const titleText = ellipsize(font, bookTitle, titleSize, maxW);
 
-  // Footer: share code + site.
-  const footTop = panel.h - 34;
-  centered(`CODE ${code}`, footTop, 8, fonts.letter, faint);
-  centered("LESFLECHES.COM", footTop + 12, 8, fonts.letter, faint);
+  const creditLines = authors.length > 0 ? wrapText(font, formatAuthorList(authors), 12, maxW) : [];
+
+  // Measure the block so it sits optically centred (nudged slightly high).
+  const motifH = 24;
+  const imprintSize = 14;
+  const gapMotif = 24;
+  const gapRule = 12;
+  const gapAfterRule = 20;
+  const titleLineH = titleSize * 1.1;
+  const gapCredit = authors.length > 0 ? 22 : 0;
+  const creditLabelH = authors.length > 0 ? 11 : 0;
+  const creditLineH = 12 * 1.4;
+  const blockH =
+    motifH + gapMotif + imprintSize + gapRule + 1 + gapAfterRule + titleLineH +
+    gapCredit + creditLabelH + creditLines.length * creditLineH;
+
+  let y = panel.h * 0.44 - blockH / 2; // optical centre, biased above true middle
+  if (y < inset + 20) y = inset + 20;
+
+  // Motif.
+  drawArrowMotif(page, cx, panelTopY - (y + motifH * 0.5), motifH, faint);
+  y += motifH + gapMotif;
+
+  // Imprint wordmark.
+  centered("LES FLÈCHES", y, imprintSize, soft);
+  y += imprintSize + gapRule;
+
+  // Thin rule.
+  const rW = panel.w * 0.13;
+  page.drawLine({ start: { x: cx - rW, y: panelTopY - y }, end: { x: cx + rW, y: panelTopY - y }, thickness: 1, color: faint });
+  y += 1 + gapAfterRule;
+
+  // Book title — the hero, in the same face as the front cover.
+  centered(titleText, y, titleSize);
+  y += titleLineH;
+
+  // Maker credit.
+  if (authors.length > 0) {
+    y += gapCredit;
+    centered("Imaginé avec amour par", y, 10, faint);
+    y += creditLabelH;
+    for (const line of creditLines) {
+      centered(line, y, 12, soft);
+      y += creditLineH;
+    }
+  }
+
+  // Discreet footer.
+  centered("lesfleches.com", panel.h - 26, 9, faint);
 }
