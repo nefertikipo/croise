@@ -3,14 +3,28 @@ import { HeroCarousel } from "@/components/shared/hero-carousel";
 import { CreateBookLink } from "@/components/shared/create-book-link";
 import { WORD_IDEAS } from "@/lib/word-ideas";
 
-// The three things you can make/offer with Les Flèches.
+// The things you can make/offer with Les Flèches.
 const PRODUCTS = [
+  {
+    kicker: "À poster",
+    title: "Une carte",
+    body: "Une grille personnalisée sur une carte postale A6, votre message au dos, prête à envoyer.",
+    cta: "Créer une carte",
+    href: "/carte/nouveau",
+  },
   {
     kicker: "À encadrer",
     title: "Un poster",
     body: "Une grille unique, imprimée grand format, à encadrer, à accrocher, à offrir.",
     cta: "Créer un poster",
     href: "/fleche?intent=poster",
+  },
+  {
+    kicker: "Toute l'année",
+    title: "Un calendrier",
+    body: "Douze grilles, une par mois, sur un calendrier mural A3 relié spirale.",
+    cta: "Créer un calendrier",
+    href: "/calendrier/nouveau",
   },
     {
     kicker: "À feuilleter",
@@ -72,9 +86,9 @@ export default function Home() {
       <section className="border-b-2 border-ink bg-brand text-brand-foreground">
         <div className="mx-auto max-w-5xl px-4 py-16">
           <h2 className="text-center text-4xl text-brand-foreground sm:text-5xl">
-            Trois façons d&apos;offrir
+            Cinq façons d&apos;offrir
           </h2>
-          <div className="mt-12 grid gap-6 sm:grid-cols-3">
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {PRODUCTS.map((p) => (
               <div key={p.title} className="frame flex flex-col bg-paper p-6 text-ink">
                 <div className="font-display text-xs uppercase tracking-[0.2em] text-brand">
