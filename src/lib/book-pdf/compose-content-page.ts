@@ -57,24 +57,59 @@ export function composeDedicationPage({ page, g, fonts, text, font, title, autho
     });
 
   if (text.trim()) {
-    const body = nfc(text);
+    // A message-bearing opening page is still framed like a proper dedication:
+    // an overline title, the message, a rule, and a maker sign-off — so it never
+    // reads as one lonely line marooned in the page.
     const maxW = g.contentW * 0.82;
-    // Shrink until the block fits comfortably (floor 9pt).
+    const body = nfc(text);
+
+    const overlineSize = 11;
+    const overline = nfc(title).toUpperCase();
+    const overlineLines = wrapText(fonts.letter, overline, overlineSize, maxW);
+    const overlineLineH = overlineSize * 1.35;
+
+    // Shrink the message (set in the maker's chosen face) until the whole framed
+    // block — overline, message, rule, sign-off — fits comfortably (floor 9pt).
     let size = 16;
     let lines = wrapParagraphs(dedicationFont, body, size, maxW);
-    while (size > 9 && lines.length * size * 1.5 > g.contentH * 0.7) {
+    while (size > 9 && lines.length * size * 1.5 > g.contentH * 0.55) {
       size -= 0.5;
       lines = wrapParagraphs(dedicationFont, body, size, maxW);
     }
     const lineH = size * 1.5;
+
+    const love = authors.length > 1 ? "Avec tout notre amour," : "Avec tout mon amour,";
+    const signSize = 12;
+    const signLineH = signSize * 1.35;
+    const signLines = authors.length > 0 ? [love, ...wrapText(fonts.heading, formatAuthorList(authors), signSize, maxW)] : [];
+
+    const overlineGap = 26;
     const ruleGap = 24;
-    const blockH = lines.length * lineH + ruleGap + 1;
+    const signGap = signLines.length > 0 ? 30 : 0;
+    const blockH =
+      overlineLines.length * overlineLineH + overlineGap +
+      lines.length * lineH + ruleGap + 1 + signGap +
+      signLines.length * signLineH;
     let yTop = g.contentTop + Math.max(0, (g.contentH - blockH) / 2);
+
+    for (const line of overlineLines) {
+      drawCentered(line, yTop, overlineSize, fonts.letter, PRIMARY);
+      yTop += overlineLineH;
+    }
+    yTop += overlineGap;
     for (const line of lines) {
       drawCentered(line, yTop, size, dedicationFont);
       yTop += lineH;
     }
-    rule(yTop + ruleGap);
+    yTop += ruleGap;
+    rule(yTop);
+    if (signLines.length > 0) {
+      yTop += signGap;
+      for (const line of signLines) {
+        drawCentered(line, yTop, signSize);
+        yTop += signLineH;
+      }
+    }
     return;
   }
 

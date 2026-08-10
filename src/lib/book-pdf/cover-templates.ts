@@ -26,6 +26,23 @@ export const COVER_COLORS: Record<string, { label: string; bg: string; border: s
   electrique: { label: "Électrique", bg: "#1f24d6", border: CREAM }, // Fisheye "Selfie" ultramarine
   magenta: { label: "Magenta", bg: "#d81f97", border: CREAM }, // Internal Riot
   poudre: { label: "Rose poudré", bg: "#f0a4c4", border: DEEP_BLUE }, // The Studio
+  // Editorial / magazine palette — saturated grounds carry a cream title.
+  cobalt: { label: "Cobalt", bg: "#1b34d6", border: CREAM },
+  cerise: { label: "Cerise", bg: "#d21f4a", border: CREAM },
+  terracotta: { label: "Terracotta", bg: "#c25a3c", border: CREAM },
+  petrole: { label: "Pétrole", bg: "#0c5b64", border: CREAM },
+  aubergine: { label: "Aubergine", bg: "#532842", border: CREAM },
+  foret: { label: "Forêt", bg: "#1f5136", border: CREAM },
+  moka: { label: "Moka", bg: "#5e4433", border: CREAM },
+  prune: { label: "Prune", bg: "#7a2e5c", border: CREAM },
+  // Pale / bright grounds carry the deep-blue title.
+  chartreuse: { label: "Chartreuse", bg: "#cdd94a", border: DEEP_BLUE },
+  beurre: { label: "Beurre", bg: "#f4e6ad", border: DEEP_BLUE },
+  lavande: { label: "Lavande", bg: "#b9abe6", border: DEEP_BLUE },
+  peche: { label: "Pêche", bg: "#ffb59a", border: DEEP_BLUE },
+  matcha: { label: "Matcha", bg: "#a9bd8c", border: DEEP_BLUE },
+  mauve: { label: "Mauve", bg: "#cf98a0", border: DEEP_BLUE },
+  ecru: { label: "Écru", bg: "#e9ddc6", border: DEEP_BLUE },
 };
 
 export const DEFAULT_COVER_COLOR = "bleu";
