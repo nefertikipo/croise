@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Field, TextField, ColorPicker } from "@/components/book/field";
 import { DifficultyPicker } from "@/components/book/difficulty-picker";
 import { CustomWordsEditor } from "@/components/book/custom-words-editor";
+import { GridPhotoField } from "@/components/book/grid-photo-field";
 import { ClueIdeaPicker } from "@/components/book/clue-idea-picker";
 import { ConfirmButton } from "@/components/book/confirm-button";
 import { addPickedIdeas } from "@/components/book/pick-ideas";
@@ -86,7 +87,15 @@ export function GridPageProperties({
   onRegenerate,
   onDelete,
 }: GridPagePropertiesProps) {
-  const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>([]);
+  // Seed with the grid's already-placed custom words so regenerating (e.g. to
+  // change the difficulty level) keeps them instead of dropping every custom
+  // word. The editor then also lets the maker review/edit/remove them.
+  // Remounts per page (key={pageId} in the parent), so this reads the right grid.
+  const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>(() =>
+    page.words
+      .filter((w) => w.isCustom)
+      .map((w) => ({ answer: w.answer, clue: w.clue })),
+  );
 
   const addedAnswers = new Set(customClues.map((c) => normalizeAnswer(c.answer)));
   function pickIdea(idea: ClueIdea) {
@@ -165,6 +174,13 @@ export function GridPageProperties({
       <p className="text-xs text-muted-foreground -mt-2">
         Appliquée à la prochaine régénération de cette grille.
       </p>
+
+      <GridPhotoField
+        photo={page.config.photo}
+        width={page.width}
+        height={page.height}
+        onChange={(photo) => onConfigChange({ photo })}
+      />
 
       <Field label="Mot caché">
         <TextField

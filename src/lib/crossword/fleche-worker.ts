@@ -18,6 +18,7 @@ import {
   getFrenchClueDifficulty,
 } from "@/lib/crossword/load-french-clues";
 import { generateFlecheVector, type VectorGenParams } from "@/lib/crossword/fleche-vector-gen";
+import { filterClueDb } from "@/lib/crossword/filter-clue-db";
 import { WordList } from "@/lib/crossword/word-list";
 
 if (!parentPort) throw new Error("fleche-worker must run as a worker thread");
@@ -48,21 +49,16 @@ async function main() {
     const shouldAbort = () => Atomics.load(flag, 0) !== 0;
 
     const hasCustom = !!msg.params.customClues && msg.params.customClues.length > 0;
-    const exclA = new Set((msg.excludeAnswers ?? []).map((a) => a.toUpperCase()));
-    const exclC = new Set(msg.excludeClues ?? []);
-    const hasExcludes = exclA.size > 0 || exclC.size > 0;
+    const hasExcludes =
+      (msg.excludeAnswers?.length ?? 0) > 0 || (msg.excludeClues?.length ?? 0) > 0;
 
-    // clueDb: filter out excluded answers/clues (matches the route's single-
-    // threaded path), and clone when custom words will be injected so the
-    // mutation stays isolated to this run. Plain jobs reuse the shared map.
+    // clueDb: apply exclusions via the shared filter (same semantics as the
+    // single-threaded path and the book grid path), and clone when custom words
+    // will be injected so the mutation stays isolated to this run. Plain jobs
+    // reuse the shared map.
     let db = baseDb;
     if (hasExcludes) {
-      db = new Map();
-      for (const [word, clues] of baseDb) {
-        if (exclA.has(word)) continue;
-        const filtered = exclC.size > 0 ? clues.filter((c) => !exclC.has(c)) : clues;
-        if (filtered.length > 0) db.set(word, filtered);
-      }
+      db = filterClueDb(baseDb, msg.excludeAnswers, msg.excludeClues);
     } else if (hasCustom) {
       db = new Map(baseDb);
     }

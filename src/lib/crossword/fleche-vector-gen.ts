@@ -82,6 +82,21 @@ export interface VectorGenParams {
   hiddenWord?: string;
   /** Which clue to pick per word when multiple exist. Default "balanced". */
   difficulty?: DifficultyMode;
+  /**
+   * SPIKE (photo-in-grid): a rectangular block of cells reserved for a photo.
+   * These cells become walls — no word crosses them and they receive no letter.
+   * Must sit in the interior (x>=1, y>=1) so it never disturbs the potence/comb
+   * frame. Coords are grid cells (top-left origin).
+   */
+  reservedRect?: { x: number; y: number; w: number; h: number };
+  /**
+   * Total wall-clock budget (ms) for the layout search. Overrides the default
+   * (25s plain / 110s with custom words). Callers running on a higher-memory
+   * (more-vCPU) function with a larger `maxDuration` raise this so hard grids
+   * get enough time to solve instead of giving up early. Flows through the pool
+   * to each worker unchanged.
+   */
+  timeBudgetMs?: number;
 }
 
 /** Generation result */
@@ -159,10 +174,18 @@ function buildDictStats(wordList: WordList): DictStats {
 // Phase 2: Interior layout generation + optimization
 // ---------------------------------------------------------------------------
 
-/** Mutable grid representation for layout phase (just blue/white markers) */
-type LayoutCell = "blue" | "white";
+/**
+ * Mutable grid representation for layout phase. "reserved" (SPIKE: photo-in-grid)
+ * is a wall — it is neither a letter cell nor a clue cell, so every run-analysis
+ * that keys off `=== "white"` breaks a run at it automatically.
+ */
+type LayoutCell = "blue" | "white" | "reserved";
 
-function createLayoutFromSkeleton(width: number, height: number): LayoutCell[][] {
+function createLayoutFromSkeleton(
+  width: number,
+  height: number,
+  reserved?: ReadonlySet<string>,
+): LayoutCell[][] {
   const layout: LayoutCell[][] = [];
   for (let y = 0; y < height; y++) {
     const row: LayoutCell[] = [];
@@ -171,6 +194,7 @@ function createLayoutFromSkeleton(width: number, height: number): LayoutCell[][]
       if (x === 0 && y === 0) row.push("blue");
       else if (y === 0 && x % 2 === 0) row.push("blue");
       else if (x === 0 && y % 2 === 0) row.push("blue");
+      else if (reserved?.has(`${x},${y}`)) row.push("reserved");
       else row.push("white");
     }
     layout.push(row);
@@ -475,11 +499,13 @@ function generateRandomLayout(
   w: number,
   h: number,
   targetDensity: number,
+  reserved?: ReadonlySet<string>,
 ): LayoutCell[][] {
-  const layout = createLayoutFromSkeleton(w, h);
+  const layout = createLayoutFromSkeleton(w, h, reserved);
   const interiorCells: Coord[] = [];
   for (let y = 1; y < h; y++) {
     for (let x = 1; x < w; x++) {
+      if (layout[y][x] === "reserved") continue;
       interiorCells.push({ x, y });
     }
   }
@@ -528,7 +554,7 @@ function optimizeLayout(
     for (let y = 1; y < h; y++) {
       for (let x = 1; x < w; x++) {
         if (layout[y][x] === "blue") blues.push({ x, y });
-        else whites.push({ x, y });
+        else if (layout[y][x] === "white") whites.push({ x, y });
       }
     }
 
@@ -580,7 +606,12 @@ function optimizeLayout(
  * For each interior blue box, determine which clues it should hold based on
  * the white runs it can reach.
  */
-function layoutToGrid(layout: LayoutCell[][], w: number, h: number): Grid {
+function layoutToGrid(
+  layout: LayoutCell[][],
+  w: number,
+  h: number,
+  reserved?: ReadonlySet<string>,
+): Grid {
   const skeleton = createSkeletonGrid(w, h);
   const cells = skeleton.cells;
 
@@ -637,7 +668,7 @@ function layoutToGrid(layout: LayoutCell[][], w: number, h: number): Grid {
     }
   }
 
-  return { width: w, height: h, cells };
+  return { width: w, height: h, cells, reserved };
 }
 
 // ---------------------------------------------------------------------------
@@ -724,11 +755,15 @@ function extractSlots(grid: Grid): Slot[] {
     return null;
   }
 
+  const reserved = grid.reserved;
+  const isWall = (x: number, y: number) =>
+    grid.cells[y][x].kind !== "white" || (reserved?.has(`${x},${y}`) ?? false);
+
   // Scan all horizontal white runs
   for (let y = 0; y < grid.height; y++) {
     let runStart = -1;
     for (let x = 0; x <= grid.width; x++) {
-      const isW = x < grid.width && grid.cells[y][x].kind === "white";
+      const isW = x < grid.width && !isWall(x, y);
       if (isW && runStart === -1) {
         runStart = x;
       } else if (!isW && runStart !== -1) {
@@ -759,7 +794,7 @@ function extractSlots(grid: Grid): Slot[] {
   for (let x = 0; x < grid.width; x++) {
     let runStart = -1;
     for (let y = 0; y <= grid.height; y++) {
-      const isW = y < grid.height && grid.cells[y][x].kind === "white";
+      const isW = y < grid.height && !isWall(x, y);
       if (isW && runStart === -1) {
         runStart = y;
       } else if (!isW && runStart !== -1) {
@@ -1488,6 +1523,19 @@ function generateFlecheVectorImpl(
 ): VectorGenResult {
   const { width, height } = params;
 
+  // SPIKE (photo-in-grid): expand the reserved rectangle into a coord set once.
+  let reserved: ReadonlySet<string> | undefined;
+  if (params.reservedRect) {
+    const { x, y, w, h } = params.reservedRect;
+    const set = new Set<string>();
+    for (let ry = y; ry < y + h; ry++) {
+      for (let rx = x; rx < x + w; rx++) {
+        if (rx >= 1 && ry >= 1 && rx < width && ry < height) set.add(`${rx},${ry}`);
+      }
+    }
+    if (set.size > 0) reserved = set;
+  }
+
   // For a fixed-difficulty grid, precompute which words actually HAVE a clue at
   // the target level, so the fill prefers them and pickClue rarely falls back to
   // the wrong level. Purer difficulty at the cost of some generation speed.
@@ -1525,7 +1573,10 @@ function generateFlecheVectorImpl(
 
   const hasCustom = customClues.length > 0;
   const customCount = customClues.length;
-  const TOTAL_TIME_MS = hasCustom ? 110000 : 25000; // 110s for custom (API maxDuration=120)
+  // Default: 110s for custom / 25s plain. A caller on a boosted (more-vCPU,
+  // higher-maxDuration) function can raise this via params.timeBudgetMs so hard
+  // grids get enough time to solve instead of giving up at 110s.
+  const TOTAL_TIME_MS = params.timeBudgetMs ?? (hasCustom ? 110000 : 25000);
   const totalDeadline = Date.now() + TOTAL_TIME_MS;
   // Time is the real limiter (via totalDeadline); keep the attempt cap high so
   // it never cuts a run short. Each failed attempt is cheap thanks to the AC-3
@@ -1593,7 +1644,7 @@ function generateFlecheVectorImpl(
     const density = isSmallGrid
       ? 0.06 + Math.random() * 0.06 // 6-12% for small grids (fewer interior blues)
       : 0.11 + Math.random() * 0.04; // 11-15% → targets ~18-24 interior blues for 11x17
-    const layout = generateRandomLayout(width, height, density);
+    const layout = generateRandomLayout(width, height, density, reserved);
     const { layout: optimizedLayout, score } = optimizeLayout(
       layout,
       width,
@@ -1607,7 +1658,7 @@ function generateFlecheVectorImpl(
     if (score < -1000) continue;
 
     // Convert to grid
-    const grid = layoutToGrid(optimizedLayout, width, height);
+    const grid = layoutToGrid(optimizedLayout, width, height, reserved);
 
     // Validate structural constraints
     const validation = validateGrid(grid);

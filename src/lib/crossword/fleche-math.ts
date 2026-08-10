@@ -104,6 +104,13 @@ export interface Grid {
   readonly height: number;
   /** cells[y][x] — row-major, y is row, x is column */
   readonly cells: Cell[][];
+  /**
+   * SPIKE (photo-in-grid): coords ("x,y") reserved for a photo block. These
+   * cells stay `white`-kind in storage but are walls for the solver — no word
+   * run passes through them and they never receive a letter. Empty/undefined for
+   * ordinary grids.
+   */
+  reserved?: ReadonlySet<string>;
 }
 
 // ---------------------------------------------------------------------------

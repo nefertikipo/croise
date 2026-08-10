@@ -130,22 +130,49 @@ export function composeSolutionsPages({ addPage, g, fonts, grids }: SolutionsPag
       const x = pg.contentX + t.col * (tileW + TILE_GAP);
       const gridH = t.cellPt * grid.height;
 
-      // Caption "N°i" — "N°" in ink, the number in the brand blue (mirrors SolutionTile).
-      const prefix = "N°";
-      page.drawText(prefix, {
-        x,
-        y: pg.pageH - (t.yTop + CAPTION_SIZE),
-        size: CAPTION_SIZE,
-        font: fonts.heading,
-        color: hex2rgb(INK),
-      });
-      page.drawText(String(t.gridIdx + 1), {
-        x: x + fonts.heading.widthOfTextAtSize(prefix, CAPTION_SIZE),
-        y: pg.pageH - (t.yTop + CAPTION_SIZE),
-        size: CAPTION_SIZE,
-        font: fonts.heading,
-        color: hex2rgb(PRIMARY),
-      });
+      // Caption (mirrors SolutionTile): the grid's custom name when set — shrunk
+      // to fit the tile so a named grid can be matched back to its page — else
+      // "N°i" with "N°" in ink and the number in the brand blue.
+      const captionY = pg.pageH - (t.yTop + CAPTION_SIZE);
+      const title = grid.config.title?.trim();
+      if (title) {
+        let size = CAPTION_SIZE;
+        let label = title.toUpperCase();
+        while (size > 5 && fonts.heading.widthOfTextAtSize(label, size) > tileW) {
+          size -= 0.5;
+        }
+        // Still too wide at the floor size — truncate with an ellipsis so the
+        // caption never spills into the neighbouring tile or the grid below.
+        if (fonts.heading.widthOfTextAtSize(label, size) > tileW) {
+          while (label.length > 1 && fonts.heading.widthOfTextAtSize(label + "…", size) > tileW) {
+            label = label.slice(0, -1);
+          }
+          label += "…";
+        }
+        page.drawText(label, {
+          x,
+          y: pg.pageH - (t.yTop + size),
+          size,
+          font: fonts.heading,
+          color: hex2rgb(INK),
+        });
+      } else {
+        const prefix = "N°";
+        page.drawText(prefix, {
+          x,
+          y: captionY,
+          size: CAPTION_SIZE,
+          font: fonts.heading,
+          color: hex2rgb(INK),
+        });
+        page.drawText(String(t.gridIdx + 1), {
+          x: x + fonts.heading.widthOfTextAtSize(prefix, CAPTION_SIZE),
+          y: captionY,
+          size: CAPTION_SIZE,
+          font: fonts.heading,
+          color: hex2rgb(PRIMARY),
+        });
+      }
 
       const gridTop = t.yTop + CAPTION_H;
       drawFlecheGrid({

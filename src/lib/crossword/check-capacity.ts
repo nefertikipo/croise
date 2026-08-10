@@ -21,6 +21,14 @@ const TIGHT_FILL_RATIO = 0.35;
 export interface CapacityAnalysis {
   /** Normalized custom words longer than the grid's max dimension (can't fit). */
   tooLong: string[];
+  /**
+   * Placeable but risky-long words: as long as, or longer than, the grid's
+   * SHORTER side, so they only fit in the long direction and eat a near-full
+   * line. Heavily cross-constrained — the biggest single cause of a dense grid
+   * failing to generate. Excludes {@link tooLong} (those are impossible, not
+   * merely risky). Surfaced as a soft warning at word-entry time.
+   */
+  longWords: string[];
   /** Custom letters exceed the share the grid can hold — provably impossible. */
   overCapacity: boolean;
   /** Fraction of grid cells the custom letters would consume (0..1). */
@@ -53,25 +61,85 @@ export function recommendedCustomWords(width: number, height: number): number {
   return Math.min(14, Math.round(area / 18)); // larger than any offered format
 }
 
+/** Letters that are scarce in French fill — hard to satisfy at crossings. */
+const RARE_LETTERS = new Set("JKQWXYZ".split(""));
+
+function countRare(word: string): number {
+  let n = 0;
+  for (const ch of word) if (RARE_LETTERS.has(ch)) n++;
+  return n;
+}
+
+/**
+ * Should this request run on the boosted-CPU endpoint? "Easy" grids — few, short,
+ * common-letter words and no demanding mot caché — generate fast on the classic
+ * (cheaper) tier. Anything harder (many words, a long word, several rare letters,
+ * a dense fill, or a rare/long hidden word) gets more cores so it finishes inside
+ * the time budget. Pure + shared, so the client picks the endpoint and the server
+ * can double-check with the same logic.
+ */
+export function needsBoostedCompute(
+  width: number,
+  height: number,
+  customClues: { answer: string; clue: string }[],
+  hiddenWord?: string,
+): boolean {
+  const words = customClues
+    .map((c) => normalizeAnswer(c.answer))
+    .filter((w) => w.length >= 2);
+  const hidden = hiddenWord ? normalizeAnswer(hiddenWord) : "";
+
+  const wordCount = words.length;
+  const longest = words.reduce((m, w) => Math.max(m, w.length), 0);
+  const rare = words.reduce((n, w) => n + countRare(w), 0) + countRare(hidden);
+  const customLetters = words.reduce((n, w) => n + w.length, 0);
+  const fillRatio = width * height > 0 ? customLetters / (width * height) : 0;
+
+  // Each condition alone is enough to want the extra cores.
+  if (wordCount >= 3) return true;              // more than a couple of words
+  if (longest >= 7) return true;                // a long word to cross-constrain
+  if (rare >= 2) return true;                   // several scarce letters
+  if (fillRatio > TIGHT_FILL_RATIO) return true; // dense custom fill
+  if (hidden.length >= 7) return true;          // a long mot caché to satisfy
+  if (hidden.length >= 2 && countRare(hidden) >= 1) return true; // rare-letter mot caché
+  return false;
+}
+
 export function analyzeCapacity(
   width: number,
   height: number,
   customClues: { answer: string; clue: string }[],
+  /**
+   * Cells reserved for a photo block (see photo-presets.ts). They can hold no
+   * fill, so they shrink the grid the custom letters must share — the fill ratio
+   * is measured against the USABLE cells, not the raw area.
+   */
+  reservedCells = 0,
 ): CapacityAnalysis {
   const words = customClues
     .map((c) => normalizeAnswer(c.answer))
     .filter((w) => w.length >= 2);
 
   const maxDim = Math.max(width, height);
+  const minDim = Math.min(width, height);
   const tooLong = words.filter((w) => w.length > maxDim);
+  // Placeable (<= maxDim) but as long as / longer than the short side: only fits
+  // the long direction, so it's cross-constrained and hard to place.
+  const longWords = words.filter((w) => w.length <= maxDim && w.length >= minDim);
   const customLetters = words.reduce((n, w) => n + w.length, 0);
-  const fillRatio = width * height > 0 ? customLetters / (width * height) : 0;
+  const usableCells = Math.max(1, width * height - Math.max(0, reservedCells));
+  const fillRatio = customLetters / usableCells;
   const overCapacity = fillRatio > HARD_FILL_RATIO;
 
   let message: string | null = null;
   if (tooLong.length > 0) {
     const w = tooLong[0];
     message = `Le mot « ${w} » (${w.length} lettres) est trop long pour une grille ${width}×${height}. Choisissez une grille plus grande ou raccourcissez le mot.`;
+  } else if (longWords.length > 0) {
+    // Blocking (not just a warning): a word this long only fits the grid's long
+    // side, is heavily cross-constrained, and reliably makes generation fail.
+    const w = longWords[0];
+    message = `Le mot « ${w} » (${w.length} lettres) est trop long pour être placé de façon fiable dans une grille ${width}×${height}. Utilisez un mot de ${minDim - 1} lettres maximum, ou choisissez une grille plus grande.`;
   } else if (overCapacity) {
     message = `Trop de mots personnalisés pour une grille ${width}×${height}. Choisissez une grille plus grande ou retirez quelques mots.`;
   }
@@ -79,6 +147,7 @@ export function analyzeCapacity(
   const recommendedMax = recommendedCustomWords(width, height);
   return {
     tooLong,
+    longWords,
     overCapacity,
     fillRatio,
     tight: message === null && fillRatio > TIGHT_FILL_RATIO,
@@ -98,6 +167,7 @@ export function checkCapacity(
   width: number,
   height: number,
   customClues: { answer: string; clue: string }[],
+  reservedCells = 0,
 ): string | null {
-  return analyzeCapacity(width, height, customClues).message;
+  return analyzeCapacity(width, height, customClues, reservedCells).message;
 }

@@ -9,7 +9,7 @@
  * (see generate-cover.ts).
  */
 
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, type PDFPage } from "pdf-lib";
 import { embedBookFonts } from "@/lib/book-pdf/fonts";
 import { composeGridPage } from "@/lib/book-pdf/compose-grid-page";
 import { composeContentPage, composeDedicationPage } from "@/lib/book-pdf/compose-content-page";
@@ -21,16 +21,64 @@ import { getPhotoLayout, type PhotoLayout } from "@/lib/book-pdf/photo-layouts";
 import { getOriginal } from "@/lib/book-pdf/photo-store";
 import {
   hex2rgb,
+  mm2pt,
   pageGeometry,
   setPrintBoxes,
   sideForPageIndex,
   PAGE_SPECS,
   type AddPage,
+  type Geometry,
+  type PageSide,
   type PageSize,
 } from "@/lib/book-pdf/geometry";
+import type { BookFonts } from "@/lib/book-pdf/fonts";
 import type { BookData, ContentPageConfig, GridPage } from "@/types/book";
 
 const PAGE_BG = "#fff6ec";
+
+/** Muted ink for the page-number folios, low-contrast so it reads as chrome. */
+const FOLIO_INK = "#9a9088";
+
+/**
+ * Draw a page-number folio in the outer bottom margin: right-aligned to the
+ * fore-edge on a recto, left-aligned on a verso, so it always sits on the open
+ * (outer) side of the spread.
+ *
+ * Print-safe placement: the baseline is ~6 mm above the trim edge — inside the
+ * bottom margin, never in the 3.175 mm bleed, and ~2.8 mm clear of the
+ * worst-case POD trim shift — while staying ~2 mm below the content box, so it
+ * collides with neither the cut nor the page content. Horizontally it hugs the
+ * same 8 mm fore-edge safe line the content uses.
+ *
+ * `onPhoto` pages get a translucent cream plate behind the digits so the number
+ * reads as clearly as on the paper pages, whatever the photo's brightness.
+ */
+function drawFolio(
+  page: PDFPage,
+  g: Geometry,
+  side: PageSide,
+  n: number,
+  fonts: BookFonts,
+  onPhoto: boolean,
+): void {
+  const size = 8;
+  const label = String(n);
+  const w = fonts.letter.widthOfTextAtSize(label, size);
+  const y = g.bleedPt + mm2pt(6);
+  const x = side === "recto" ? g.contentX + g.contentW - w : g.contentX;
+  if (onPhoto) {
+    const padX = 3;
+    page.drawRectangle({
+      x: x - padX,
+      y: y - 2,
+      width: w + padX * 2,
+      height: size + 2,
+      color: hex2rgb(PAGE_BG),
+      opacity: 0.85,
+    });
+  }
+  page.drawText(label, { x, y, size, font: fonts.letter, color: hex2rgb(FOLIO_INK) });
+}
 
 /** Typical POD perfect-bound minimum — below this we warn, not block.
  * Re-exported from the client-safe constants module. */
@@ -62,6 +110,27 @@ export function countInteriorPages(book: BookData, size: PageSize = "a5"): numbe
   n += countSolutionsPages(grids, g);
   if (n % 4 !== 0) n += 4 - (n % 4); // blank pad to a multiple of 4 (signatures)
   return n;
+}
+
+/**
+ * Like {@link countInteriorPages} but never throws on a grid-less book: a book
+ * being built can hold content pages (or nothing) before its first grid, and
+ * the capacity guards still need a page count for it. A grid-less book has no
+ * index or solutions, so it is just the opening page + its content pages, padded
+ * to a signature. Use this for the printable-window guards (add-page routes,
+ * order gate); use countInteriorPages when a real PDF is about to be rendered.
+ */
+export function interiorPageCountForCapacity(book: BookData, size: PageSize = "a5"): number {
+  try {
+    return countInteriorPages(book, size);
+  } catch (err) {
+    if (err instanceof EmptyBookError) {
+      let n = 1 + book.pages.length; // opening page + any content pages
+      if (n % 4 !== 0) n += 4 - (n % 4);
+      return n;
+    }
+    throw err;
+  }
 }
 
 /** Fetch the full-res photos for a photo page's PHOTO slots, in slot order. */
@@ -96,6 +165,10 @@ export async function generateBookInteriorPdf(book: BookData, size: PageSize = "
     return { page, g };
   };
 
+  // Every page is folioed (below). Full-bleed photo pages are tracked so their
+  // folio gets a legibility plate behind it.
+  const photoPageIdx = new Set<number>();
+
   // 1) Opening page — always present so a grid is never the lonely first recto
   //    facing the inside cover. A personal message makes it the dedication;
   //    otherwise it's a title page (book title + a sign-off from the makers).
@@ -106,6 +179,7 @@ export async function generateBookInteriorPdf(book: BookData, size: PageSize = "
       g,
       fonts,
       text: book.dedicationText ?? "",
+      font: book.dedicationFont,
       title: book.title,
       authors: bookAuthors(book.clueIdeas),
     });
@@ -118,8 +192,9 @@ export async function generateBookInteriorPdf(book: BookData, size: PageSize = "
     const { page, g } = addPage();
     if (p.kind === "grid") {
       gridNumber += 1;
-      composeGridPage({ page, g, fonts, grid: p, gridNumber, mode: "puzzle" });
+      await composeGridPage({ doc, page, g, fonts, grid: p, gridNumber, mode: "puzzle" });
     } else if (p.config.layout === "photo") {
+      photoPageIdx.add(doc.getPageCount() - 1); // folio needs a plate over the image
       const layout = getPhotoLayout(p.config.photoLayout);
       const content = await loadPhotoContent(layout, p.config);
       await composePhotoPage({ doc, page, g, layout, content });
@@ -137,6 +212,15 @@ export async function generateBookInteriorPdf(book: BookData, size: PageSize = "
   while (doc.getPageCount() % 4 !== 0) {
     const { page, g } = addPage();
     page.drawRectangle({ x: 0, y: 0, width: g.pageW, height: g.pageH, color: hex2rgb(PAGE_BG) });
+  }
+
+  // 6) Folios — drawn last so they sit above each page's content. Every page is
+  //    numbered by physical position (opening page is 1), recto/verso decides
+  //    which side they hug, and photo pages get a legibility plate.
+  const pages = doc.getPages();
+  for (let i = 0; i < pages.length; i++) {
+    const side = sideForPageIndex(i);
+    drawFolio(pages[i], pageGeometry(spec, side), side, i + 1, fonts, photoPageIdx.has(i));
   }
 
   // Defensive: the counter and the composers share their pagination, so any

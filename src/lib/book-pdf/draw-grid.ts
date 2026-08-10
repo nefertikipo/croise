@@ -13,6 +13,7 @@ import { rgb, type PDFPage, type RGB } from "pdf-lib";
 import type { BookFonts } from "@/lib/book-pdf/fonts";
 import { hex2rgb, mixHex } from "@/lib/book-pdf/geometry";
 import { nfc } from "@/lib/book-pdf/text";
+import { NBSP, preventFrenchOrphans } from "@/lib/crossword/french-typography";
 import type { FlecheCell } from "@/types/book";
 
 /* Palette — mirrors the constants at the top of fleche-grid.tsx. */
@@ -126,15 +127,60 @@ interface FitResult {
   lines: string[];
 }
 
-/** Greedy word-wrap of `text` at `size`, char-breaking any word wider than the
- * box (mirrors the screen's break-words + hyphens-auto). */
+/** Split a clue into wrap tokens. Breaks on whitespace EXCEPT NBSP, so a
+ * one-letter word glued to the next word (see `preventFrenchOrphans`) stays one
+ * atomic token; the joiner is normalised to a plain space so the embedded font
+ * never sees NBSP. */
+function clueWords(text: string): string[] {
+  return text
+    .split(/[^\S\u00A0]+/)
+    .filter(Boolean)
+    .map((t) => t.replaceAll(NBSP, " "));
+}
+
+/** Char-break `word` into chunks that each fit the box (`fits`), but never a
+ * single-letter chunk: a lone letter is merged into a neighbour (overflowing the
+ * box a touch), because a line holding just one letter reads as broken. Greedy
+ * fill first, then a merge pass collapses any 1-char fragment. */
+function breakIntoChunks(word: string, fits: (s: string) => boolean): string[] {
+  const chunks: string[] = [];
+  let chunk = "";
+  for (const ch of word) {
+    if (fits(chunk + ch) || !chunk) chunk += ch;
+    else {
+      chunks.push(chunk);
+      chunk = ch;
+    }
+  }
+  if (chunk) chunks.push(chunk);
+  // Collapse any single-character fragment into an adjacent chunk.
+  let k = 0;
+  while (k < chunks.length && chunks.length > 1) {
+    if (chunks[k].length >= 2) {
+      k++;
+    } else if (k > 0) {
+      chunks[k - 1] += chunks[k];
+      chunks.splice(k, 1);
+      k = Math.max(0, k - 1);
+    } else {
+      chunks[k] += chunks[k + 1];
+      chunks.splice(k + 1, 1);
+    }
+  }
+  return chunks;
+}
+
+/** Greedy word-wrap of `text` at `size`, char-breaking a word wider than the box
+ * (mirrors the screen's break-on-overflow). A forced break never leaves a lone
+ * single letter on a line — fragments are kept to >=2 chars, overflowing the box
+ * slightly if that's the only way (see `breakIntoChunks`). */
 function wrapLines(
   font: BookFonts["clue"],
   text: string,
   size: number,
   boxW: number,
 ): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
+  const words = clueWords(text);
   const w = (s: string) => font.widthOfTextAtSize(s, size);
   const lines: string[] = [];
   let cur = "";
@@ -143,16 +189,9 @@ function wrapLines(
       cur = word;
       return;
     }
-    // Hard char-break an over-long word.
-    let chunk = "";
-    for (const ch of word) {
-      if (w(chunk + ch) <= boxW || !chunk) chunk += ch;
-      else {
-        lines.push(chunk);
-        chunk = ch;
-      }
-    }
-    cur = chunk;
+    const chunks = breakIntoChunks(word, (s) => w(s) <= boxW);
+    for (let k = 0; k < chunks.length - 1; k++) lines.push(chunks[k]);
+    cur = chunks[chunks.length - 1] ?? "";
   };
   for (const word of words) {
     const cand = cur ? `${cur} ${word}` : word;
@@ -316,7 +355,8 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
           const boxW = S - 7 * u;
           const boxH = subH - 4 * u;
           const italic = cl.text === cl.answer;
-          const fitted = fitText(fonts.clue, nfc(cl.text).toUpperCase(), boxW, boxH, (hasTwo ? 10 : 13) * u, 5 * u, 1.1);
+          const clueText = preventFrenchOrphans(nfc(cl.text).toUpperCase());
+          const fitted = fitText(fonts.clue, clueText, boxW, boxH, (hasTwo ? 10 : 13) * u, 5 * u, 1.1);
           const lineH = fitted.size * 1.1;
           // Center the text block vertically within the band, and each line
           // horizontally within the box (mirrors the screen's centred clues).

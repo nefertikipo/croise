@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { ClueIdeasImport } from "@/components/book/clue-ideas-import";
 import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
 import type { ClueIdea } from "@/types/book";
 
@@ -25,6 +27,8 @@ const UNCATEGORIZED = "Sans catégorie";
  * fill a whole grid from one category.
  */
 export function ClueIdeasEditor({ ideas, usage, onChange }: ClueIdeasEditorProps) {
+  const [importing, setImporting] = useState(false);
+
   function update(id: string, patch: Partial<ClueIdea>) {
     onChange(ideas.map((idea) => (idea.id === id ? { ...idea, ...patch } : idea)));
   }
@@ -174,12 +178,30 @@ export function ClueIdeasEditor({ ideas, usage, onChange }: ClueIdeasEditorProps
         </div>
       ))}
 
-      <button
-        onClick={() => add()}
-        className="rounded-none border-2 border-ink bg-white px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0] shadow-ink/60 transition-transform hover:-translate-y-0.5"
-      >
-        + Ajouter une idée
-      </button>
+      {importing && (
+        <ClueIdeasImport
+          existingCount={ideas.length}
+          onImport={(imported) => onChange([...ideas, ...imported])}
+          onClose={() => setImporting(false)}
+        />
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => add()}
+          className="rounded-none border-2 border-ink bg-white px-4 py-2 text-sm font-medium shadow-[2px_2px_0_0] shadow-ink/60 transition-transform hover:-translate-y-0.5"
+        >
+          + Ajouter une idée
+        </button>
+        {!importing && (
+          <button
+            onClick={() => setImporting(true)}
+            className="rounded-none border-2 border-ink/40 bg-white px-4 py-2 text-sm font-medium hover:border-ink"
+          >
+            Importer un CSV
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -29,6 +29,30 @@ function tsxExecArgv(): string[] | undefined {
   return ["--import", "tsx", "--import", pathToFileURL(bootstrap).href];
 }
 
+/**
+ * Where to load the worker from, and any exec args it needs.
+ *
+ * - tsx CLI (benchmark scripts): load the TS entry directly with tsx + the `@/`
+ *   alias hook registered (execArgv).
+ * - Next runtime (Vercel / prod): prefer the esbuild-prebuilt standalone CJS
+ *   bundle (`worker-dist/fleche-worker.cjs`, produced by scripts/build-fleche-
+ *   worker.mjs and traced into the function). It has no `/_next/*` chunk
+ *   dependencies, so it actually loads — unlike `new URL("./fleche-worker.ts")`,
+ *   whose webpack-emitted chunk references a `/_next/xxxx.js` path absent from
+ *   the deployed function (the bug this fixes).
+ * - Dev without a prebuild (or if the bundle is missing): fall back to the TS
+ *   entry so the bundler resolves it — no regression from prior behaviour.
+ */
+function workerTarget(): { spec: URL | string; opts?: { execArgv: string[] } } {
+  const execArgv = tsxExecArgv();
+  if (execArgv) {
+    return { spec: new URL("./fleche-worker.ts", import.meta.url), opts: { execArgv } };
+  }
+  const prebuilt = pathResolve(process.cwd(), "worker-dist", "fleche-worker.cjs");
+  if (existsSync(prebuilt)) return { spec: prebuilt };
+  return { spec: new URL("./fleche-worker.ts", import.meta.url) };
+}
+
 interface DoneMessage {
   type: "done";
   jobId: number;
@@ -50,9 +74,9 @@ export class FlechePool {
 
   constructor(size = Math.max(1, cpus().length - 1)) {
     const readies: Promise<void>[] = [];
-    const execArgv = tsxExecArgv();
+    const { spec, opts } = workerTarget();
     for (let i = 0; i < size; i++) {
-      const worker = new Worker(new URL("./fleche-worker.ts", import.meta.url), execArgv ? { execArgv } : undefined);
+      const worker = new Worker(spec, opts);
       // Per-worker readiness that RESOLVES on "ready" and REJECTS if the worker
       // dies on load — so a broken environment fails ready() fast instead of
       // waiting out the init timeout before falling back.

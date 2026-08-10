@@ -209,6 +209,9 @@
   .font-serif-accent {
     font-family: var(--font-serif), Georgia, serif;
   }
+  .font-instrument {
+    font-family: var(--font-instrument), Georgia, serif;
+  }
 
   /* Lapo's-style "vintage stamp" frame: a solid outer border, a thin inset
      inner rule, and a hard (blur-less) offset drop shadow. */

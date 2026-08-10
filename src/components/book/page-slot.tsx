@@ -110,7 +110,7 @@ function GridSlot({
     <BookPageFrame>
       <div
         ref={frameRef}
-        className="flex-1 flex items-center justify-center p-3 overflow-hidden"
+        className="flex-1 flex items-center justify-center p-2 overflow-hidden"
       >
         <div
           style={{
@@ -156,6 +156,7 @@ export function SlotInner({
     return (
       <DedicationPage
         text={book.dedicationText}
+        font={book.dedicationFont}
         title={book.title}
         authors={bookAuthors(book.clueIdeas)}
       />

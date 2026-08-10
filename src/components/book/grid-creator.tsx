@@ -4,16 +4,18 @@ import { useState } from "react";
 import { GenerationProgress } from "@/components/shared/generation-progress";
 import { WordIdeasHelper } from "@/components/fleche/word-ideas-helper";
 import { CustomWordsEditor } from "@/components/book/custom-words-editor";
+import { GridPhotoField } from "@/components/book/grid-photo-field";
 import { ClueIdeaPicker } from "@/components/book/clue-idea-picker";
 import { addPickedIdeas } from "@/components/book/pick-ideas";
 import { analyzeCapacity } from "@/lib/crossword/check-capacity";
+import { reservedRectForPreset } from "@/lib/crossword/photo-presets";
 import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
 import { CLUE_EXAMPLES, DIFFICULTY_INFO } from "@/lib/fleche/difficulty-guide";
 import { BOOK_MIN_GRIDS } from "@/lib/books/constants";
 import { GRID_FORMATS, DEFAULT_GRID_FORMAT } from "@/lib/crossword/grid-formats";
 import { GridFormatPreview } from "@/components/fleche/grid-format-preview";
-import type { ClueIdea, GridDifficulty } from "@/types/book";
+import type { ClueIdea, GridDifficulty, GridPhoto } from "@/types/book";
 
 const DIFFICULTIES: { v: GridDifficulty; label: string }[] = [
   { v: "facile", label: "Facile" },
@@ -29,6 +31,8 @@ export interface CreateGridOptions {
   difficulty: GridDifficulty;
   customClues: { answer: string; clue: string }[];
   hiddenWord?: string;
+  /** A photo reserved inside the grid, applied at generation time. */
+  photo?: GridPhoto;
 }
 
 interface GridCreatorProps {
@@ -68,12 +72,18 @@ export function GridCreator({
   const [difficulty, setDifficulty] = useState<GridDifficulty>("balanced");
   const [customClues, setCustomClues] = useState<{ answer: string; clue: string }[]>([]);
   const [hiddenWord, setHiddenWord] = useState("");
+  const [photo, setPhoto] = useState<GridPhoto | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
   const validCustom = customClues.filter(
     (c) => c.answer.trim().length >= 2 && c.clue.trim().length > 0,
   );
   const hasCustom = validCustom.length > 0;
+  // A photo makes the grid one-of-a-kind, so — like custom words — it forces a
+  // single grid rather than a batch.
+  const hasPhoto = !!photo;
+  const reservedRect = photo ? reservedRectForPreset(photo.preset, width, height) : null;
+  const reservedCells = reservedRect ? reservedRect.w * reservedRect.h : 0;
   const addedAnswers = new Set(customClues.map((c) => normalizeAnswer(c.answer)));
   function pickIdea(idea: ClueIdea) {
     pickIdeas([idea]);
@@ -82,8 +92,8 @@ export function GridCreator({
     setCustomClues((prev) => addPickedIdeas(prev, picked));
     setError(null);
   }
-  const effectiveCount = hasCustom ? 1 : count;
-  const capacity = analyzeCapacity(width, height, customClues);
+  const effectiveCount = hasCustom || hasPhoto ? 1 : count;
+  const capacity = analyzeCapacity(width, height, customClues, reservedCells);
   const canCreate = !busy && capacity.message === null;
   // Per-grid estimate: the batch runs one grid per request and the bar remounts
   // for each (keyed on genBatch.current), so it paces a single grid, not the sum.
@@ -102,6 +112,7 @@ export function GridCreator({
       difficulty,
       customClues: validCustom,
       hiddenWord: hiddenWord.trim() || undefined,
+      photo,
     });
     if (typeof result === "string") {
       setError(result);
@@ -245,6 +256,18 @@ export function GridCreator({
               onPick={(clue) => setCustomClues((prev) => [...prev, { answer: "", clue }])}
             />
 
+            {/* Photo inside the grid — chosen up front so the first generation
+                already builds the puzzle around it. */}
+            <div className="rounded-none border-2 border-ink/15 bg-muted/30 p-4">
+              <GridPhotoField
+                photo={photo}
+                width={width}
+                height={height}
+                onChange={setPhoto}
+                hint="La photo sera intégrée dès la génération de la grille."
+              />
+            </div>
+
             {/* Hidden word — a secondary, optional touch */}
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-sm font-medium whitespace-nowrap text-muted-foreground">
@@ -259,7 +282,7 @@ export function GridCreator({
             </div>
 
             {/* Count — automatic grids only (a personalized grid is unique) */}
-            {!hasCustom && (
+            {!hasCustom && !hasPhoto && (
               <div className="flex flex-wrap items-center gap-2">
                 <label className="mr-2 font-display text-sm uppercase tracking-wide text-ink">
                   Nombre
@@ -288,7 +311,7 @@ export function GridCreator({
                 disabled={!canCreate}
                 className="btn-lapos rounded-none bg-brand px-7 py-3 text-base text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
               >
-                {hasCustom
+                {hasCustom || hasPhoto
                   ? "Créer ma grille personnalisée"
                   : count > 1
                     ? `Créer ${count} grilles`

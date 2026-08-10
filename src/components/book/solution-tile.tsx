@@ -17,17 +17,28 @@ interface SolutionTileProps {
  * One miniature answer-key grid for the Solutions page — the classic mots
  * fléchés look: plain grey clue blocks, black letters on white, no clue text or
  * arrows. Every tile renders at the same small cell size (so bigger grids make
- * bigger tiles), captioned "N°X" and sized to tile several per row.
+ * bigger tiles), captioned with the grid's custom name (or "N°X" when unnamed)
+ * so it matches the grid page — and sized to tile several per row.
  */
 export function SolutionTile({ page, index, cellPx = 26 }: SolutionTileProps) {
   const gridW = page.width * CELL_SIZE;
   const gridH = page.height * CELL_SIZE;
   const scale = cellPx / CELL_SIZE;
+  const title = page.config.title?.trim();
 
   return (
     <div className="flex flex-col gap-1" style={{ width: gridW * scale }}>
-      <span className="font-heading text-xs uppercase leading-none text-foreground">
-        N°<span className="text-primary">{index}</span>
+      <span
+        className="truncate font-heading text-xs uppercase leading-none text-foreground"
+        title={title}
+      >
+        {title ? (
+          title
+        ) : (
+          <>
+            N°<span className="text-primary">{index}</span>
+          </>
+        )}
       </span>
       <div style={{ width: gridW * scale, height: gridH * scale }}>
         <div

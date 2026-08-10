@@ -39,6 +39,23 @@ export interface CoverConfig {
 
 export type GridDifficulty = "facile" | "moyen" | "difficile" | "balanced";
 
+/**
+ * A photo embedded inside a grid: a rectangular block of cells (see
+ * `photo-presets.ts`) is reserved for the picture and the grid fills around it.
+ * The block only takes effect on the NEXT regeneration; until then the editor
+ * overlays it at the preset position as a preview.
+ */
+export interface GridPhoto {
+  /** Preset position id (see PhotoPresetId). */
+  preset: string;
+  /** Storage ref for the full-res original (see photo-store.ts). */
+  photoRef?: string;
+  /** Small preview data URL for the editor. NOT for print. */
+  imageUrl?: string;
+  /** Maker's crop of the original, as fractions (0..1). */
+  crop?: { x: number; y: number; w: number; h: number };
+}
+
 /** Persisted shape of a grid page's `config`. */
 export interface GridPageConfig {
   /** Custom name for this grid; falls back to "Grille N" when unset. */
@@ -47,6 +64,8 @@ export interface GridPageConfig {
   hiddenWord?: string;
   /** Clue difficulty used when (re)generating this grid. Default "balanced". */
   difficulty?: GridDifficulty;
+  /** A photo reserved inside the grid, or absent for a plain grid. */
+  photo?: GridPhoto;
 }
 
 export type ContentLayout = "note" | "quote" | "photo";
@@ -148,6 +167,8 @@ export interface BookData {
   title: string;
   description: string | null;
   dedicationText: string | null;
+  /** Maker's chosen dedication typeface (a DedicationFontKey); null = default. */
+  dedicationFont: string | null;
   coverConfig: CoverConfig | null;
   /** Design-time clue-idea notepad (not printed). Empty when never used. */
   clueIdeas: ClueIdea[];

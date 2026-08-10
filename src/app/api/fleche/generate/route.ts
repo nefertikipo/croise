@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { generateFlecheVector, type VectorGenResult } from "@/lib/crossword/fleche-vector-gen";
-import { getFrenchWordList, getFrenchClueDb, getFrenchClueDifficulty, ensureLoaded } from "@/lib/crossword/load-french-clues";
-import { getFlechePool } from "@/lib/crossword/fleche-pool-singleton";
+import { runFlecheGeneration } from "@/lib/crossword/run-fleche-generation";
 import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
 import { generateCrosswordCode } from "@/lib/code";
-import { checkCapacity } from "@/lib/crossword/check-capacity";
+import { checkCapacity, needsBoostedCompute } from "@/lib/crossword/check-capacity";
 import { normalizeAnswer, answerBreaks } from "@/lib/crossword/normalize";
 import { auth } from "@/lib/auth";
 import type { Coord } from "@/lib/crossword/fleche-math";
 
-export const maxDuration = 120;
+// 300s (Vercel Pro max) so a hard grid on the boosted endpoint has time to solve
+// without the function being killed mid-generation. Easy grids still return fast.
+export const maxDuration = 300;
 
 const requestSchema = z.object({
   width: z.number().min(5).max(20).default(10),
@@ -50,59 +50,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: capacityError }, { status: 400 });
     }
 
+    // Hard grids get a much larger time budget (they run on the boosted-CPU
+    // endpoint, whose maxDuration is 300s). Easy grids keep the default budget so
+    // they still fail fast rather than hanging.
+    const hard = needsBoostedCompute(
+      params.width,
+      params.height,
+      params.customClues,
+      params.hiddenWord,
+    );
+
     const genParams = {
       width: params.width,
       height: params.height,
       customClues: params.customClues,
       hiddenWord: params.hiddenWord,
       difficulty: params.difficulty,
+      timeBudgetMs: hard ? 240000 : undefined,
     };
 
-    // Prefer the warm worker pool (races layouts across cores → higher success
-    // on dense custom-word grids). Its workers hold their own corpus copy and
-    // apply the excludes themselves, so the main thread only loads the corpus
-    // when it actually has to fall back. Fall back to single-threaded only when
-    // the pool ERRORS — a pool that ran and found no solution is a real failure,
-    // so re-running single-threaded would just waste another budget and fail again.
-    let result: VectorGenResult | null = null;
-    let handledByPool = false;
-    const pool = await getFlechePool();
-    if (pool) {
-      try {
-        const r = await pool.generate(genParams, {
-          excludeAnswers: params.excludeAnswers,
-          excludeClues: params.excludeClues,
-          maxWaitMs: 118000,
-        });
-        result = r.result;
-        handledByPool = true;
-      } catch (poolErr) {
-        console.error("[fleche] pool error, single-threaded fallback:", poolErr);
-      }
-    }
-    if (!handledByPool) {
-      await ensureLoaded();
-      const wordList = getFrenchWordList();
-      const rawClueDb = getFrenchClueDb();
-      const clueDifficulty = getFrenchClueDifficulty();
-
-      // Filter out excluded clues and answers (regeneration variety).
-      let clueDb = rawClueDb;
-      const excludedClues = new Set(params.excludeClues);
-      const excludedAnswers = new Set(params.excludeAnswers.map((a) => a.toUpperCase()));
-      if (excludedClues.size > 0 || excludedAnswers.size > 0) {
-        clueDb = new Map();
-        for (const [word, clues] of rawClueDb) {
-          if (excludedAnswers.has(word)) continue; // skip entire word
-          const filtered = excludedClues.size > 0
-            ? clues.filter((c) => !excludedClues.has(c))
-            : clues;
-          if (filtered.length > 0) clueDb.set(word, filtered);
-        }
-      }
-
-      result = generateFlecheVector(genParams, wordList, clueDb, clueDifficulty);
-    }
+    // Race the warm worker pool across cores (higher success on dense custom-word
+    // grids), falling back to single-threaded only when the pool errors. Shared
+    // with the book grid path so both get the same multi-core treatment.
+    const result = await runFlecheGeneration(genParams, {
+      excludeAnswers: params.excludeAnswers,
+      excludeClues: params.excludeClues,
+      // Safety net above the worker's own time budget (240s for hard grids),
+      // under the 300s maxDuration. The worker returns as soon as it solves.
+      maxWaitMs: 285000,
+    });
 
     if (!result || !result.success) {
       const customWords = (params.customClues ?? [])
