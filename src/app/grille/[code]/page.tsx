@@ -173,6 +173,12 @@ export default function GrillePage() {
             Imprimer / PDF
           </Button>
           <ShareGridButton url={`/grille/${code}`} title={title} />
+          <Button
+            onClick={() => router.push(`/poster/${code}`)}
+            className="btn-lapos rounded-none bg-brand px-4 py-2.5 text-sm text-brand-foreground"
+          >
+            Commander en poster
+          </Button>
           {isOwner && (
             <Button
               onClick={() => router.push("/fleche")}

@@ -20,6 +20,14 @@ export function generateBookCode(): string {
   return `BOOK-${generateCode()}`;
 }
 
+export function generatePostcardCode(): string {
+  return `CARD-${generateCode()}`;
+}
+
+export function generateCalendarCode(): string {
+  return `CAL-${generateCode()}`;
+}
+
 /** True when a Postgres write failed on a unique constraint (SQLSTATE 23505). */
 export function isUniqueViolation(error: unknown): boolean {
   return (

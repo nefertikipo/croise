@@ -53,6 +53,12 @@ export function AuthNav({
         <Link href="/mes-livres" onClick={onNavigate} className={row}>
           Mes livres
         </Link>
+        <Link href="/mes-cartes" onClick={onNavigate} className={row}>
+          Mes cartes
+        </Link>
+        <Link href="/mes-calendriers" onClick={onNavigate} className={row}>
+          Mes calendriers
+        </Link>
         <button onClick={handleSignOut} className={`${row} text-brand`}>
           Déconnexion
         </button>
@@ -108,6 +114,20 @@ export function AuthNav({
               className="block border-t-2 border-ink px-4 py-2.5 font-display text-xs uppercase tracking-wide text-ink hover:bg-ink/5"
             >
               Mes livres
+            </Link>
+            <Link
+              href="/mes-cartes"
+              onClick={() => setOpen(false)}
+              className="block border-t-2 border-ink px-4 py-2.5 font-display text-xs uppercase tracking-wide text-ink hover:bg-ink/5"
+            >
+              Mes cartes
+            </Link>
+            <Link
+              href="/mes-calendriers"
+              onClick={() => setOpen(false)}
+              className="block border-t-2 border-ink px-4 py-2.5 font-display text-xs uppercase tracking-wide text-ink hover:bg-ink/5"
+            >
+              Mes calendriers
             </Link>
             <button
               onClick={handleSignOut}

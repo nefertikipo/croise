@@ -7,6 +7,8 @@ import { AuthNav } from "@/components/shared/auth-nav";
 
 const LINKS = [
   { href: "/fleche", label: "Créer" },
+  { href: "/carte/nouveau", label: "Carte" },
+  { href: "/calendrier/nouveau", label: "Calendrier" },
   { href: "/idees-de-mots", label: "Idées de mots" },
   { href: "/contribuer", label: "Contribuer" },
 ];
