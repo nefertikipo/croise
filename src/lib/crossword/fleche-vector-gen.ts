@@ -1165,9 +1165,56 @@ function solveFill(
   const assignment = new Map<number, string>();
   const usedWords = new Set<string>();
   const lockedSlots = new Set<number>();
+
+  // Near-duplicate guard: a grid must never carry a word AND a barely-different
+  // inflection of it (SIS/SISE/SISES, TRAIT/TRAITS, PETIT/PETITE, an -X plural…).
+  // Two words are near-dups when the shorter is a prefix of the longer and only
+  // 1–2 trailing letters differ — i.e. plural/feminine/derived forms that read
+  // as "the same word twice". We gate on shorter length ≥ 3 so the 2-letter
+  // structural glue (ET/ÉTÉ, OU…) is never pruned by this rule; stranding a
+  // near-dup like ÉTÉ-vs-ET would starve the dense fill for no reader benefit.
+  // `usedShorterForms` (refcounted) holds the short prefixes of placed words so
+  // the check stays O(1) per candidate in both directions. Kill switch:
+  // FLECHE_DISABLE_NEARDUP=1.
+  const NEARDUP_MIN_LEN = 3;
+  const nearDupEnabled = process.env.FLECHE_DISABLE_NEARDUP !== "1";
+  const usedShorterForms = new Map<string, number>();
+  function markUsed(word: string): void {
+    usedWords.add(word);
+    for (const k of [1, 2]) {
+      if (word.length - k >= NEARDUP_MIN_LEN) {
+        const pre = word.slice(0, word.length - k);
+        usedShorterForms.set(pre, (usedShorterForms.get(pre) ?? 0) + 1);
+      }
+    }
+  }
+  function unmarkUsed(word: string): void {
+    usedWords.delete(word);
+    for (const k of [1, 2]) {
+      if (word.length - k >= NEARDUP_MIN_LEN) {
+        const pre = word.slice(0, word.length - k);
+        const c = usedShorterForms.get(pre);
+        if (c !== undefined) {
+          if (c <= 1) usedShorterForms.delete(pre);
+          else usedShorterForms.set(pre, c - 1);
+        }
+      }
+    }
+  }
+  /** True if `w` is a near-dup of any already-used word (either direction). */
+  function isNearDup(w: string): boolean {
+    if (!nearDupEnabled) return false;
+    // w is the SHORT prefix of a longer used word (SIS after SISES was placed).
+    if (usedShorterForms.has(w)) return true;
+    // A used word is the short prefix of w (SISES after SIS was placed).
+    if (w.length - 1 >= NEARDUP_MIN_LEN && usedWords.has(w.slice(0, w.length - 1))) return true;
+    if (w.length - 2 >= NEARDUP_MIN_LEN && usedWords.has(w.slice(0, w.length - 2))) return true;
+    return false;
+  }
+
   for (const [slotId, word] of preAssigned) {
     assignment.set(slotId, word);
-    usedWords.add(word);
+    markUsed(word);
     lockedSlots.add(slotId);
   }
   let backtracks = 0;
@@ -1231,9 +1278,11 @@ function solveFill(
       candidates = candidates.filter((w) => wordList.getScore(w) >= floorMinKnown);
     }
 
-    // Filter out already-used words
+    // Filter out already-used words AND their near-duplicates (see the
+    // near-duplicate guard above): no grid may show a word beside its plural/
+    // feminine/derived twin.
     if (usedWords.size > 0) {
-      candidates = candidates.filter((w) => !usedWords.has(w));
+      candidates = candidates.filter((w) => !usedWords.has(w) && !isNearDup(w));
     }
 
     return candidates;
@@ -1324,7 +1373,7 @@ function solveFill(
     for (let ci = 0; ci < limit; ci++) {
       const word = candidates[ci];
       assignment.set(slotId, word);
-      usedWords.add(word);
+      markUsed(word);
 
       // Forward check: verify all unassigned crossing neighbors still have candidates
       let viable = true;
@@ -1343,12 +1392,12 @@ function solveFill(
       backtracks++;
       if (backtracks > maxBacktracks || Date.now() > deadline) {
         assignment.delete(slotId);
-        usedWords.delete(word);
+        unmarkUsed(word);
         return false;
       }
 
       assignment.delete(slotId);
-      usedWords.delete(word);
+      unmarkUsed(word);
     }
 
     return false;
