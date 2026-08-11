@@ -52,6 +52,21 @@ export function dedicationSignatureNames(
   return override.length > 0 ? override : bookAuthors(clueIdeas);
 }
 
+/** The default opening-page sign-off, keyed on how many people sign it:
+ * "Avec tout notre amour," for a group, "Avec tout mon amour," when solo. */
+export function defaultDedicationSignoff(names: string[]): string {
+  return names.length > 1 ? "Avec tout notre amour," : "Avec tout mon amour,";
+}
+
+/** The sign-off line to print above the signature: the maker's explicit line
+ * wins; otherwise the default keyed on the number of signatories. */
+export function dedicationSignoffLine(
+  signoff: string | null | undefined,
+  names: string[],
+): string {
+  return signoff?.trim() ? signoff.trim() : defaultDedicationSignoff(names);
+}
+
 /** French enumeration: "Alice", "Alice et Bob", "Alice, Bob et Carla". */
 export function formatAuthorList(names: string[]): string {
   if (names.length === 0) return "";

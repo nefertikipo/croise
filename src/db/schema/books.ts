@@ -17,6 +17,9 @@ export const books = pgTable("books", {
   // Free-text signature for the opening page ("Avec tout notre amour, …").
   // Null/empty falls back to the contributor names from the clue-idea notepad.
   dedicationSignature: text("dedication_signature"),
+  // Free-text sign-off line above the signature ("Avec tout notre amour,").
+  // Null/empty falls back to a default keyed on the number of contributors.
+  dedicationSignoff: text("dedication_signoff"),
   coverConfig: jsonb("cover_config"),
   // Design-time notepad: brainstormed clue ideas (answer + clue) the maker can
   // drop into any grid. Not a printed section — a workspace. Typed as `ClueIdea[]`.

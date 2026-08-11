@@ -178,6 +178,9 @@ export interface BookData {
   /** Free-text opening-page signature; null/empty falls back to the clue-idea
    * notepad contributors. */
   dedicationSignature: string | null;
+  /** Free-text sign-off line above the signature ("Avec tout notre amour,");
+   * null/empty falls back to a default keyed on the number of contributors. */
+  dedicationSignoff: string | null;
   coverConfig: CoverConfig | null;
   /** Design-time clue-idea notepad (not printed). Empty when never used. */
   clueIdeas: ClueIdea[];
