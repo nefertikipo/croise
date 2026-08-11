@@ -83,7 +83,7 @@ export function composeDedicationPage({ page, g, fonts, text, font, title, autho
     const love = dedicationSignoffLine(signoff, authors);
     const signSize = 12;
     const signLineH = signSize * 1.35;
-    const signLines = authors.length > 0 ? [love, ...wrapText(fonts.heading, formatAuthorList(authors), signSize, maxW)] : [];
+    const signLines = authors.length > 0 ? [love, ...wrapText(dedicationFont, formatAuthorList(authors), signSize, maxW)] : [];
 
     const overlineGap = 26;
     const ruleGap = 24;
@@ -108,7 +108,7 @@ export function composeDedicationPage({ page, g, fonts, text, font, title, autho
     if (signLines.length > 0) {
       yTop += signGap;
       for (const line of signLines) {
-        drawCentered(line, yTop, signSize);
+        drawCentered(line, yTop, signSize, dedicationFont);
         yTop += signLineH;
       }
     }
