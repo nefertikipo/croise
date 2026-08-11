@@ -53,6 +53,13 @@ export async function POST(request: Request) {
   try {
     const session = await auth.api.getSession({ headers: request.headers });
     const ownerId = session?.user.id ?? null;
+    // Products are behind a login: an account is required to create a card.
+    if (!ownerId) {
+      return NextResponse.json(
+        { error: "Connectez-vous pour créer une carte." },
+        { status: 401 },
+      );
+    }
 
     const body = await request.json().catch(() => ({}));
     const result = requestSchema.safeParse(body ?? {});
