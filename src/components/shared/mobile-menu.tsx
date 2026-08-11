@@ -2,13 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CreateBookLink } from "@/components/shared/create-book-link";
 import { AuthNav } from "@/components/shared/auth-nav";
+import { PRODUCT_LINKS } from "@/components/shared/product-menu";
 
 const LINKS = [
-  { href: "/fleche", label: "Créer" },
-  { href: "/carte/nouveau", label: "Carte" },
-  { href: "/calendrier/nouveau", label: "Calendrier" },
   { href: "/idees-de-mots", label: "Idées de mots" },
   { href: "/contribuer", label: "Contribuer" },
 ];
@@ -51,6 +48,26 @@ export function MobileMenu() {
       {open ? (
         <div className="absolute inset-x-0 top-full border-b-2 border-ink bg-paper shadow-lg">
           <div className="mx-auto flex max-w-5xl flex-col gap-1 px-4 py-4">
+            <Link
+              href="/fleche"
+              onClick={() => setOpen(false)}
+              className="border-b border-ink/10 py-3 font-display text-base uppercase tracking-wide text-ink transition-colors hover:text-brand"
+            >
+              Créer une grille
+            </Link>
+            <p className="pt-1 pb-1 font-display text-xs uppercase tracking-[0.2em] text-ink/40">
+              Produit
+            </p>
+            {PRODUCT_LINKS.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                onClick={() => setOpen(false)}
+                className="border-b border-ink/10 py-3 pl-3 font-display text-base uppercase tracking-wide text-ink transition-colors hover:text-brand"
+              >
+                {l.label}
+              </Link>
+            ))}
             {LINKS.map((l) => (
               <Link
                 key={l.href}
@@ -62,7 +79,6 @@ export function MobileMenu() {
               </Link>
             ))}
             <AuthNav variant="sheet" onNavigate={() => setOpen(false)} />
-            <CreateBookLink className="border-b border-ink/10 py-3 text-left font-display text-base uppercase tracking-wide text-ink transition-colors hover:text-brand" />
             <Link
               href="/fleche"
               onClick={() => setOpen(false)}

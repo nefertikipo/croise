@@ -1,12 +1,9 @@
 import Link from "next/link";
-import { CreateBookLink } from "@/components/shared/create-book-link";
 import { MobileMenu } from "@/components/shared/mobile-menu";
 import { AuthNav } from "@/components/shared/auth-nav";
+import { ProductMenu } from "@/components/shared/product-menu";
 
 const LINKS = [
-  { href: "/fleche", label: "Créer" },
-  { href: "/carte/nouveau", label: "Carte" },
-  { href: "/calendrier/nouveau", label: "Calendrier" },
   { href: "/idees-de-mots", label: "Idées de mots" },
   { href: "/contribuer", label: "Contribuer" },
 ];
@@ -33,6 +30,13 @@ export function Nav() {
           </Link>
 
           <div className="hidden items-center gap-6 sm:flex">
+            <Link
+              href="/fleche"
+              className="font-display text-sm uppercase tracking-wide text-ink transition-colors hover:text-brand"
+            >
+              Créer une grille
+            </Link>
+            <ProductMenu />
             {LINKS.map((l) => (
               <Link
                 key={l.href}
@@ -42,7 +46,6 @@ export function Nav() {
                 {l.label}
               </Link>
             ))}
-            <CreateBookLink />
             <AuthNav />
           </div>
 
