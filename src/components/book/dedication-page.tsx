@@ -21,12 +21,12 @@ interface DedicationPageProps {
  */
 export function DedicationPage({ text, font, title, authors = [], signoff }: DedicationPageProps) {
   const love = dedicationSignoffLine(signoff, authors);
+  const { className } = resolveDedicationFont(font);
 
   if (text) {
     // Framed like the printed page (compose-content-page.ts): a title overline,
     // the message, a rule, then a maker sign-off — so it never reads as one
     // lonely line and matches what actually prints.
-    const { className } = resolveDedicationFont(font);
     return (
       <BookPageFrame>
         <div className="flex-1 flex flex-col items-center justify-center px-14 py-20 text-center">
@@ -41,8 +41,8 @@ export function DedicationPage({ text, font, title, authors = [], signoff }: Ded
           <div className="mt-8 h-px w-16 bg-primary" />
           {authors.length > 0 && (
             <div className="mt-8">
-              <p className="font-serif-accent text-lg italic text-foreground">{love}</p>
-              <p className="mt-1 font-serif-accent text-lg text-foreground">
+              <p className={`${className} text-lg text-foreground`}>{love}</p>
+              <p className={`${className} mt-1 text-lg text-foreground`}>
                 {formatAuthorList(authors)}
               </p>
             </div>
@@ -61,8 +61,8 @@ export function DedicationPage({ text, font, title, authors = [], signoff }: Ded
         <div className="mt-8 h-px w-16 bg-primary" />
         {authors.length > 0 && (
           <div className="mt-10">
-            <p className="font-serif-accent text-lg italic text-foreground">{love}</p>
-            <p className="mt-1 font-serif-accent text-lg text-foreground">
+            <p className={`${className} text-lg text-foreground`}>{love}</p>
+            <p className={`${className} mt-1 text-lg text-foreground`}>
               {formatAuthorList(authors)}
             </p>
           </div>
