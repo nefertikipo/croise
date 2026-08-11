@@ -6,6 +6,15 @@
 
 import type { BookWord, FlecheCell } from "@/types/book";
 
+/**
+ * How a card reaches its recipient:
+ * - "self": we print the front (title + grid) and leave the back blank (guide
+ *   lines) for a handwritten note; the card ships to the buyer, who posts it.
+ * - "direct": we print the typed message on the back and ship straight to the
+ *   recipient.
+ */
+export type PostcardDelivery = "self" | "direct";
+
 /** The grid printed on the front of a card, ready to render. Null until a grid
  * has been generated (a fresh draft has no crossword yet). */
 export interface PostcardGrid {

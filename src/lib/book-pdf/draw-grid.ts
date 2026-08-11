@@ -50,7 +50,20 @@ export interface DrawGridOptions {
   accentHex?: string;
   /** "row,col" → 1-indexed hidden-word position. */
   hidden?: Map<string, number>;
+  /**
+   * Hand-drawn "sketch" theme (used by the carte): wobbly green strokes and pink
+   * clue cells instead of the crisp blueprint look. Ignored for `plain` mode so
+   * a solution answer key stays clean and legible.
+   */
+  sketch?: boolean;
 }
+
+/* Sketch (hand-drawn) palette — green ink, pink clue cells. */
+const SKETCH_INK = "#2f6b4a"; // forest-green strokes: borders, arrows, rules
+const SKETCH_CLUE_BG = "#f6d4d9"; // soft pink clue cells
+const SKETCH_CUSTOM_BG = "#eeb0c0"; // deeper pink for custom (personal) clues
+const SKETCH_CELL_BORDER = "#9ac4ab"; // light-green letter-cell outline
+const SKETCH_HIDDEN_ACCENT = "#c0537a"; // pink-red for hidden-word cells
 
 /* ------------------------------------------------------------------ arrows */
 
@@ -248,10 +261,19 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
   const u = S / 70;
   const accent = opts.accentHex || DEFAULT_ACCENT_HEX;
   const plain = mode === "plain";
-  const clueBg = plain ? hex2rgb(PLAIN_CLUE_BG) : mixHex(PAPER, accent, 0.18);
-  const clueRule = mixHex(PAPER, accent, 0.45);
-  const customBg = hex2rgb(CUSTOM_BG);
-  const hiddenAccent = hex2rgb(HIDDEN_ACCENT);
+  const sketch = (opts.sketch ?? false) && !plain;
+  // Stroke ink (borders, rules, arrows) turns green in the sketch theme; clue
+  // and letter TEXT stays dark ink for legibility.
+  const strokeInk = sketch ? hex2rgb(SKETCH_INK) : INK_RGB;
+  const clueBg = plain
+    ? hex2rgb(PLAIN_CLUE_BG)
+    : sketch
+      ? hex2rgb(SKETCH_CLUE_BG)
+      : mixHex(PAPER, accent, 0.18);
+  const clueRule = sketch ? hex2rgb(SKETCH_INK) : mixHex(PAPER, accent, 0.45);
+  const customBg = sketch ? hex2rgb(SKETCH_CUSTOM_BG) : hex2rgb(CUSTOM_BG);
+  const hiddenAccent = sketch ? hex2rgb(SKETCH_HIDDEN_ACCENT) : hex2rgb(HIDDEN_ACCENT);
+  const letterBorder = sketch ? hex2rgb(SKETCH_CELL_BORDER) : hex2rgb(LETTER_BORDER);
 
   /** Bottom-left rect for grid cell (r,c). */
   const cellRect = (r: number, c: number) => ({
@@ -268,6 +290,10 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
     page.drawRectangle({ x: b.x, y: b.y, width: b.w, height: b.h, color });
   };
   const border = (r: number, c: number, color: RGB, thickness: number) => {
+    if (sketch) {
+      sketchRect(page, r, c, S, originX, originTop, pageH, color, Math.max(thickness, 0.9 * u), u);
+      return;
+    }
     const b = cellRect(r, c);
     page.drawRectangle({ x: b.x, y: b.y, width: b.w, height: b.h, borderColor: color, borderWidth: thickness, opacity: 0 });
   };
@@ -290,7 +316,7 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
       const cell = cells[r][c];
       if (cell.type === "empty") {
         fill(r, c, hex2rgb(EMPTY_BG));
-        border(r, c, hex2rgb(EMPTY_BORDER), 0.5 * u);
+        border(r, c, sketch ? letterBorder : hex2rgb(EMPTY_BORDER), 0.5 * u);
       } else if (cell.type === "clue") {
         fill(r, c, clueBg);
         if (!plain) border(r, c, clueRule, 0.5 * u);
@@ -300,7 +326,7 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
         const isHidden = opts.hidden?.has(key) ?? false;
         fill(r, c, plain ? rgb(1, 1, 1) : isHidden ? hex2rgb(HIDDEN_BG) : hex2rgb(PAPER));
         if (isHidden) border(r, c, plain ? INK_RGB : hiddenAccent, 1.4 * u);
-        else border(r, c, hex2rgb(LETTER_BORDER), 0.5 * u);
+        else border(r, c, letterBorder, 0.5 * u);
       }
     }
   }
@@ -409,10 +435,10 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
       if (cell.type !== "letter") continue;
       const b = cellRect(r, c);
       if (cell.breakRight) {
-        page.drawLine({ start: { x: b.x + b.w, y: b.y }, end: { x: b.x + b.w, y: b.y + b.h }, thickness: 2 * u, color: INK_RGB, dashArray: [3 * u, 2 * u] });
+        page.drawLine({ start: { x: b.x + b.w, y: b.y }, end: { x: b.x + b.w, y: b.y + b.h }, thickness: 2 * u, color: strokeInk, dashArray: [3 * u, 2 * u] });
       }
       if (cell.breakBottom) {
-        page.drawLine({ start: { x: b.x, y: b.y }, end: { x: b.x + b.w, y: b.y }, thickness: 2 * u, color: INK_RGB, dashArray: [3 * u, 2 * u] });
+        page.drawLine({ start: { x: b.x, y: b.y }, end: { x: b.x + b.w, y: b.y }, thickness: 2 * u, color: strokeInk, dashArray: [3 * u, 2 * u] });
       }
     }
   }
@@ -443,8 +469,12 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
             sorted.length === 1 ? 0.5 : center,
             S,
           );
-          drawPolyline(page, geo.shaft, originX, originTop, pageH, INK_RGB, 3 * u);
-          drawFilledTri(page, geo.head, originX, originTop, pageH, INK_RGB);
+          if (sketch) {
+            sketchStroke(page, geo.shaft, originX, originTop, pageH, strokeInk, 2.6 * u, seeded(ar * 131 + ac * 17 + i * 7), 0.7 * u);
+          } else {
+            drawPolyline(page, geo.shaft, originX, originTop, pageH, strokeInk, 3 * u);
+          }
+          drawFilledTri(page, geo.head, originX, originTop, pageH, strokeInk);
         });
       }
     }
@@ -469,4 +499,92 @@ function drawFilledTri(page: PDFPage, pts: [number, number][], ox: number, oy: n
   const p = pts.map(([x, y]) => `${ox + x} ${oy + y}`);
   const path = `M ${p[0]} L ${p[1]} L ${p[2]} Z`;
   page.drawSvgPath(path, { x: 0, y: pageH, color, borderWidth: 0 });
+}
+
+/* ----------------------------------------------------- hand-drawn (sketch) */
+
+/** Deterministic tiny PRNG so a card renders identically every time. */
+function seeded(seed: number): () => number {
+  let s = (seed >>> 0) || 1;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+/** A straight segment redrawn as a gently wavy one: subdivide and nudge the
+ * interior points perpendicular to the line by up to `amp`. */
+function wobbleSeg(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  amp: number,
+  rnd: () => number,
+): [number, number][] {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len;
+  const ny = dx / len;
+  const steps = Math.max(2, Math.round(len / 22));
+  const pts: [number, number][] = [[x1, y1]];
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const off = (rnd() * 2 - 1) * amp;
+    pts.push([x1 + dx * t + nx * off, y1 + dy * t + ny * off]);
+  }
+  pts.push([x2, y2]);
+  return pts;
+}
+
+/** Stroke a wobbled polyline (grid-space points) as a single SVG path. */
+function sketchStroke(
+  page: PDFPage,
+  pts: [number, number][],
+  ox: number,
+  oy: number,
+  pageH: number,
+  color: RGB,
+  thickness: number,
+  rnd: () => number,
+  amp: number,
+) {
+  const all: [number, number][] = [];
+  for (let i = 1; i < pts.length; i++) {
+    const seg = wobbleSeg(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1], amp, rnd);
+    all.push(...(i === 1 ? seg : seg.slice(1)));
+  }
+  const d = all.map(([x, y], i) => `${i ? "L" : "M"} ${ox + x} ${oy + y}`).join(" ");
+  page.drawSvgPath(d, { x: 0, y: pageH, borderColor: color, borderWidth: thickness });
+}
+
+/** A hand-drawn cell outline: four wobbly edges that overshoot the corners a
+ * touch (the tell-tale sketched-box look). */
+function sketchRect(
+  page: PDFPage,
+  r: number,
+  c: number,
+  S: number,
+  ox: number,
+  oy: number,
+  pageH: number,
+  color: RGB,
+  thickness: number,
+  u: number,
+) {
+  const rnd = seeded(r * 73856093 + c * 19349663);
+  const amp = 0.9 * u;
+  const o = 1.8 * u; // corner overshoot
+  const x0 = c * S;
+  const y0 = r * S;
+  const x1 = (c + 1) * S;
+  const y1 = (r + 1) * S;
+  const edges: [number, number][][] = [
+    [[x0 - o, y0], [x1 + o, y0]], // top
+    [[x1, y0 - o], [x1, y1 + o]], // right
+    [[x1 + o, y1], [x0 - o, y1]], // bottom
+    [[x0, y1 + o], [x0, y0 - o]], // left
+  ];
+  for (const edge of edges) sketchStroke(page, edge, ox, oy, pageH, color, thickness, rnd, amp);
 }
