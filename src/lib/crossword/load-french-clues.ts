@@ -1,7 +1,50 @@
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, writeFileSync } from "fs";
 import { join } from "path";
 import { WordList } from "@/lib/crossword/word-list";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
+
+/**
+ * Optional on-disk corpus cache (opt-in via FLECHE_CORPUS_CACHE=<path>). The DB
+ * load pulls ~460K clue rows over Neon HTTP; when many worker threads each do
+ * that (offline pool runs / benchmarks / regenerating a hard grid) Neon starts
+ * refusing connections and pool init times out. With the env set, the first load
+ * writes the fully-scored corpus to the file and every later load (each worker)
+ * reads it from local disk instead. No effect in production, where the env is
+ * unset. Carries known_score AND clue difficulty, so it reproduces the DB path
+ * exactly — unlike the TSV files, which carry neither.
+ */
+function loadFromCache(path: string): {
+  wl: WordList;
+  clueDb: Map<string, string[]>;
+  clueDifficulty: Map<string, number>;
+} {
+  const raw = JSON.parse(readFileSync(path, "utf-8")) as {
+    scores: [string, number][];
+    clueDb: [string, string[]][];
+    diff: [string, number][];
+  };
+  const wl = new WordList();
+  for (const [w, s] of raw.scores) wl.addWord(w, s);
+  const clueDb = new Map(raw.clueDb);
+  const clueDifficulty = new Map(raw.diff);
+  console.log(`Corpus cache: ${clueDb.size} words from ${path}`);
+  return { wl, clueDb, clueDifficulty };
+}
+
+function writeCache(
+  path: string,
+  wl: WordList,
+  clueDb: Map<string, string[]>,
+  clueDifficulty: Map<string, number>,
+): void {
+  const scores: [string, number][] = [];
+  for (const w of clueDb.keys()) scores.push([w, wl.getScore(w)]);
+  writeFileSync(
+    path,
+    JSON.stringify({ scores, clueDb: [...clueDb], diff: [...clueDifficulty] }),
+  );
+  console.log(`Corpus cache: wrote ${clueDb.size} words to ${path}`);
+}
 
 let cachedWl: WordList | null = null;
 let cachedClueDb: Map<string, string[]> | null = null;
@@ -177,10 +220,17 @@ async function load() {
   let clueDb: Map<string, string[]>;
   let clueDifficulty: Map<string, number>;
 
-  if (hasLocalFiles) {
+  const cachePath = process.env.FLECHE_CORPUS_CACHE || undefined;
+  if (cachePath && existsSync(cachePath)) {
+    ({ wl, clueDb, clueDifficulty } = loadFromCache(cachePath));
+  } else if (hasLocalFiles) {
     ({ wl, clueDb, clueDifficulty } = loadFromFiles());
   } else if (process.env.DATABASE_URL) {
     ({ wl, clueDb, clueDifficulty } = await loadFromDatabase());
+    if (cachePath) {
+      try { writeCache(cachePath, wl, clueDb, clueDifficulty); }
+      catch (e) { console.error("Corpus cache write failed:", e instanceof Error ? e.message : e); }
+    }
   } else {
     console.warn("No clue data source available (no TSV files, no DATABASE_URL)");
     wl = new WordList();

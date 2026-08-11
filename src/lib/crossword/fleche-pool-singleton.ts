@@ -18,8 +18,11 @@ import { FlechePool } from "@/lib/crossword/fleche-pool";
 let poolPromise: Promise<FlechePool | null> | null = null;
 let unavailable = false;
 
-const INIT_TIMEOUT_MS = 30000;
-const WARMUP_TIMEOUT_MS = 20000;
+// Overridable so an offline pool run (many workers, each loading its own corpus
+// copy) can wait out a slow init instead of falling back to single-threaded. The
+// deployed default stays conservative.
+const INIT_TIMEOUT_MS = Number(process.env.FLECHE_POOL_INIT_MS) || 30000;
+const WARMUP_TIMEOUT_MS = Number(process.env.FLECHE_POOL_WARMUP_MS) || 20000;
 
 function enabled(): boolean {
   return process.env.FLECHE_DISABLE_POOL !== "1";
