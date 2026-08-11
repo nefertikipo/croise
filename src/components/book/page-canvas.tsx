@@ -76,6 +76,7 @@ export function PageCanvas({
           font={book.dedicationFont}
           title={book.title}
           authors={dedicationSignatureNames(book.dedicationSignature, book.clueIdeas)}
+          signoff={book.dedicationSignoff}
         />
       );
     if (page?.kind === "content") return <ContentPageView config={page.config} />;

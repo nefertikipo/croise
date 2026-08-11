@@ -182,6 +182,7 @@ export async function generateBookInteriorPdf(book: BookData, size: PageSize = "
       font: book.dedicationFont,
       title: book.title,
       authors: dedicationSignatureNames(book.dedicationSignature, book.clueIdeas),
+      signoff: book.dedicationSignoff,
     });
   }
 

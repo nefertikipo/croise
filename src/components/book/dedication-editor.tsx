@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Field, TextAreaField, TextField } from "@/components/book/field";
+import { defaultDedicationSignoff, formatAuthorList } from "@/lib/books/authors";
 import {
   DEDICATION_FONTS,
   DEFAULT_DEDICATION_FONT,
@@ -10,25 +12,41 @@ import {
 interface DedicationEditorProps {
   text: string;
   font: string | null;
+  /** Sign-off line above the signature; empty falls back to the default. */
+  signoff: string;
   /** Free-text signature; empty falls back to the Carnet contributors. */
   signature: string;
-  /** Carnet contributors, shown as the signature placeholder (the default). */
+  /** Carnet contributors, used to pre-fill the signature (the default). */
   authors: string[];
   onChange: (text: string) => void;
   onFontChange: (font: DedicationFontKey) => void;
   onSignatureChange: (signature: string) => void;
+  onSignoffChange: (signoff: string) => void;
 }
 
 export function DedicationEditor({
   text,
   font,
+  signoff,
   signature,
   authors,
   onChange,
   onFontChange,
   onSignatureChange,
+  onSignoffChange,
 }: DedicationEditorProps) {
   const active = (font as DedicationFontKey) ?? DEFAULT_DEDICATION_FONT;
+
+  // Pre-fill the sign-off and names so the maker tweaks them instead of typing
+  // from scratch. Seeded once from the saved value, or from the printed default
+  // when nothing's saved yet — leaving the field untouched keeps that default,
+  // since an empty saved value falls back to it downstream anyway.
+  const [signoffDraft, setSignoffDraft] = useState(
+    () => signoff || defaultDedicationSignoff(authors),
+  );
+  const [signatureDraft, setSignatureDraft] = useState(
+    () => signature || formatAuthorList(authors),
+  );
 
   return (
     <div className="space-y-4">
@@ -45,17 +63,34 @@ export function DedicationEditor({
           rows={6}
         />
       </Field>
+      <Field label="Formule">
+        <TextField
+          value={signoffDraft}
+          onChange={(e) => {
+            setSignoffDraft(e.target.value);
+            onSignoffChange(e.target.value);
+          }}
+          placeholder={defaultDedicationSignoff(authors)}
+          maxLength={200}
+        />
+        <span className="mt-1 block text-[11px] text-muted-foreground">
+          La formule imprimée au-dessus des prénoms. Modifiez-la à votre guise.
+        </span>
+      </Field>
       <Field label="Signature">
         <TextField
-          value={signature}
-          onChange={(e) => onSignatureChange(e.target.value)}
-          placeholder={authors.length > 0 ? authors.join(", ") : "Louise, Théo et Max"}
+          value={signatureDraft}
+          onChange={(e) => {
+            setSignatureDraft(e.target.value);
+            onSignatureChange(e.target.value);
+          }}
+          placeholder={authors.length > 0 ? formatAuthorList(authors) : "Louise, Théo et Max"}
           maxLength={200}
         />
         <span className="mt-1 block text-[11px] text-muted-foreground">
           {authors.length > 0
-            ? "Par défaut, les prénoms du Carnet d'idées. Modifiez-les ici."
-            : "Signe le mot après « Avec tout notre amour, »."}
+            ? "Pré-rempli avec les prénoms du Carnet d'idées. Modifiez-les ici."
+            : "Signe le mot après la formule ci-dessus."}
         </span>
       </Field>
       <Field label="Police">

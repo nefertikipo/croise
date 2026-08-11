@@ -11,7 +11,7 @@ import type { PDFPage } from "pdf-lib";
 import type { BookFonts } from "@/lib/book-pdf/fonts";
 import { hex2rgb, mixHex, type Geometry } from "@/lib/book-pdf/geometry";
 import { nfc, wrapParagraphs, wrapText } from "@/lib/book-pdf/text";
-import { formatAuthorList } from "@/lib/books/authors";
+import { dedicationSignoffLine, formatAuthorList } from "@/lib/books/authors";
 import { resolveDedicationFont } from "@/lib/books/dedication-fonts";
 import type { ContentPageConfig } from "@/types/book";
 
@@ -31,6 +31,8 @@ export interface DedicationPageOptions {
   title: string;
   /** Contributor names credited on the default title page. */
   authors: string[];
+  /** Maker's sign-off line; null/empty falls back to the default. */
+  signoff: string | null;
 }
 
 /**
@@ -38,7 +40,7 @@ export interface DedicationPageOptions {
  * the dedication — centered, with a short primary rule below. Without one it's a
  * title page: the book title and a warm sign-off from the contributors.
  */
-export function composeDedicationPage({ page, g, fonts, text, font, title, authors }: DedicationPageOptions): void {
+export function composeDedicationPage({ page, g, fonts, text, font, title, authors, signoff }: DedicationPageOptions): void {
   page.drawRectangle({ x: 0, y: 0, width: g.pageW, height: g.pageH, color: hex2rgb(PAPER) });
 
   const dedicationFont = fonts.dedication[resolveDedicationFont(font).key];
@@ -78,7 +80,7 @@ export function composeDedicationPage({ page, g, fonts, text, font, title, autho
     }
     const lineH = size * 1.5;
 
-    const love = authors.length > 1 ? "Avec tout notre amour," : "Avec tout mon amour,";
+    const love = dedicationSignoffLine(signoff, authors);
     const signSize = 12;
     const signLineH = signSize * 1.35;
     const signLines = authors.length > 0 ? [love, ...wrapText(fonts.heading, formatAuthorList(authors), signSize, maxW)] : [];
@@ -119,7 +121,7 @@ export function composeDedicationPage({ page, g, fonts, text, font, title, autho
   const titleLines = wrapText(fonts.heading, nfc(title).toUpperCase(), titleSize, maxW);
   const titleLineH = titleSize * 1.12;
 
-  const love = authors.length > 1 ? "Avec tout notre amour," : "Avec tout mon amour,";
+  const love = dedicationSignoffLine(signoff, authors);
   const names = formatAuthorList(authors);
   const signSize = 13;
   const signLineH = signSize * 1.35;

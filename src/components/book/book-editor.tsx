@@ -332,6 +332,13 @@ export function BookEditor({
     );
   }
 
+  function updateDedicationSignoff(signoff: string) {
+    setBook((b) => ({ ...b, dedicationSignoff: signoff }));
+    debounce("book-dedication-signoff", () =>
+      patchBook({ dedicationSignoff: bookRef.current.dedicationSignoff ?? "" }),
+    );
+  }
+
   function updateClueIdeas(clueIdeas: ClueIdea[]) {
     setBook((b) => ({ ...b, clueIdeas }));
     debounce("book-clue-ideas", () =>
@@ -1033,10 +1040,12 @@ export function BookEditor({
               text={book.dedicationText ?? ""}
               font={book.dedicationFont}
               signature={book.dedicationSignature ?? ""}
+              signoff={book.dedicationSignoff ?? ""}
               authors={authors}
               onChange={updateDedication}
               onFontChange={updateDedicationFont}
               onSignatureChange={updateDedicationSignature}
+              onSignoffChange={updateDedicationSignoff}
             />
           )}
           {selectedId === "ideas" && (

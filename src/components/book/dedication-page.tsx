@@ -1,5 +1,5 @@
 import { BookPageFrame } from "@/components/book/book-page-frame";
-import { formatAuthorList } from "@/lib/books/authors";
+import { dedicationSignoffLine, formatAuthorList } from "@/lib/books/authors";
 import { resolveDedicationFont } from "@/lib/books/dedication-fonts";
 
 interface DedicationPageProps {
@@ -10,6 +10,8 @@ interface DedicationPageProps {
   title?: string;
   /** Contributor names credited on the default opening page. */
   authors?: string[];
+  /** Maker's sign-off line; null/empty falls back to the default. */
+  signoff?: string | null;
 }
 
 /**
@@ -17,8 +19,8 @@ interface DedicationPageProps {
  * recto). With a personal message it's the dedication; without one it falls back
  * to a title page — the book title and a warm sign-off from the contributors.
  */
-export function DedicationPage({ text, font, title, authors = [] }: DedicationPageProps) {
-  const love = authors.length > 1 ? "Avec tout notre amour," : "Avec tout mon amour,";
+export function DedicationPage({ text, font, title, authors = [], signoff }: DedicationPageProps) {
+  const love = dedicationSignoffLine(signoff, authors);
 
   if (text) {
     // Framed like the printed page (compose-content-page.ts): a title overline,

@@ -13,6 +13,8 @@ export const bookDedicationSchema = z.string().max(2000);
 
 export const bookDedicationSignatureSchema = z.string().max(200);
 
+export const bookDedicationSignoffSchema = z.string().max(200);
+
 export const bookDedicationFontSchema = z.enum(
   DEDICATION_FONTS.map((f) => f.key) as [string, ...string[]],
 );
