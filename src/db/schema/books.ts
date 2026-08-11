@@ -14,6 +14,9 @@ export const books = pgTable("books", {
   // Maker's chosen typeface for the dedication message (a DedicationFontKey).
   // Null falls back to the default (Fraunces) at render time.
   dedicationFont: text("dedication_font"),
+  // Free-text signature for the opening page ("Avec tout notre amour, …").
+  // Null/empty falls back to the contributor names from the clue-idea notepad.
+  dedicationSignature: text("dedication_signature"),
   coverConfig: jsonb("cover_config"),
   // Design-time notepad: brainstormed clue ideas (answer + clue) the maker can
   // drop into any grid. Not a printed section — a workspace. Typed as `ClueIdea[]`.
