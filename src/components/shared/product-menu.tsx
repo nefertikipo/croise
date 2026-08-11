@@ -50,7 +50,7 @@ export function ProductMenu() {
         aria-haspopup="menu"
         className="flex items-center gap-1 font-display text-sm uppercase tracking-wide text-ink transition-colors hover:text-brand"
       >
-        Produit
+        Nos produits
         <span
           className={`text-[0.6em] transition-transform ${open ? "rotate-180" : ""}`}
           aria-hidden
