@@ -218,6 +218,12 @@ interface FlecheGridProps {
    */
   plain?: boolean;
   /**
+   * Hand-drawn "sketch" theme (the carte look): green strokes + pink clue cells
+   * with a gentle wobble on the arrows, mirroring the print renderer's sketch
+   * mode. Screen-only cosmetic; ignored in `plain` answer-key mode.
+   */
+  sketch?: boolean;
+  /**
    * When set, the solver's typed letters are persisted to localStorage under
    * this key so progress survives a page reload. Only meaningful with
    * `interactive`. Typically the grid's share code.
@@ -373,12 +379,23 @@ export function FlecheGrid({
   highlightedCells,
   accentColor,
   plain = false,
+  sketch = false,
   persistKey,
 }: FlecheGridProps) {
+  const sketchTheme = sketch && !plain;
   const accent = accentColor || DEFAULT_ACCENT;
-  const clueBg = plain ? "#e9e6e0" : `color-mix(in oklab, ${accent} 18%, ${PAPER})`;
-  const clueRule = `color-mix(in oklab, ${accent} 45%, ${PAPER})`;
+  const clueBg = plain
+    ? "#e9e6e0"
+    : sketchTheme
+      ? "#f6d4d9"
+      : `color-mix(in oklab, ${accent} 18%, ${PAPER})`;
+  const clueRule = sketchTheme ? "rgba(47,107,74,0.55)" : `color-mix(in oklab, ${accent} 45%, ${PAPER})`;
   const wordHighlightBg = `color-mix(in oklab, ${accent} 14%, ${PAPER})`;
+  // Sketch-theme stroke colours (green ink; light-green cell lines; pink custom).
+  const strokeInk = sketchTheme ? "#2f6b4a" : INK;
+  const cellLine = sketchTheme ? "rgba(47,107,74,0.4)" : "rgba(47,42,38,0.3)";
+  const emptyLine = sketchTheme ? "rgba(47,107,74,0.2)" : "rgba(47,42,38,0.1)";
+  const customBg = sketchTheme ? "#eeb0c0" : CUSTOM_BG;
   const [userInput, setUserInput] = useState<Map<string, string>>(
     () => (interactive ? loadPersistedInput(persistKey) : new Map()),
   );
@@ -732,7 +749,7 @@ export function FlecheGrid({
       className={cn("relative inline-grid gap-0 border-2", className)}
       style={{
         gridTemplateColumns: `repeat(${width}, ${CELL_SIZE}px)`,
-        borderColor: INK,
+        borderColor: strokeInk,
         color: INK,
       }}
     >
@@ -800,7 +817,7 @@ export function FlecheGrid({
                       flexGrow: hasTwo ? bandGrow[i] : 1,
                       flexBasis: 0,
                       borderColor: clueRule,
-                      backgroundColor: cl.isCustom ? CUSTOM_BG : undefined,
+                      backgroundColor: cl.isCustom ? customBg : undefined,
                     }}
                     title={cl.text}
                   >
@@ -905,7 +922,7 @@ export function FlecheGrid({
                     ? plain
                       ? "#2f2a26"
                       : undefined
-                    : "rgba(47,42,38,0.3)",
+                    : cellLine,
                 }}
               >
                 {isHiddenCell && (
@@ -936,7 +953,7 @@ export function FlecheGrid({
                 width: CELL_SIZE,
                 height: CELL_SIZE,
                 backgroundColor: EMPTY_BG,
-                borderColor: "rgba(47,42,38,0.1)",
+                borderColor: emptyLine,
               }}
             />
           );
@@ -955,9 +972,21 @@ export function FlecheGrid({
           height={height * CELL_SIZE}
           aria-hidden
         >
-          {arrows.map((a, i) => (
-            <GridArrow key={i} {...a} size={CELL_SIZE} color={INK} />
-          ))}
+          {sketchTheme && (
+            <defs>
+              {/* Gentle hand-drawn wobble — applied to the arrow strokes only,
+                  never to cell text, so nothing becomes illegible. */}
+              <filter id="fleche-sketch-arrows">
+                <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves={2} seed={7} result="noise" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale={3} />
+              </filter>
+            </defs>
+          )}
+          <g filter={sketchTheme ? "url(#fleche-sketch-arrows)" : undefined}>
+            {arrows.map((a, i) => (
+              <GridArrow key={i} {...a} size={CELL_SIZE} color={strokeInk} />
+            ))}
+          </g>
         </svg>
       )}
     </div>

@@ -82,12 +82,19 @@ export interface GelatoOrderInput {
 
 // --- API calls --------------------------------------------------------------
 
-/** Create an order (draft unless GELATO_ENV=production). */
-export function createOrder(input: GelatoOrderInput): Promise<{ id: string; orderReferenceId: string; fulfillmentStatus?: string }> {
+/**
+ * Create an order. Defaults to draft unless GELATO_ENV=production; callers that
+ * have not yet collected payment MUST pass `orderType: "draft"` explicitly so a
+ * production env can never charge/produce a card before checkout exists.
+ */
+export function createOrder(
+  input: GelatoOrderInput,
+  orderType: "order" | "draft" = gelatoOrderType(),
+): Promise<{ id: string; orderReferenceId: string; fulfillmentStatus?: string }> {
   return gelatoFetch(ORDER_BASE, "/v4/orders", {
     method: "POST",
     body: JSON.stringify({
-      orderType: gelatoOrderType(),
+      orderType,
       orderReferenceId: input.orderReferenceId,
       customerReferenceId: input.customerReferenceId ?? input.orderReferenceId,
       currency: input.currency,

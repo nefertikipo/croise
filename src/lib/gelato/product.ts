@@ -43,9 +43,13 @@ export const GELATO_POSTER_PRODUCT_UID =
 export const GELATO_SOURCE_BASE =
   process.env.GELATO_SOURCE_BASE ?? "https://lesfleches.com";
 
-/** The print-ready card PDF URL Gelato pulls (front + back, one file). */
-export function postcardSourceUrl(code: string): string {
-  return `${GELATO_SOURCE_BASE}/api/postcards/${code}/card.pdf`;
+/**
+ * The print-ready card PDF URL Gelato pulls (front + back, one file). The
+ * delivery mode is baked in so Gelato fetches the right back face: "self" prints
+ * a blank ruled back for a handwritten note, "direct" prints the typed message.
+ */
+export function postcardSourceUrl(code: string, delivery: "self" | "direct"): string {
+  return `${GELATO_SOURCE_BASE}/api/postcards/${code}/card.pdf?mode=${delivery}`;
 }
 
 /** The print-ready poster PDF URL Gelato pulls (single side). `code` is the

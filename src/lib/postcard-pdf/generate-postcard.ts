@@ -1,7 +1,7 @@
 /**
  * Assemble the print-ready PDF for a postcard: a two-page document — front
  * (title band + the fléchés grid to solve) then back (a personal message + the
- * solution as a compact answer key + brand mark). Flat A6, trim + bleed + boxes,
+ * solution as a small answer key). Flat A6, trim + bleed + boxes,
  * no crop marks. Gelato receives this as a single multi-page card file whose
  * pages map to the front/back print areas in order (see src/lib/gelato).
  *
@@ -22,10 +22,12 @@ import {
 import { ellipsize, nfc, wrapParagraphs } from "@/lib/book-pdf/text";
 import { resolveDedicationFont } from "@/lib/books/dedication-fonts";
 import { POSTCARD_SPEC } from "@/lib/postcard-pdf/geometry";
-import type { PostcardData, PostcardGrid } from "@/types/postcard";
+import type { PostcardData, PostcardDelivery, PostcardGrid } from "@/types/postcard";
 
 const INK = "#2f2a26";
 const PAGE_BG = "#fff6ec";
+/** Hand-drawn grid green — matches the sketch theme in draw-grid.ts. */
+const GRID_GREEN = "#2f6b4a";
 
 /** Thrown when a card has no generated grid to print. */
 export class EmptyPostcardError extends Error {
@@ -99,54 +101,84 @@ function composeFront(page: PDFPage, g: Geometry, fonts: BookFonts, card: Postca
     fonts,
     mode: "puzzle",
     accentHex: card.gridColor ?? undefined,
+    sketch: true,
   });
   page.drawRectangle({
     x: originX,
     y: g.pageH - (originTop + gridH),
     width: gridW,
     height: gridH,
-    borderColor: inkRgb,
-    borderWidth: 1.2,
+    borderColor: hex2rgb(GRID_GREEN),
+    borderWidth: 1.6,
     opacity: 0,
   });
 }
 
-/** Back face: personal message (maker's font) + solution answer key + brand. */
-function composeBack(page: PDFPage, g: Geometry, fonts: BookFonts, card: PostcardData, grid: PostcardGrid) {
+/**
+ * Back face: solution answer key at the bottom, plus — depending on delivery —
+ * either the typed personal message ("direct") or a blank ruled area the buyer
+ * fills in by hand ("self").
+ */
+function composeBack(
+  page: PDFPage,
+  g: Geometry,
+  fonts: BookFonts,
+  card: PostcardData,
+  grid: PostcardGrid,
+  delivery: PostcardDelivery,
+) {
   const inkRgb = hex2rgb(INK);
   const muted = mixHex(INK, PAGE_BG, 0.45);
   paintBackground(page, g);
 
   const msgFont = fonts.dedication[resolveDedicationFont(card.messageFont).key];
 
-  // ---- Message block (top ~55% of the card) ----
+  // ---- Message block (top ~55% of the card) — printed only for direct send ----
   let y = g.contentTop + 6;
-  if (card.recipientName?.trim()) {
-    const name = nfc(card.recipientName.trim());
-    const size = 15;
-    const w = msgFont.widthOfTextAtSize(name, size);
-    page.drawText(name, { x: g.contentX + (g.contentW - w) / 2, y: g.pageH - (y + size), size, font: msgFont, color: inkRgb });
-    y += size + 8;
-  }
-  const message = card.message?.trim();
-  if (message) {
-    const size = 11;
-    const lineH = size * 1.35;
-    const lines = wrapParagraphs(msgFont, nfc(message), size, g.contentW).slice(0, 12);
-    for (const line of lines) {
-      const w = msgFont.widthOfTextAtSize(line, size);
-      page.drawText(line, { x: g.contentX + (g.contentW - w) / 2, y: g.pageH - (y + size), size, font: msgFont, color: inkRgb });
-      y += lineH;
+  if (delivery === "direct") {
+    if (card.recipientName?.trim()) {
+      const name = nfc(card.recipientName.trim());
+      const size = 15;
+      const w = msgFont.widthOfTextAtSize(name, size);
+      page.drawText(name, { x: g.contentX + (g.contentW - w) / 2, y: g.pageH - (y + size), size, font: msgFont, color: inkRgb });
+      y += size + 8;
+    }
+    const message = card.message?.trim();
+    if (message) {
+      const size = 11;
+      const lineH = size * 1.35;
+      const lines = wrapParagraphs(msgFont, nfc(message), size, g.contentW).slice(0, 12);
+      for (const line of lines) {
+        const w = msgFont.widthOfTextAtSize(line, size);
+        page.drawText(line, { x: g.contentX + (g.contentW - w) / 2, y: g.pageH - (y + size), size, font: msgFont, color: inkRgb });
+        y += lineH;
+      }
     }
   }
 
   // ---- Solution answer key (bottom, compact plain grid) ----
-  const brandH = 12;
+  // Kept small: it's a discreet answer key, not the star of the back face.
   const labelSize = 7;
   const labelGap = 4;
-  const bottomLimit = g.contentTop + g.contentH - brandH;
-  const solTop = Math.max(y + 10, bottomLimit - labelSize - labelGap - g.contentH * 0.42);
+  const bottomLimit = g.contentTop + g.contentH;
+  const solTop = Math.max(y + 10, bottomLimit - labelSize - labelGap - g.contentH * 0.28);
   const solAvailH = bottomLimit - solTop - labelSize - labelGap;
+
+  // Self-send: fill the empty upper area with faint guide lines to write on.
+  if (delivery === "self") {
+    const lineColor = mixHex(INK, PAGE_BG, 0.8);
+    const gap = 15;
+    const zoneBottom = solTop - 10;
+    for (let ly = g.contentTop + 16; ly <= zoneBottom; ly += gap) {
+      page.drawLine({
+        start: { x: g.contentX, y: g.pageH - ly },
+        end: { x: g.contentX + g.contentW, y: g.pageH - ly },
+        thickness: 0.5,
+        color: lineColor,
+      });
+    }
+  }
+
   const label = "SOLUTION";
   page.drawText(label, {
     x: g.contentX,
@@ -156,7 +188,8 @@ function composeBack(page: PDFPage, g: Geometry, fonts: BookFonts, card: Postcar
     color: muted,
   });
   const gridArea = { top: solTop + labelSize + labelGap, h: solAvailH };
-  const cellPt = Math.min(g.contentW / grid.width, gridArea.h / grid.height);
+  // Cap the width too so the key stays modest (≤ half the content width).
+  const cellPt = Math.min((g.contentW * 0.5) / grid.width, gridArea.h / grid.height);
   const gridW = cellPt * grid.width;
   const originX = g.contentX + (g.contentW - gridW) / 2;
   drawFlecheGrid({
@@ -171,23 +204,15 @@ function composeBack(page: PDFPage, g: Geometry, fonts: BookFonts, card: Postcar
     fonts,
     mode: "plain",
   });
-
-  // ---- Brand mark, baseline in the bottom margin ----
-  const brand = `lesfleches.com · ${card.code}`;
-  const brandSize = 6;
-  const brandW = fonts.letter.widthOfTextAtSize(brand, brandSize);
-  page.drawText(brand, {
-    x: g.contentX + (g.contentW - brandW) / 2,
-    y: g.pageH - (g.contentTop + g.contentH - 2),
-    size: brandSize,
-    font: fonts.letter,
-    color: muted,
-  });
 }
 
-export async function generatePostcardPdf(card: PostcardData): Promise<Uint8Array> {
+export async function generatePostcardPdf(
+  card: PostcardData,
+  opts: { delivery?: PostcardDelivery } = {},
+): Promise<Uint8Array> {
   if (!card.grid) throw new EmptyPostcardError();
   const grid = card.grid;
+  const delivery = opts.delivery ?? "direct";
 
   const doc = await PDFDocument.create();
   const fonts = await embedBookFonts(doc);
@@ -199,7 +224,7 @@ export async function generatePostcardPdf(card: PostcardData): Promise<Uint8Arra
 
   const back = doc.addPage([g.pageW, g.pageH]);
   setPrintBoxes(back, g);
-  composeBack(back, g, fonts, card, grid);
+  composeBack(back, g, fonts, card, grid, delivery);
 
   return doc.save();
 }
