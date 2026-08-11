@@ -1,6 +1,6 @@
 import { CoverPage } from "@/components/book/cover-page";
 import { DedicationPage } from "@/components/book/dedication-page";
-import { bookAuthors } from "@/lib/books/authors";
+import { dedicationSignatureNames } from "@/lib/books/authors";
 import { ContentPageView } from "@/components/book/content-page";
 import { GridPageView } from "@/components/book/grid-page";
 import { SolutionTile } from "@/components/book/solution-tile";
@@ -39,7 +39,7 @@ export function BookPrintLayout({
           text={book.dedicationText}
           font={book.dedicationFont}
           title={book.title}
-          authors={bookAuthors(book.clueIdeas)}
+          authors={dedicationSignatureNames(book.dedicationSignature, book.clueIdeas)}
         />
       </PrintPage>
 

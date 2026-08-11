@@ -9,6 +9,7 @@ import {
   bookClueIdeasSchema,
   bookDedicationFontSchema,
   bookDedicationSchema,
+  bookDedicationSignatureSchema,
   bookTitleSchema,
 } from "@/lib/books/validation";
 
@@ -39,6 +40,7 @@ const patchSchema = z.object({
   description: z.string().max(2000).nullable().optional(),
   dedicationText: bookDedicationSchema.nullable().optional(),
   dedicationFont: bookDedicationFontSchema.nullable().optional(),
+  dedicationSignature: bookDedicationSignatureSchema.nullable().optional(),
   status: z.enum(["draft", "ready", "ordered"]).optional(),
   clueIdeas: bookClueIdeasSchema.optional(),
   coverConfig: z
@@ -76,6 +78,7 @@ export async function PATCH(
     if (data.description !== undefined) updates.description = data.description;
     if (data.dedicationText !== undefined) updates.dedicationText = data.dedicationText;
     if (data.dedicationFont !== undefined) updates.dedicationFont = data.dedicationFont;
+    if (data.dedicationSignature !== undefined) updates.dedicationSignature = data.dedicationSignature;
     if (data.coverConfig !== undefined) updates.coverConfig = data.coverConfig;
     if (data.clueIdeas !== undefined) updates.clueIdeas = data.clueIdeas;
     if (data.status !== undefined) updates.status = data.status;

@@ -42,6 +42,16 @@ export function parseNameList(raw: string | null | undefined): string[] {
   return dedupeNames(splitNames(raw));
 }
 
+/** Names for the opening-page signature: the maker's explicit signature wins;
+ * otherwise fall back to the clue-idea notepad contributors. */
+export function dedicationSignatureNames(
+  signature: string | null | undefined,
+  clueIdeas: ClueIdea[],
+): string[] {
+  const override = parseNameList(signature);
+  return override.length > 0 ? override : bookAuthors(clueIdeas);
+}
+
 /** French enumeration: "Alice", "Alice et Bob", "Alice, Bob et Carla". */
 export function formatAuthorList(names: string[]): string {
   if (names.length === 0) return "";

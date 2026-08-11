@@ -325,6 +325,13 @@ export function BookEditor({
     patchBook({ dedicationFont: font });
   }
 
+  function updateDedicationSignature(signature: string) {
+    setBook((b) => ({ ...b, dedicationSignature: signature }));
+    debounce("book-dedication-signature", () =>
+      patchBook({ dedicationSignature: bookRef.current.dedicationSignature ?? "" }),
+    );
+  }
+
   function updateClueIdeas(clueIdeas: ClueIdea[]) {
     setBook((b) => ({ ...b, clueIdeas }));
     debounce("book-clue-ideas", () =>
@@ -1025,8 +1032,11 @@ export function BookEditor({
             <DedicationEditor
               text={book.dedicationText ?? ""}
               font={book.dedicationFont}
+              signature={book.dedicationSignature ?? ""}
+              authors={authors}
               onChange={updateDedication}
               onFontChange={updateDedicationFont}
+              onSignatureChange={updateDedicationSignature}
             />
           )}
           {selectedId === "ideas" && (

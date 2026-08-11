@@ -1,6 +1,6 @@
 "use client";
 
-import { Field, TextAreaField } from "@/components/book/field";
+import { Field, TextAreaField, TextField } from "@/components/book/field";
 import {
   DEDICATION_FONTS,
   DEFAULT_DEDICATION_FONT,
@@ -10,11 +10,24 @@ import {
 interface DedicationEditorProps {
   text: string;
   font: string | null;
+  /** Free-text signature; empty falls back to the Carnet contributors. */
+  signature: string;
+  /** Carnet contributors, shown as the signature placeholder (the default). */
+  authors: string[];
   onChange: (text: string) => void;
   onFontChange: (font: DedicationFontKey) => void;
+  onSignatureChange: (signature: string) => void;
 }
 
-export function DedicationEditor({ text, font, onChange, onFontChange }: DedicationEditorProps) {
+export function DedicationEditor({
+  text,
+  font,
+  signature,
+  authors,
+  onChange,
+  onFontChange,
+  onSignatureChange,
+}: DedicationEditorProps) {
   const active = (font as DedicationFontKey) ?? DEFAULT_DEDICATION_FONT;
 
   return (
@@ -22,8 +35,7 @@ export function DedicationEditor({ text, font, onChange, onFontChange }: Dedicat
       <h3 className="font-heading text-xl uppercase">Dédicace</h3>
       <p className="text-sm text-muted-foreground">
         Un mot personnel, imprimé au début du livre. Laissez vide pour ne pas l&apos;afficher.
-        Le titre du livre et la signature (les prénoms du Carnet d&apos;idées) sont
-        ajoutés automatiquement autour de votre message.
+        Le titre du livre est ajouté en surtitre au-dessus de votre message.
       </p>
       <Field label="Message">
         <TextAreaField
@@ -32,6 +44,19 @@ export function DedicationEditor({ text, font, onChange, onFontChange }: Dedicat
           placeholder="Pour toi qui adores les mots fléchés…"
           rows={6}
         />
+      </Field>
+      <Field label="Signature">
+        <TextField
+          value={signature}
+          onChange={(e) => onSignatureChange(e.target.value)}
+          placeholder={authors.length > 0 ? authors.join(", ") : "Louise, Théo et Max"}
+          maxLength={200}
+        />
+        <span className="mt-1 block text-[11px] text-muted-foreground">
+          {authors.length > 0
+            ? "Par défaut, les prénoms du Carnet d'idées. Modifiez-les ici."
+            : "Signe le mot après « Avec tout notre amour, »."}
+        </span>
       </Field>
       <Field label="Police">
         <div className="grid grid-cols-2 gap-2">

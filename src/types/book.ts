@@ -175,6 +175,9 @@ export interface BookData {
   dedicationText: string | null;
   /** Maker's chosen dedication typeface (a DedicationFontKey); null = default. */
   dedicationFont: string | null;
+  /** Free-text opening-page signature; null/empty falls back to the clue-idea
+   * notepad contributors. */
+  dedicationSignature: string | null;
   coverConfig: CoverConfig | null;
   /** Design-time clue-idea notepad (not printed). Empty when never used. */
   clueIdeas: ClueIdea[];
