@@ -9,7 +9,7 @@ import { GridPageView } from "@/components/book/grid-page";
 import { SolutionsPreview } from "@/components/book/solutions-preview";
 import { IndexPreview } from "@/components/book/index-preview";
 import { paginateIndex, paginateSolutionTiles } from "@/lib/books/preview-layout";
-import { dedicationSignatureNames } from "@/lib/books/authors";
+import { dedicationCredit } from "@/lib/books/authors";
 import { cn } from "@/lib/utils";
 import type { BookData, GridPage, WordIndexEntry } from "@/types/book";
 
@@ -158,7 +158,7 @@ export function SlotInner({
         text={book.dedicationText}
         font={book.dedicationFont}
         title={book.title}
-        authors={dedicationSignatureNames(book.dedicationSignature, book.clueIdeas)}
+        credit={dedicationCredit(book.dedicationSignature, book.clueIdeas)}
         signoff={book.dedicationSignoff}
       />
     );

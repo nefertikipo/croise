@@ -42,7 +42,7 @@ export function DedicationEditor({
   // when nothing's saved yet — leaving the field untouched keeps that default,
   // since an empty saved value falls back to it downstream anyway.
   const [signoffDraft, setSignoffDraft] = useState(
-    () => signoff || defaultDedicationSignoff(authors),
+    () => signoff || defaultDedicationSignoff(authors.length),
   );
   const [signatureDraft, setSignatureDraft] = useState(
     () => signature || formatAuthorList(authors),
@@ -70,7 +70,7 @@ export function DedicationEditor({
             setSignoffDraft(e.target.value);
             onSignoffChange(e.target.value);
           }}
-          placeholder={defaultDedicationSignoff(authors)}
+          placeholder={defaultDedicationSignoff(authors.length)}
           maxLength={200}
         />
         <span className="mt-1 block text-[11px] text-muted-foreground">

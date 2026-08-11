@@ -14,7 +14,7 @@ import { embedBookFonts } from "@/lib/book-pdf/fonts";
 import { composeGridPage } from "@/lib/book-pdf/compose-grid-page";
 import { composeContentPage, composeDedicationPage } from "@/lib/book-pdf/compose-content-page";
 import { composeIndexPages, countIndexPages } from "@/lib/book-pdf/compose-index-page";
-import { dedicationSignatureNames } from "@/lib/books/authors";
+import { dedicationCredit } from "@/lib/books/authors";
 import { composePhotoPage, type PhotoPageContent } from "@/lib/book-pdf/compose-photo-page";
 import { composeSolutionsPages, countSolutionsPages } from "@/lib/book-pdf/compose-solutions-page";
 import { getPhotoLayout, type PhotoLayout } from "@/lib/book-pdf/photo-layouts";
@@ -181,7 +181,7 @@ export async function generateBookInteriorPdf(book: BookData, size: PageSize = "
       text: book.dedicationText ?? "",
       font: book.dedicationFont,
       title: book.title,
-      authors: dedicationSignatureNames(book.dedicationSignature, book.clueIdeas),
+      credit: dedicationCredit(book.dedicationSignature, book.clueIdeas),
       signoff: book.dedicationSignoff,
     });
   }

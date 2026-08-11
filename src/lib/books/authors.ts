@@ -42,29 +42,40 @@ export function parseNameList(raw: string | null | undefined): string[] {
   return dedupeNames(splitNames(raw));
 }
 
-/** Names for the opening-page signature: the maker's explicit signature wins;
- * otherwise fall back to the clue-idea notepad contributors. */
-export function dedicationSignatureNames(
+/** The opening-page credit: the line to print plus how many people signed.
+ * A maker's typed signature prints VERBATIM — commas, "et", repeats, anything
+ * appears exactly as entered. With none typed, fall back to the clue-idea
+ * contributors, enumerated in French. */
+export interface DedicationCredit {
+  /** The signature line to print. */
+  line: string;
+  /** Number of signatories — drives the default "mon/notre amour" sign-off. */
+  count: number;
+}
+
+export function dedicationCredit(
   signature: string | null | undefined,
   clueIdeas: ClueIdea[],
-): string[] {
-  const override = parseNameList(signature);
-  return override.length > 0 ? override : bookAuthors(clueIdeas);
+): DedicationCredit {
+  const typed = signature?.trim();
+  if (typed) return { line: typed, count: splitNames(typed).length };
+  const names = bookAuthors(clueIdeas);
+  return { line: formatAuthorList(names), count: names.length };
 }
 
 /** The default opening-page sign-off, keyed on how many people sign it:
  * "Avec tout notre amour," for a group, "Avec tout mon amour," when solo. */
-export function defaultDedicationSignoff(names: string[]): string {
-  return names.length > 1 ? "Avec tout notre amour," : "Avec tout mon amour,";
+export function defaultDedicationSignoff(count: number): string {
+  return count > 1 ? "Avec tout notre amour," : "Avec tout mon amour,";
 }
 
 /** The sign-off line to print above the signature: the maker's explicit line
  * wins; otherwise the default keyed on the number of signatories. */
 export function dedicationSignoffLine(
   signoff: string | null | undefined,
-  names: string[],
+  count: number,
 ): string {
-  return signoff?.trim() ? signoff.trim() : defaultDedicationSignoff(names);
+  return signoff?.trim() ? signoff.trim() : defaultDedicationSignoff(count);
 }
 
 /** French enumeration: "Alice", "Alice et Bob", "Alice, Bob et Carla". */

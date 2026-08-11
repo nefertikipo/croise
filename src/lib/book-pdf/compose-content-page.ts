@@ -11,7 +11,7 @@ import type { PDFPage } from "pdf-lib";
 import type { BookFonts } from "@/lib/book-pdf/fonts";
 import { hex2rgb, mixHex, type Geometry } from "@/lib/book-pdf/geometry";
 import { nfc, wrapParagraphs, wrapText } from "@/lib/book-pdf/text";
-import { dedicationSignoffLine, formatAuthorList } from "@/lib/books/authors";
+import { type DedicationCredit, dedicationSignoffLine } from "@/lib/books/authors";
 import { resolveDedicationFont } from "@/lib/books/dedication-fonts";
 import type { ContentPageConfig } from "@/types/book";
 
@@ -29,8 +29,8 @@ export interface DedicationPageOptions {
   font: string | null;
   /** Book title, shown on the default title page. */
   title: string;
-  /** Contributor names credited on the default title page. */
-  authors: string[];
+  /** Signature credit (line + count) shown on the opening page. */
+  credit: DedicationCredit;
   /** Maker's sign-off line; null/empty falls back to the default. */
   signoff: string | null;
 }
@@ -40,7 +40,7 @@ export interface DedicationPageOptions {
  * the dedication — centered, with a short primary rule below. Without one it's a
  * title page: the book title and a warm sign-off from the contributors.
  */
-export function composeDedicationPage({ page, g, fonts, text, font, title, authors, signoff }: DedicationPageOptions): void {
+export function composeDedicationPage({ page, g, fonts, text, font, title, credit, signoff }: DedicationPageOptions): void {
   page.drawRectangle({ x: 0, y: 0, width: g.pageW, height: g.pageH, color: hex2rgb(PAPER) });
 
   const dedicationFont = fonts.dedication[resolveDedicationFont(font).key];
@@ -80,10 +80,10 @@ export function composeDedicationPage({ page, g, fonts, text, font, title, autho
     }
     const lineH = size * 1.5;
 
-    const love = dedicationSignoffLine(signoff, authors);
+    const love = dedicationSignoffLine(signoff, credit.count);
     const signSize = 12;
     const signLineH = signSize * 1.35;
-    const signLines = authors.length > 0 ? [love, ...wrapText(dedicationFont, formatAuthorList(authors), signSize, maxW)] : [];
+    const signLines = credit.count > 0 ? [love, ...wrapText(dedicationFont, credit.line, signSize, maxW)] : [];
 
     const overlineGap = 26;
     const ruleGap = 24;
@@ -121,11 +121,11 @@ export function composeDedicationPage({ page, g, fonts, text, font, title, autho
   const titleLines = wrapText(fonts.heading, nfc(title).toUpperCase(), titleSize, maxW);
   const titleLineH = titleSize * 1.12;
 
-  const love = dedicationSignoffLine(signoff, authors);
-  const names = formatAuthorList(authors);
+  const love = dedicationSignoffLine(signoff, credit.count);
+  const names = credit.line;
   const signSize = 13;
   const signLineH = signSize * 1.35;
-  const signLines = authors.length > 0 ? [love, ...wrapText(dedicationFont, names, signSize, maxW)] : [];
+  const signLines = credit.count > 0 ? [love, ...wrapText(dedicationFont, names, signSize, maxW)] : [];
 
   const ruleGap = 20;
   const signGap = signLines.length > 0 ? 34 : 0;
