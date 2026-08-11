@@ -96,6 +96,12 @@ export function PostcardCreator({ initialCard }: { initialCard?: PostcardData })
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(fields()),
       });
+      // Creating a card requires an account — send anonymous makers to sign in,
+      // then back to where they were.
+      if (res.status === 401) {
+        window.location.href = `/connexion?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+        throw new Error("Connectez-vous pour créer une carte.");
+      }
       if (!res.ok) throw new Error((await res.json()).error ?? "Création impossible");
       const created = (await res.json()) as { code: string };
       return created.code;

@@ -70,6 +70,12 @@ export function CalendarCreator({ initialCalendar }: { initialCalendar?: Calenda
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: title || undefined, year, gridColor }),
     });
+    // Creating a calendar requires an account — send anonymous makers to sign
+    // in, then back to where they were.
+    if (res.status === 401) {
+      window.location.href = `/connexion?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+      throw new Error("Connectez-vous pour créer un calendrier.");
+    }
     if (!res.ok) throw new Error((await res.json()).error ?? "Création impossible");
     const { code: fresh } = (await res.json()) as { code: string };
     // Load the (empty) calendar so we have an object to fill.
