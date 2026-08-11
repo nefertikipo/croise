@@ -35,6 +35,12 @@ export interface CoverConfig {
   titleFont?: string;
   /** Render the title bold (synthetic — the fonts ship a single weight). */
   titleBold?: boolean;
+  /** Names credited on the back cover ("Imaginé avec amour par …"). Free text
+   * (e.g. "Louise, Théo et Max"); when non-empty it overrides the contributor
+   * names auto-derived from the clue-idea notepad. */
+  backCoverNames?: string;
+  /** Optional short personal line printed on the back cover, below the credit. */
+  backCoverMessage?: string;
 }
 
 export type GridDifficulty = "facile" | "moyen" | "difficile" | "balanced";

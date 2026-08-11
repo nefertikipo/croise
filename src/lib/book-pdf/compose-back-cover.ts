@@ -10,7 +10,7 @@
 import type { PDFFont, PDFPage } from "pdf-lib";
 import { resolveCoverColor } from "@/lib/book-pdf/cover-templates";
 import { hex2rgb, mixHex, type PanelRect } from "@/lib/book-pdf/geometry";
-import { formatAuthorList } from "@/lib/books/authors";
+import { formatAuthorList, parseNameList } from "@/lib/books/authors";
 import { ellipsize, nfc, wrapText } from "@/lib/book-pdf/text";
 import type { CoverConfig } from "@/types/book";
 
@@ -72,7 +72,16 @@ export function composeBackCoverPanel({ page, font, panel, title, cover, authors
   while (titleSize > 14 && font.widthOfTextAtSize(bookTitle, titleSize) > maxW) titleSize -= 0.5;
   const titleText = ellipsize(font, bookTitle, titleSize, maxW);
 
-  const creditLines = authors.length > 0 ? wrapText(font, formatAuthorList(authors), 12, maxW) : [];
+  // Credited names: the maker's explicit back-cover names win; otherwise fall
+  // back to the contributors auto-derived from the clue-idea notepad.
+  const creditNames = parseNameList(cover?.backCoverNames);
+  const names = creditNames.length > 0 ? creditNames : authors;
+  const hasCredit = names.length > 0;
+  const creditLines = hasCredit ? wrapText(font, formatAuthorList(names), 12, maxW) : [];
+
+  // Optional personal line the maker can add under the credit.
+  const messageText = nfc((cover?.backCoverMessage ?? "").trim());
+  const messageLines = messageText ? wrapText(font, messageText, 11, maxW) : [];
 
   // Measure the block so it sits optically centred (nudged slightly high).
   const motifH = 24;
@@ -81,12 +90,15 @@ export function composeBackCoverPanel({ page, font, panel, title, cover, authors
   const gapRule = 12;
   const gapAfterRule = 20;
   const titleLineH = titleSize * 1.1;
-  const gapCredit = authors.length > 0 ? 22 : 0;
-  const creditLabelH = authors.length > 0 ? 11 : 0;
+  const gapCredit = hasCredit ? 22 : 0;
+  const creditLabelH = hasCredit ? 11 : 0;
   const creditLineH = 12 * 1.4;
+  const gapMessage = messageLines.length > 0 ? 20 : 0;
+  const messageLineH = 11 * 1.4;
   const blockH =
     motifH + gapMotif + imprintSize + gapRule + 1 + gapAfterRule + titleLineH +
-    gapCredit + creditLabelH + creditLines.length * creditLineH;
+    gapCredit + creditLabelH + creditLines.length * creditLineH +
+    gapMessage + messageLines.length * messageLineH;
 
   let y = panel.h * 0.44 - blockH / 2; // optical centre, biased above true middle
   if (y < inset + 20) y = inset + 20;
@@ -109,13 +121,22 @@ export function composeBackCoverPanel({ page, font, panel, title, cover, authors
   y += titleLineH;
 
   // Maker credit.
-  if (authors.length > 0) {
+  if (hasCredit) {
     y += gapCredit;
     centered("Imaginé avec amour par", y, 10, faint);
     y += creditLabelH;
     for (const line of creditLines) {
       centered(line, y, 12, soft);
       y += creditLineH;
+    }
+  }
+
+  // Optional personal line.
+  if (messageLines.length > 0) {
+    y += gapMessage;
+    for (const line of messageLines) {
+      centered(line, y, 11, soft);
+      y += messageLineH;
     }
   }
 
