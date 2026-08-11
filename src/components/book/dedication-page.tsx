@@ -18,21 +18,38 @@ interface DedicationPageProps {
  * to a title page — the book title and a warm sign-off from the contributors.
  */
 export function DedicationPage({ text, font, title, authors = [] }: DedicationPageProps) {
+  const love = authors.length > 1 ? "Avec tout notre amour," : "Avec tout mon amour,";
+
   if (text) {
+    // Framed like the printed page (compose-content-page.ts): a title overline,
+    // the message, a rule, then a maker sign-off — so it never reads as one
+    // lonely line and matches what actually prints.
     const { className } = resolveDedicationFont(font);
     return (
       <BookPageFrame>
         <div className="flex-1 flex flex-col items-center justify-center px-14 py-20 text-center">
-          <p className={`${className} text-2xl leading-relaxed text-foreground whitespace-pre-wrap`}>
+          {title && (
+            <p className="font-heading text-xs uppercase tracking-[0.25em] text-primary">
+              {title}
+            </p>
+          )}
+          <p className={`${className} mt-6 text-2xl leading-relaxed text-foreground whitespace-pre-wrap`}>
             {text}
           </p>
-          <div className="mt-10 h-px w-16 bg-primary" />
+          <div className="mt-8 h-px w-16 bg-primary" />
+          {authors.length > 0 && (
+            <div className="mt-8">
+              <p className="font-serif-accent text-lg italic text-foreground">{love}</p>
+              <p className="mt-1 font-serif-accent text-lg text-foreground">
+                {formatAuthorList(authors)}
+              </p>
+            </div>
+          )}
         </div>
       </BookPageFrame>
     );
   }
 
-  const love = authors.length > 1 ? "Avec tout notre amour," : "Avec tout mon amour,";
   return (
     <BookPageFrame>
       <div className="flex-1 flex flex-col items-center justify-center px-14 py-20 text-center">

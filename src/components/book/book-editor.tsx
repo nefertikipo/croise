@@ -20,6 +20,7 @@ import { BookPrintLayout } from "@/components/book/book-print-layout";
 import { backMatterKind } from "@/components/book/page-slot";
 import { buildWordIndex } from "@/lib/crossword/word-index";
 import { normalizeAnswer } from "@/lib/crossword/normalize";
+import { bookAuthors } from "@/lib/books/authors";
 import {
   BOOK_MIN_GRIDS,
   BOOK_MIN_INTERIOR_PAGES,
@@ -657,6 +658,8 @@ export function BookEditor({
     return map;
   }, [book.pages]);
   const wordIndex = useMemo(() => buildWordIndex(gridPages), [gridPages]);
+  // Contributors credited on the dedication + back cover, from the notepad.
+  const authors = useMemo(() => bookAuthors(book.clueIdeas), [book.clueIdeas]);
 
   // Which grids each clue idea has landed in: normalized custom answer → grid
   // numbers. Derived live from the placed custom words, so regenerating a grid
@@ -995,6 +998,7 @@ export function BookEditor({
                 <CoverStudio
                   title={book.title}
                   cover={book.coverConfig ?? {}}
+                  authors={authors}
                   onTitleChange={updateTitle}
                   onCoverChange={updateCover}
                 />

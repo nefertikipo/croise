@@ -10,21 +10,36 @@ import type { ClueIdea } from "@/types/book";
  * A single author field may name several people ("Louise, Diane", "Théo & Max"),
  * so each is split into individual credits before de-duplicating. */
 export function bookAuthors(clueIdeas: ClueIdea[]): string[] {
+  return dedupeNames(clueIdeas.flatMap((idea) => splitNames(idea.author ?? "")));
+}
+
+/** Split one free-text names field into individual names ("Louise, Diane" →
+ * ["Louise", "Diane"]). Handles commas, "&" and the French "et". */
+export function splitNames(raw: string): string[] {
+  return raw
+    .split(/\s*,\s*|\s*&\s*|\s+et\s+/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+/** De-duplicate names case-insensitively, keeping first-seen order. */
+function dedupeNames(names: string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const idea of clueIdeas) {
-    const raw = idea.author?.trim();
-    if (!raw) continue;
-    for (const part of raw.split(/\s*,\s*|\s*&\s*|\s+et\s+/i)) {
-      const name = part.trim();
-      if (!name) continue;
-      const key = name.toLocaleLowerCase("fr");
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(name);
-    }
+  for (const name of names) {
+    const key = name.toLocaleLowerCase("fr");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
   }
   return out;
+}
+
+/** Parse a free-text credit field (e.g. the back-cover names) into a distinct
+ * name list. Empty/whitespace input yields an empty list. */
+export function parseNameList(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return dedupeNames(splitNames(raw));
 }
 
 /** French enumeration: "Alice", "Alice et Bob", "Alice, Bob et Carla". */

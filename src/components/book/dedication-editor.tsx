@@ -22,6 +22,8 @@ export function DedicationEditor({ text, font, onChange, onFontChange }: Dedicat
       <h3 className="font-heading text-xl uppercase">Dédicace</h3>
       <p className="text-sm text-muted-foreground">
         Un mot personnel, imprimé au début du livre. Laissez vide pour ne pas l&apos;afficher.
+        Le titre du livre et la signature (les prénoms du Carnet d&apos;idées) sont
+        ajoutés automatiquement autour de votre message.
       </p>
       <Field label="Message">
         <TextAreaField
