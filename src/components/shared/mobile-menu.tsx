@@ -56,7 +56,7 @@ export function MobileMenu() {
               Créer une grille
             </Link>
             <p className="pt-1 pb-1 font-display text-xs uppercase tracking-[0.2em] text-ink/40">
-              Produit
+              Nos produits
             </p>
             {PRODUCT_LINKS.map((l) => (
               <Link
