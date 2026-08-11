@@ -1,5 +1,5 @@
 import { BookPageFrame } from "@/components/book/book-page-frame";
-import { dedicationSignoffLine, formatAuthorList } from "@/lib/books/authors";
+import { type DedicationCredit, dedicationSignoffLine } from "@/lib/books/authors";
 import { resolveDedicationFont } from "@/lib/books/dedication-fonts";
 
 interface DedicationPageProps {
@@ -8,8 +8,8 @@ interface DedicationPageProps {
   font?: string | null;
   /** Book title, shown on the default opening page when there's no message. */
   title?: string;
-  /** Contributor names credited on the default opening page. */
-  authors?: string[];
+  /** Signature credit (line + count) shown on the opening page. */
+  credit?: DedicationCredit;
   /** Maker's sign-off line; null/empty falls back to the default. */
   signoff?: string | null;
 }
@@ -19,8 +19,14 @@ interface DedicationPageProps {
  * recto). With a personal message it's the dedication; without one it falls back
  * to a title page — the book title and a warm sign-off from the contributors.
  */
-export function DedicationPage({ text, font, title, authors = [], signoff }: DedicationPageProps) {
-  const love = dedicationSignoffLine(signoff, authors);
+export function DedicationPage({
+  text,
+  font,
+  title,
+  credit = { line: "", count: 0 },
+  signoff,
+}: DedicationPageProps) {
+  const love = dedicationSignoffLine(signoff, credit.count);
   const { className } = resolveDedicationFont(font);
 
   if (text) {
@@ -39,11 +45,11 @@ export function DedicationPage({ text, font, title, authors = [], signoff }: Ded
             {text}
           </p>
           <div className="mt-8 h-px w-16 bg-primary" />
-          {authors.length > 0 && (
+          {credit.count > 0 && (
             <div className="mt-8">
               <p className={`${className} text-lg text-foreground`}>{love}</p>
               <p className={`${className} mt-1 text-lg text-foreground`}>
-                {formatAuthorList(authors)}
+                {credit.line}
               </p>
             </div>
           )}
@@ -59,11 +65,11 @@ export function DedicationPage({ text, font, title, authors = [], signoff }: Ded
           {title}
         </h1>
         <div className="mt-8 h-px w-16 bg-primary" />
-        {authors.length > 0 && (
+        {credit.count > 0 && (
           <div className="mt-10">
             <p className={`${className} text-lg text-foreground`}>{love}</p>
             <p className={`${className} mt-1 text-lg text-foreground`}>
-              {formatAuthorList(authors)}
+              {credit.line}
             </p>
           </div>
         )}
