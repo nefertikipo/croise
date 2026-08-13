@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { and, desc, eq, sql } from "drizzle-orm";
 
+import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
@@ -20,6 +23,12 @@ export const metadata: Metadata = {
 };
 
 export default async function OriginalesPage() {
+  // Login-gated section: send anonymous visitors to sign in, then back here.
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    redirect("/connexion?redirect=/originales");
+  }
+
   // One query: the collection's ready grids, each with its word count. Grouping
   // by the PK lets Postgres return the other crosswords columns un-aggregated.
   const grids = await db
