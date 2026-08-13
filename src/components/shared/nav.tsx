@@ -4,6 +4,7 @@ import { AuthNav } from "@/components/shared/auth-nav";
 import { ProductMenu } from "@/components/shared/product-menu";
 
 const LINKS = [
+  { href: "/originales", label: "Originales" },
   { href: "/idees-de-mots", label: "Idées de mots" },
   { href: "/contribuer", label: "Contribuer" },
 ];
