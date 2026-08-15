@@ -10,7 +10,6 @@ import { crosswords } from "@/db/schema/crosswords";
 import { placedWords } from "@/db/schema/placed-words";
 import { absoluteUrl } from "@/lib/site";
 import { ORIGINALES_THEME } from "@/lib/originales/constants";
-import { ShuffledPhrase } from "@/components/shared/shuffled-phrase";
 import { GridPreview } from "@/components/originales/grid-preview";
 
 export const dynamic = "force-dynamic";
@@ -50,25 +49,15 @@ export default async function OriginalesPage() {
     <main className="flex-1">
       <header className="border-b-2 border-ink bg-paper">
         <div className="mx-auto max-w-5xl px-4 py-14">
-          <p
-            className="font-handwritten text-2xl text-turquoise"
-            style={{ transform: "rotate(-3deg)" }}
-          >
+          <p className="font-display text-xs uppercase tracking-[0.3em] text-brand">
             Faites main, par nous
           </p>
-          <div className="mt-4">
-            <ShuffledPhrase text="Les Fléchés Originales" className="justify-start" />
-          </div>
-          <p className="font-serif-accent mt-6 max-w-2xl text-xl italic text-ink/70">
+          <h1 className="mt-3 text-4xl text-ink sm:text-6xl">
+            Les Fléchés Originales
+          </h1>
+          <p className="font-serif-accent mt-4 max-w-2xl text-xl italic text-ink/70">
             Nos grilles maison : des mots fléchés écrits à la main, avec des définitions
-            qu'on a{" "}
-            <span
-              className="font-handwritten text-2xl not-italic text-pink"
-              style={{ transform: "rotate(-4deg)", display: "inline-block" }}
-            >
-              cousues main
-            </span>
-            . À jouer en ligne ou à imprimer, gratuitement.
+            cousues main. À jouer en ligne ou à imprimer, gratuitement.
           </p>
         </div>
       </header>
@@ -83,40 +72,32 @@ export default async function OriginalesPage() {
           </div>
         ) : (
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {grids.map((g, i) => {
-              const n = g.wordCount;
-              const tilt = i % 2 === 0 ? "-rotate-2" : "rotate-2";
-              const inkColor = i % 2 === 0 ? "text-turquoise" : "text-pink";
-              return (
-                <Link
-                  key={g.code}
-                  href={`/grille/${g.code}`}
-                  className="frame group flex flex-col bg-paper p-5 transition-transform hover:-translate-y-0.5"
-                >
-                  <div className="mx-auto w-3/4 py-2">
-                    <GridPreview
-                      width={g.width}
-                      height={g.height}
-                      pattern={g.pattern}
-                      className={`shadow-[4px_4px_0_0_var(--ink)] transition-transform group-hover:rotate-0 ${tilt}`}
-                    />
-                  </div>
-                  <h2 className="mt-5 font-display text-2xl uppercase text-ink group-hover:text-brand">
-                    {g.title ?? "Grille originale"}
-                  </h2>
-                  <p
-                    className={`font-handwritten mt-1 text-xl ${inkColor}`}
-                    style={{ transform: "rotate(-2deg)" }}
-                  >
-                    {g.width} × {g.height}
-                    {n ? ` · ${n} mots` : ""}
-                  </p>
-                  <span className="btn-lapos mt-5 self-start rounded-none bg-sun px-4 py-2 text-sm text-ink">
-                    Jouer la grille
-                  </span>
-                </Link>
-              );
-            })}
+            {grids.map((g) => (
+              <Link
+                key={g.code}
+                href={`/grille/${g.code}`}
+                className="frame group flex flex-col bg-paper p-5 transition-transform hover:-translate-y-0.5"
+              >
+                <div className="mx-auto w-3/4 py-2">
+                  <GridPreview
+                    width={g.width}
+                    height={g.height}
+                    pattern={g.pattern}
+                    className="shadow-[4px_4px_0_0_var(--ink)]"
+                  />
+                </div>
+                <h2 className="mt-5 font-display text-2xl uppercase text-ink group-hover:text-brand">
+                  {g.title ?? "Grille originale"}
+                </h2>
+                <p className="mt-1 font-serif-accent text-sm italic text-ink/60">
+                  {g.width} × {g.height}
+                  {g.wordCount ? ` · ${g.wordCount} mots` : ""}
+                </p>
+                <span className="btn-lapos mt-5 self-start rounded-none bg-sun px-4 py-2 text-sm text-ink">
+                  Jouer la grille
+                </span>
+              </Link>
+            ))}
           </div>
         )}
       </div>
