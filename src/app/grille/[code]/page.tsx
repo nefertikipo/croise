@@ -43,6 +43,7 @@ interface GridData {
   code: string;
   ownerId: string | null;
   title: string | null;
+  theme?: string | null;
   width: number;
   height: number;
   hiddenWord?: string;
@@ -86,6 +87,8 @@ export default function GrillePage() {
   // Owner sees management controls (solution, rename, new grid); anyone else
   // arriving via a shared link gets a clean "solve it" experience.
   const isOwner = !!grid?.ownerId && session?.user?.id === grid.ownerId;
+  // Editorial "Originales" grids get a cleaner solver: no play hint, no poster upsell.
+  const isOriginale = grid?.theme === "originales";
 
   const cleanHidden = normalizeHiddenWord(grid?.hiddenWord ?? "");
   const hiddenCells = useMemo(() => {
@@ -142,7 +145,7 @@ export default function GrillePage() {
           {isOwner && <span className="text-sm font-mono text-ink/60">{code}</span>}
         </div>
 
-        {!isOwner && (
+        {!isOwner && !isOriginale && (
           <p className="font-serif-accent text-lg italic text-ink/70">
             À toi de jouer : clique sur une case et remplis la grille, puis
             touche « Vérifier » pour contrôler tes réponses.
@@ -173,12 +176,14 @@ export default function GrillePage() {
             Imprimer / PDF
           </Button>
           <ShareGridButton url={`/grille/${code}`} title={title} />
-          <Button
-            onClick={() => router.push(`/poster/${code}`)}
-            className="btn-lapos rounded-none bg-brand px-4 py-2.5 text-sm text-brand-foreground"
-          >
-            Commander en poster
-          </Button>
+          {!isOriginale && (
+            <Button
+              onClick={() => router.push(`/poster/${code}`)}
+              className="btn-lapos rounded-none bg-brand px-4 py-2.5 text-sm text-brand-foreground"
+            >
+              Commander en poster
+            </Button>
+          )}
           {isOwner && (
             <Button
               onClick={() => router.push("/fleche")}

@@ -35,6 +35,7 @@ export async function GET(
       code: grid.code,
       ownerId: grid.ownerId,
       title: grid.title,
+      theme: grid.theme ?? undefined,
       width: grid.width,
       height: grid.height,
       hiddenWord: grid.hiddenWord ?? undefined,
