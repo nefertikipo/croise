@@ -39,6 +39,9 @@ function FitText({
   const boxRef = useRef<HTMLDivElement>(null);
   const spanRef = useRef<HTMLSpanElement>(null);
   const [size, setSize] = useState(max);
+  // Whether the clue had to break a word (render with soft-hyphen break points).
+  // Preferred layout keeps every word whole; this flips on only as a fallback.
+  const [broken, setBroken] = useState(false);
 
   useIsomorphicLayoutEffect(() => {
     const box = boxRef.current;
@@ -60,33 +63,52 @@ function FitText({
         return;
       }
 
-      const fits = (f: number) => {
+      // Probe a given content string at a given size; true when it fits the box.
+      const fitsWith = (content: string, f: number) => {
+        span.textContent = content;
         span.style.fontSize = `${f}px`;
         span.style.lineHeight = `${f * lineRatio}px`;
         return span.scrollHeight <= maxH + 0.5 && span.scrollWidth <= maxW + 0.5;
       };
-
-      let best = min;
-      if (fits(max)) {
-        best = max; // common case: short clue, no shrinking needed
-      } else {
+      // Largest size in [min,max] at which `content` fits, or null if even min
+      // overflows.
+      const largestFit = (content: string): number | null => {
+        if (fitsWith(content, max)) return max;
+        if (!fitsWith(content, min)) return null;
         let lo = min;
         let hi = max;
+        let best = min;
         for (let i = 0; i < 18 && hi - lo > 0.25; i++) {
           const mid = (lo + hi) / 2;
-          if (fits(mid)) {
+          if (fitsWith(content, mid)) {
             best = mid;
             lo = mid;
           } else {
             hi = mid;
           }
         }
+        return best;
+      };
+
+      // Prefer keeping every word whole: measure the plain text (no in-word
+      // break points), so the browser can only wrap at spaces. If that fits at
+      // some size, use it. Otherwise fall back to the soft-hyphen variant, which
+      // lets a too-wide word break legibly.
+      const whole = preventFrenchOrphans(text);
+      const hyphenated = insertSoftBreaks(whole);
+      let useBroken = false;
+      let best = largestFit(whole);
+      if (best == null) {
+        useBroken = true;
+        best = largestFit(hyphenated) ?? min;
       }
-      // Apply directly (so it's correct even when `best` equals the current
-      // state and setSize would otherwise bail) and sync React state.
+      // Apply directly (so it's correct even when state doesn't change and the
+      // setters would otherwise bail) and sync React state.
+      span.textContent = useBroken ? hyphenated : whole;
       span.style.fontSize = `${best}px`;
       span.style.lineHeight = `${best * lineRatio}px`;
       setSize(best);
+      setBroken(useBroken);
     };
 
     measure();
@@ -138,7 +160,9 @@ function FitText({
           overflowWrap: "normal",
         }}
       >
-        {insertSoftBreaks(preventFrenchOrphans(text))}
+        {broken
+          ? insertSoftBreaks(preventFrenchOrphans(text))
+          : preventFrenchOrphans(text)}
       </span>
     </div>
   );

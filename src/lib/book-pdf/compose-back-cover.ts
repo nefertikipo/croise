@@ -68,36 +68,47 @@ export function composeBackCoverPanel({ page, font, panel, title, cover, authors
   const maxW = panel.w - 2 * inset - 24;
 
   const bookTitle = nfc(title).toUpperCase();
-  let titleSize = 27;
-  while (titleSize > 14 && font.widthOfTextAtSize(bookTitle, titleSize) > maxW) titleSize -= 0.5;
-  const titleText = ellipsize(font, bookTitle, titleSize, maxW);
 
   // Credited names: the maker's explicit back-cover names win; otherwise fall
   // back to the contributors auto-derived from the clue-idea notepad.
   const creditNames = parseNameList(cover?.backCoverNames);
   const names = creditNames.length > 0 ? creditNames : authors;
   const hasCredit = names.length > 0;
-  const creditLines = hasCredit ? wrapText(font, formatAuthorList(names), 12, maxW) : [];
+  const creditText = hasCredit ? formatAuthorList(names) : "";
+  // A long group roll-call gets a hair smaller so it reads as an intentional
+  // list; the generous leading below is what keeps it from feeling cramped.
+  const creditNameSize = creditText.length > 90 ? 11.5 : 13;
+  const creditLines = hasCredit ? wrapText(font, creditText, creditNameSize, maxW) : [];
 
   // Optional personal line the maker can add under the credit.
   const messageText = nfc((cover?.backCoverMessage ?? "").trim());
-  const messageLines = messageText ? wrapText(font, messageText, 11, maxW) : [];
+  const messageSize = 11.5;
+  const messageLines = messageText ? wrapText(font, messageText, messageSize, maxW) : [];
+
+  // Title is the hero, but when many names sit below it, cap it so the whole
+  // stack stays centred and airy instead of crowding the credit.
+  let titleSize = 25;
+  while (titleSize > 14 && font.widthOfTextAtSize(bookTitle, titleSize) > maxW) titleSize -= 0.5;
+  if (creditLines.length >= 3) titleSize = Math.min(titleSize, 20);
+  const titleText = ellipsize(font, bookTitle, titleSize, maxW);
 
   // Measure the block so it sits optically centred (nudged slightly high).
   const motifH = 24;
   const imprintSize = 14;
-  const gapMotif = 24;
+  const gapMotif = 20;
   const gapRule = 12;
-  const gapAfterRule = 20;
+  const gapAfterRule = 22;
   const titleLineH = titleSize * 1.1;
-  const gapCredit = hasCredit ? 22 : 0;
-  const creditLabelH = hasCredit ? 11 : 0;
-  const creditLineH = 12 * 1.4;
-  const gapMessage = messageLines.length > 0 ? 20 : 0;
-  const messageLineH = 11 * 1.4;
+  const gapCredit = hasCredit ? 24 : 0;
+  const creditLabelSize = 10.5;
+  const creditLabelH = hasCredit ? creditLabelSize : 0;
+  const gapLabelToNames = hasCredit ? 7 : 0; // air between the label and the names
+  const creditLineH = creditNameSize * 1.6; // generous leading so a long list breathes
+  const gapMessage = messageLines.length > 0 ? 22 : 0;
+  const messageLineH = messageSize * 1.5;
   const blockH =
     motifH + gapMotif + imprintSize + gapRule + 1 + gapAfterRule + titleLineH +
-    gapCredit + creditLabelH + creditLines.length * creditLineH +
+    gapCredit + creditLabelH + gapLabelToNames + creditLines.length * creditLineH +
     gapMessage + messageLines.length * messageLineH;
 
   let y = panel.h * 0.44 - blockH / 2; // optical centre, biased above true middle
