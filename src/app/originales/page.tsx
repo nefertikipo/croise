@@ -15,7 +15,7 @@ import { GridPreview } from "@/components/originales/grid-preview";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Les Fléchés Originales : nos grilles maison à jouer",
+  title: "Les Flèches Originales : nos grilles maison à jouer",
   description:
     "Des mots fléchés originaux, écrits à la main par notre équipe. Grilles thématiques prêtes à jouer et à imprimer, gratuitement.",
   alternates: { canonical: absoluteUrl("/originales") },
@@ -53,7 +53,7 @@ export default async function OriginalesPage() {
             Faites main, par nous
           </p>
           <h1 className="mt-3 text-4xl text-ink sm:text-6xl">
-            Les Fléchés Originales
+            Les Flèches Originales
           </h1>
           <p className="font-serif-accent mt-4 max-w-2xl text-xl italic text-ink/70">
             Nos grilles maison : des mots fléchés écrits à la main, avec des définitions
