@@ -29,17 +29,23 @@ export function preventFrenchOrphans(text: string): string {
 /** Zero-width space — an optional line-break opportunity with no visible width. */
 export const ZWSP = "\u200B";
 
+/** Soft hyphen — an optional break opportunity that renders a hyphen ONLY when
+ * the browser actually breaks there (invisible otherwise), so a forced in-word
+ * wrap reads as a continuation ("MOUS-" / "TIQUAIRE"), not two words. */
+export const SHY = "\u00AD"; // soft hyphen
+
 /**
  * Insert break opportunities inside long words so that when the clue box is too
  * narrow to hold a word whole, the browser can only break it at a spot that
  * leaves at least two characters on each side — a forced break must never strand
- * a single letter on its own line.
+ * a single letter on its own line, and it renders a hyphen so it stays legible.
  *
  * Opportunities are placed after every second character and kept >=2 chars from
  * each end, so they sit >=2 apart: any single break, or run of breaks, yields
- * lines of >=2 characters. Pair this with `overflow-wrap: normal` on screen so
- * the browser breaks ONLY at these safe points (and at spaces), never at an
- * arbitrary character. The PDF path enforces the same rule in `breakIntoChunks`.
+ * lines of >=2 characters. They are SOFT HYPHENS, so a break shows a hyphen.
+ * Pair this with `overflow-wrap: normal` on screen so the browser breaks ONLY at
+ * these safe points (and at spaces), never at an arbitrary character. The PDF
+ * path enforces the same rule (with hyphens) in `breakIntoChunks`.
  */
 export function insertSoftBreaks(text: string): string {
   return text.replace(/\p{L}{4,}/gu, (word) => {
@@ -48,7 +54,7 @@ export function insertSoftBreaks(text: string): string {
       out += word[i];
       const emitted = i + 1;
       if (emitted >= 2 && emitted % 2 === 0 && word.length - emitted >= 2) {
-        out += ZWSP;
+        out += SHY;
       }
     }
     return out;

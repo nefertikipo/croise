@@ -56,27 +56,36 @@ export function BackCoverPreview({ coverColor, title, titleFont, names, message,
       <div className="pointer-events-none absolute inset-[4%] border" style={{ borderColor: ink, opacity: 0.4 }} />
 
       {/* Centred credit block, biased slightly above the middle. */}
-      <div className="flex w-[78%] -translate-y-[6%] flex-col items-center text-center">
+      <div className="flex w-[82%] -translate-y-[4%] flex-col items-center text-center">
         <ArrowMotif color={ink} />
         <p className="mt-4 text-[11px] uppercase tracking-[0.35em]" style={{ opacity: 0.82 }}>
           Les Flèches
         </p>
         <div className="mt-3 h-px w-10" style={{ backgroundColor: ink, opacity: 0.5 }} />
-        <p className="mt-5 text-2xl uppercase leading-tight [overflow-wrap:break-word]">
+        <p
+          className={`mt-6 uppercase leading-tight [overflow-wrap:break-word] ${
+            shownNames.length >= 8 ? "text-xl" : "text-2xl"
+          }`}
+        >
           {title || "Titre"}
         </p>
         {creditText && (
-          <div className="mt-5">
-            <p className="text-[10px] uppercase tracking-[0.2em]" style={{ opacity: 0.55 }}>
+          <div className="mt-6">
+            <p className="text-[10px] uppercase tracking-[0.25em]" style={{ opacity: 0.55 }}>
               Imaginé avec amour par
             </p>
-            <p className="mt-1 text-sm" style={{ opacity: 0.82 }}>
+            <p
+              className={`mt-2 leading-relaxed [overflow-wrap:break-word] ${
+                creditText.length > 90 ? "text-xs" : "text-sm"
+              }`}
+              style={{ opacity: 0.82 }}
+            >
               {creditText}
             </p>
           </div>
         )}
         {messageText && (
-          <p className="mt-5 max-w-[90%] text-sm leading-snug [overflow-wrap:break-word]" style={{ opacity: 0.82 }}>
+          <p className="mt-6 max-w-[90%] text-sm leading-relaxed [overflow-wrap:break-word]" style={{ opacity: 0.82 }}>
             {messageText}
           </p>
         )}

@@ -151,36 +151,41 @@ function clueWords(text: string): string[] {
     .map((t) => t.replaceAll(NBSP, " "));
 }
 
-/** Char-break `word` into chunks that each fit the box (`fits`), but never a
- * single-letter chunk: a lone letter is merged into a neighbour (overflowing the
- * box a touch), because a line holding just one letter reads as broken. Greedy
- * fill first, then a merge pass collapses any 1-char fragment. */
-function breakIntoChunks(word: string, fits: (s: string) => boolean): string[] {
-  const chunks: string[] = [];
+/** Char-break `word` into chunks that each fit the box (`fitsWidth`), joining a
+ * trailing hyphen to every chunk but the last so a forced break reads as a word
+ * continuation ("MOUS-" / "TIQUAIRE") rather than two words. Never a lone
+ * single-letter chunk: a stray letter is merged into a neighbour (overflowing
+ * the box a touch), because a line holding just one letter reads as broken.
+ * Greedy fill reserving room for the hyphen, then a merge pass collapses any
+ * 1-char fragment. */
+function breakIntoChunks(word: string, fitsWidth: (s: string) => boolean): string[] {
+  const parts: string[] = [];
   let chunk = "";
   for (const ch of word) {
-    if (fits(chunk + ch) || !chunk) chunk += ch;
+    // Reserve room for the continuation hyphen so a hyphenated chunk still fits.
+    if (fitsWidth(chunk + ch + "-") || !chunk) chunk += ch;
     else {
-      chunks.push(chunk);
+      parts.push(chunk);
       chunk = ch;
     }
   }
-  if (chunk) chunks.push(chunk);
+  if (chunk) parts.push(chunk);
   // Collapse any single-character fragment into an adjacent chunk.
   let k = 0;
-  while (k < chunks.length && chunks.length > 1) {
-    if (chunks[k].length >= 2) {
+  while (k < parts.length && parts.length > 1) {
+    if (parts[k].length >= 2) {
       k++;
     } else if (k > 0) {
-      chunks[k - 1] += chunks[k];
-      chunks.splice(k, 1);
+      parts[k - 1] += parts[k];
+      parts.splice(k, 1);
       k = Math.max(0, k - 1);
     } else {
-      chunks[k] += chunks[k + 1];
-      chunks.splice(k + 1, 1);
+      parts[k] += parts[k + 1];
+      parts.splice(k + 1, 1);
     }
   }
-  return chunks;
+  // Hyphenate every chunk but the last so the break is legible.
+  return parts.map((c, i) => (i < parts.length - 1 ? `${c}-` : c));
 }
 
 /** Greedy word-wrap of `text` at `size`, char-breaking a word wider than the box
@@ -219,8 +224,15 @@ function wrapLines(
   return lines;
 }
 
-/** Largest size in [min,max] whose wrapped lines fit the box (binary search),
- * matching FitText's measure-and-shrink. */
+/**
+ * Fit a clue into the box, preferring to keep every word WHOLE.
+ *
+ * Rule (mirrors the screen): pick the largest size in [min,max] at which no word
+ * needs breaking — it only ever wraps at spaces, so words stay intact even if
+ * that means smaller type. Only when even the min size can't hold a word whole
+ * do we fall back to the largest height-fitting size and let the offending word
+ * break — hyphenated by `breakIntoChunks` so the break is legible.
+ */
 function fitText(
   font: BookFonts["clue"],
   text: string,
@@ -230,28 +242,53 @@ function fitText(
   min: number,
   lineRatio: number,
 ): FitResult {
-  const fits = (size: number): string[] | null => {
+  const words = clueWords(text);
+  const widestWord = (size: number) =>
+    words.reduce((m, wd) => Math.max(m, font.widthOfTextAtSize(wd, size)), 0);
+  const heightOk = (size: number, lines: string[]) =>
+    lines.length * size * lineRatio <= boxH + 0.5;
+
+  // Every word fits the width (no in-word break) AND the lines fit the height.
+  const wholeFits = (size: number): string[] | null => {
+    if (widestWord(size) > boxW) return null;
     const lines = wrapLines(font, text, size, boxW);
-    return lines.length * size * lineRatio <= boxH + 0.5 ? lines : null;
+    return heightOk(size, lines) ? lines : null;
   };
-  const atMax = fits(max);
-  if (atMax) return { size: max, lines: atMax };
-  let lo = min;
-  let hi = max;
-  let best = min;
-  let bestLines = wrapLines(font, text, min, boxW);
-  for (let i = 0; i < 18 && hi - lo > 0.25; i++) {
-    const mid = (lo + hi) / 2;
-    const ok = fits(mid);
-    if (ok) {
-      best = mid;
-      bestLines = ok;
-      lo = mid;
-    } else {
-      hi = mid;
+  // Any layout that fits the height, letting a too-wide word hyphen-break.
+  const anyFits = (size: number): string[] | null => {
+    const lines = wrapLines(font, text, size, boxW);
+    return heightOk(size, lines) ? lines : null;
+  };
+
+  // Largest size where `fitsAt` holds, or null if even `min` fails.
+  const search = (fitsAt: (size: number) => string[] | null): FitResult | null => {
+    const atMax = fitsAt(max);
+    if (atMax) return { size: max, lines: atMax };
+    const atMin = fitsAt(min);
+    if (!atMin) return null;
+    let lo = min;
+    let hi = max;
+    let best = min;
+    let bestLines = atMin;
+    for (let i = 0; i < 18 && hi - lo > 0.25; i++) {
+      const mid = (lo + hi) / 2;
+      const ok = fitsAt(mid);
+      if (ok) {
+        best = mid;
+        bestLines = ok;
+        lo = mid;
+      } else {
+        hi = mid;
+      }
     }
-  }
-  return { size: best, lines: bestLines };
+    return { size: best, lines: bestLines };
+  };
+
+  return (
+    search(wholeFits) ??
+    search(anyFits) ??
+    { size: min, lines: wrapLines(font, text, min, boxW) }
+  );
 }
 
 /* ---------------------------------------------------------------- drawing */
