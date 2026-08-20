@@ -33,6 +33,8 @@ export interface DedicationPageOptions {
   credit: DedicationCredit;
   /** Maker's sign-off line; null/empty falls back to the default. */
   signoff: string | null;
+  /** Black-and-white print mode: white page, black title/rule (no blue accent). */
+  mono?: boolean;
 }
 
 /**
@@ -40,10 +42,12 @@ export interface DedicationPageOptions {
  * the dedication — centered, with a short primary rule below. Without one it's a
  * title page: the book title and a warm sign-off from the contributors.
  */
-export function composeDedicationPage({ page, g, fonts, text, font, title, credit, signoff }: DedicationPageOptions): void {
-  page.drawRectangle({ x: 0, y: 0, width: g.pageW, height: g.pageH, color: hex2rgb(PAPER) });
+export function composeDedicationPage({ page, g, fonts, text, font, title, credit, signoff, mono }: DedicationPageOptions): void {
+  page.drawRectangle({ x: 0, y: 0, width: g.pageW, height: g.pageH, color: mono ? hex2rgb("#ffffff") : hex2rgb(PAPER) });
 
   const dedicationFont = fonts.dedication[resolveDedicationFont(font).key];
+  // In B&W the blue accent (overline + rule) becomes black so it prints crisp.
+  const accentInk = mono ? INK : PRIMARY;
 
   const cx = g.contentX + g.contentW / 2;
   const drawCentered = (line: string, y: number, size: number, font = fonts.heading, color = INK) => {
@@ -55,7 +59,7 @@ export function composeDedicationPage({ page, g, fonts, text, font, title, credi
       start: { x: cx - 24, y: g.pageH - y },
       end: { x: cx + 24, y: g.pageH - y },
       thickness: 1,
-      color: hex2rgb(PRIMARY),
+      color: hex2rgb(accentInk),
     });
 
   if (text.trim()) {
@@ -95,7 +99,7 @@ export function composeDedicationPage({ page, g, fonts, text, font, title, credi
     let yTop = g.contentTop + Math.max(0, (g.contentH - blockH) / 2);
 
     for (const line of overlineLines) {
-      drawCentered(line, yTop, overlineSize, fonts.letter, PRIMARY);
+      drawCentered(line, yTop, overlineSize, fonts.letter, accentInk);
       yTop += overlineLineH;
     }
     yTop += overlineGap;

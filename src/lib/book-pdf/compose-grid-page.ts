@@ -32,6 +32,8 @@ export interface GridPageOptions {
   mode: GridMode;
   /** Heading override, e.g. "Solution — Grille 3". */
   headingOverride?: string;
+  /** Black-and-white print mode: white page, neutral-grey clue cells, black ink. */
+  mono?: boolean;
 }
 
 /**
@@ -57,12 +59,13 @@ async function cropToBox(
   return sharp(buf).rotate().resize(box.w, box.h, { fit: "cover" }).jpeg({ quality: 92 }).toBuffer();
 }
 
-export async function composeGridPage({ doc, page, g, fonts, grid, gridNumber, mode, headingOverride }: GridPageOptions): Promise<void> {
+export async function composeGridPage({ doc, page, g, fonts, grid, gridNumber, mode, headingOverride, mono }: GridPageOptions): Promise<void> {
   const inkRgb = hex2rgb(INK);
   const muted = mixHex(INK, PAGE_BG, 0.5);
 
-  // Page background across the full bleed.
-  page.drawRectangle({ x: 0, y: 0, width: g.pageW, height: g.pageH, color: hex2rgb(PAGE_BG) });
+  // Page background across the full bleed (white in B&W mode so the shop's mono
+  // print stays crisp instead of a faint cream cast on every page).
+  page.drawRectangle({ x: 0, y: 0, width: g.pageW, height: g.pageH, color: mono ? hex2rgb("#ffffff") : hex2rgb(PAGE_BG) });
 
   const hidden = grid.config.hiddenWord ?? "";
   const hiddenCells = hidden
@@ -136,6 +139,7 @@ export async function composeGridPage({ doc, page, g, fonts, grid, gridNumber, m
     mode,
     accentHex: grid.config.gridColor,
     hidden: hasStrip ? hiddenCells : undefined,
+    mono,
   });
   // Heavier outer frame around the whole grid.
   page.drawRectangle({

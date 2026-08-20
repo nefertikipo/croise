@@ -103,17 +103,21 @@ export interface IndexPagesOptions {
   fonts: BookFonts;
   entries: WordIndexEntry[];
   accentHex?: string;
+  /** Black-and-white print mode: white page, black section headers. */
+  mono?: boolean;
 }
 
-export function composeIndexPages({ addPage, g, fonts, entries, accentHex }: IndexPagesOptions): void {
-  const accent = accentHex || DEFAULT_ACCENT_HEX;
+export function composeIndexPages({ addPage, g, fonts, entries, accentHex, mono }: IndexPagesOptions): void {
+  // In B&W mode the section headers are black (a coloured accent would just
+  // become an inconsistent grey once the shop prints mono).
+  const accent = mono ? INK : accentHex || DEFAULT_ACCENT_HEX;
   const total = entries.reduce((n, e) => n + e.words.length, 0);
   const colW = (g.contentW - COL_GAP * (COLS - 1)) / COLS;
   const layout = paginateIndex(entries, g);
 
   layout.forEach((placed, pi) => {
     const { page, g: pg } = addPage();
-    page.drawRectangle({ x: 0, y: 0, width: pg.pageW, height: pg.pageH, color: hex2rgb(PAGE_BG) });
+    page.drawRectangle({ x: 0, y: 0, width: pg.pageW, height: pg.pageH, color: mono ? hex2rgb("#ffffff") : hex2rgb(PAGE_BG) });
     if (pi === 0) {
       const hSize = 20;
       let top = pg.contentTop;

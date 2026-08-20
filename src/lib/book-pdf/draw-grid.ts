@@ -28,6 +28,15 @@ const LETTER_BORDER = "#c0bcb4"; // ink @30% over paper
 const EMPTY_BORDER = "#d9d0c0";
 const PLAIN_CLUE_BG = "#e9e6e0";
 
+/* Monochrome (black-and-white print) palette — neutral greys so every grid reads
+ * identically once a shop prints in B&W (no per-grid accent variation), with
+ * black clue text staying crisp on a light-grey clue cell and white answer cells. */
+const MONO_CLUE_BG = "#e7e7e7"; // uniform light-grey clue cell
+const MONO_CLUE_RULE = "#b9b9b9"; // cell rule / two-clue divider
+const MONO_LETTER_BORDER = "#bdbdbd";
+const MONO_EMPTY_BG = "#d6d6d6"; // blocked / potence-frame cells, a touch darker
+const MONO_HIDDEN_BG = "#dcdcdc";
+
 export type GridMode = "puzzle" | "solution" | "plain";
 
 const INK_RGB = hex2rgb(INK);
@@ -56,6 +65,13 @@ export interface DrawGridOptions {
    * a solution answer key stays clean and legible.
    */
   sketch?: boolean;
+  /**
+   * Black-and-white print mode: neutral-grey clue cells (identical across every
+   * grid, ignoring `accentHex`), white answer cells, black ink. For books sent
+   * to a mono printer so the grids look intentional rather than a muddy auto
+   * grayscale of the colour palette. Ignored under `plain`/`sketch`.
+   */
+  mono?: boolean;
 }
 
 /* Sketch (hand-drawn) palette — green ink, pink clue cells. */
@@ -299,6 +315,7 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
   const accent = opts.accentHex || DEFAULT_ACCENT_HEX;
   const plain = mode === "plain";
   const sketch = (opts.sketch ?? false) && !plain;
+  const mono = (opts.mono ?? false) && !plain && !sketch;
   // Stroke ink (borders, rules, arrows) turns green in the sketch theme; clue
   // and letter TEXT stays dark ink for legibility.
   const strokeInk = sketch ? hex2rgb(SKETCH_INK) : INK_RGB;
@@ -306,11 +323,29 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
     ? hex2rgb(PLAIN_CLUE_BG)
     : sketch
       ? hex2rgb(SKETCH_CLUE_BG)
-      : mixHex(PAPER, accent, 0.18);
-  const clueRule = sketch ? hex2rgb(SKETCH_INK) : mixHex(PAPER, accent, 0.45);
-  const customBg = sketch ? hex2rgb(SKETCH_CUSTOM_BG) : hex2rgb(CUSTOM_BG);
-  const hiddenAccent = sketch ? hex2rgb(SKETCH_HIDDEN_ACCENT) : hex2rgb(HIDDEN_ACCENT);
-  const letterBorder = sketch ? hex2rgb(SKETCH_CELL_BORDER) : hex2rgb(LETTER_BORDER);
+      : mono
+        ? hex2rgb(MONO_CLUE_BG)
+        : mixHex(PAPER, accent, 0.18);
+  const clueRule = sketch
+    ? hex2rgb(SKETCH_INK)
+    : mono
+      ? hex2rgb(MONO_CLUE_RULE)
+      : mixHex(PAPER, accent, 0.45);
+  const customBg = mono
+    ? hex2rgb(MONO_CLUE_BG)
+    : sketch
+      ? hex2rgb(SKETCH_CUSTOM_BG)
+      : hex2rgb(CUSTOM_BG);
+  const hiddenAccent = mono
+    ? INK_RGB
+    : sketch
+      ? hex2rgb(SKETCH_HIDDEN_ACCENT)
+      : hex2rgb(HIDDEN_ACCENT);
+  const letterBorder = mono
+    ? hex2rgb(MONO_LETTER_BORDER)
+    : sketch
+      ? hex2rgb(SKETCH_CELL_BORDER)
+      : hex2rgb(LETTER_BORDER);
 
   /** Bottom-left rect for grid cell (r,c). */
   const cellRect = (r: number, c: number) => ({
@@ -352,8 +387,8 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
     for (let c = 0; c < width; c++) {
       const cell = cells[r][c];
       if (cell.type === "empty") {
-        fill(r, c, hex2rgb(EMPTY_BG));
-        border(r, c, sketch ? letterBorder : hex2rgb(EMPTY_BORDER), 0.5 * u);
+        fill(r, c, mono ? hex2rgb(MONO_EMPTY_BG) : hex2rgb(EMPTY_BG));
+        border(r, c, sketch ? letterBorder : mono ? hex2rgb(MONO_LETTER_BORDER) : hex2rgb(EMPTY_BORDER), 0.5 * u);
       } else if (cell.type === "clue") {
         fill(r, c, clueBg);
         if (!plain) border(r, c, clueRule, 0.5 * u);
@@ -361,7 +396,16 @@ export function drawFlecheGrid(opts: DrawGridOptions) {
       } else {
         const key = `${r},${c}`;
         const isHidden = opts.hidden?.has(key) ?? false;
-        fill(r, c, plain ? rgb(1, 1, 1) : isHidden ? hex2rgb(HIDDEN_BG) : hex2rgb(PAPER));
+        const letterFill = plain
+          ? rgb(1, 1, 1)
+          : mono
+            ? isHidden
+              ? hex2rgb(MONO_HIDDEN_BG)
+              : rgb(1, 1, 1)
+            : isHidden
+              ? hex2rgb(HIDDEN_BG)
+              : hex2rgb(PAPER);
+        fill(r, c, letterFill);
         if (isHidden) border(r, c, plain ? INK_RGB : hiddenAccent, 1.4 * u);
         else border(r, c, letterBorder, 0.5 * u);
       }
