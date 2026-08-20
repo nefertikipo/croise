@@ -11,7 +11,11 @@ export const maxDuration = 60;
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     const { code } = await params;
-    const size = resolvePageSize(new URL(req.url).searchParams.get("size") ?? undefined);
+    const sp = new URL(req.url).searchParams;
+    const size = resolvePageSize(sp.get("size") ?? undefined);
+    // Black-and-white print mode (?bw=1): white pages, neutral-grey grids, black
+    // ink — for books sent to a mono printer so the interior prints clean.
+    const mono = sp.get("bw") === "1" || sp.get("mono") === "1";
     const book = await loadBook(code);
     if (!book) {
       return Response.json({ error: "Book not found" }, { status: 404 });
@@ -25,7 +29,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       console.warn(`Book ${code}: ${pageCount} pages exceeds the saddle-stitch ceiling of ${SADDLE_MAX_INTERIOR_PAGES} — needs perfect binding.`);
     }
 
-    const pdf = await generateBookInteriorPdf(book, size);
+    const pdf = await generateBookInteriorPdf(book, size, { mono });
     return new Response(Buffer.from(pdf), {
       headers: {
         "Content-Type": "application/pdf",

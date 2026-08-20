@@ -148,9 +148,16 @@ async function loadPhotoContent(layout: PhotoLayout, config: ContentPageConfig):
   return { photos };
 }
 
-export async function generateBookInteriorPdf(book: BookData, size: PageSize = "a5"): Promise<Uint8Array> {
+export async function generateBookInteriorPdf(
+  book: BookData,
+  size: PageSize = "a5",
+  opts: { mono?: boolean } = {},
+): Promise<Uint8Array> {
   const grids = book.pages.filter((p): p is GridPage => p.kind === "grid");
   if (grids.length === 0) throw new EmptyBookError();
+  // Black-and-white print mode: white pages + neutral-grey grids, so a book sent
+  // to a mono printer looks intentional instead of a muddy auto grayscale.
+  const mono = opts.mono ?? false;
 
   const spec = PAGE_SPECS[size];
   const doc = await PDFDocument.create();
@@ -183,6 +190,7 @@ export async function generateBookInteriorPdf(book: BookData, size: PageSize = "
       title: book.title,
       credit: dedicationCredit(book.dedicationSignature, book.clueIdeas),
       signoff: book.dedicationSignoff,
+      mono,
     });
   }
 
@@ -193,7 +201,7 @@ export async function generateBookInteriorPdf(book: BookData, size: PageSize = "
     const { page, g } = addPage();
     if (p.kind === "grid") {
       gridNumber += 1;
-      await composeGridPage({ doc, page, g, fonts, grid: p, gridNumber, mode: "puzzle" });
+      await composeGridPage({ doc, page, g, fonts, grid: p, gridNumber, mode: "puzzle", mono });
     } else if (p.config.layout === "photo") {
       photoPageIdx.add(doc.getPageCount() - 1); // folio needs a plate over the image
       const layout = getPhotoLayout(p.config.photoLayout);
@@ -206,13 +214,13 @@ export async function generateBookInteriorPdf(book: BookData, size: PageSize = "
 
   // 3) Word index + 4) Solutions (tiled plain answer-key mini grids).
   const gBase = pageGeometry(spec);
-  composeIndexPages({ addPage, g: gBase, fonts, entries: book.wordIndex });
-  composeSolutionsPages({ addPage, g: gBase, fonts, grids });
+  composeIndexPages({ addPage, g: gBase, fonts, entries: book.wordIndex, mono });
+  composeSolutionsPages({ addPage, g: gBase, fonts, grids, mono });
 
   // 5) Pad to a multiple-of-4 page count with blank (background-only) pages.
   while (doc.getPageCount() % 4 !== 0) {
     const { page, g } = addPage();
-    page.drawRectangle({ x: 0, y: 0, width: g.pageW, height: g.pageH, color: hex2rgb(PAGE_BG) });
+    page.drawRectangle({ x: 0, y: 0, width: g.pageW, height: g.pageH, color: mono ? hex2rgb("#ffffff") : hex2rgb(PAGE_BG) });
   }
 
   // 6) Folios — drawn last so they sit above each page's content. Every page is

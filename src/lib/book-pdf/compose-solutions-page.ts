@@ -107,15 +107,17 @@ export interface SolutionsPagesOptions {
   g: Geometry;
   fonts: BookFonts;
   grids: GridPage[];
+  /** Black-and-white print mode: white page, black tile numbers. */
+  mono?: boolean;
 }
 
-export function composeSolutionsPages({ addPage, g, fonts, grids }: SolutionsPagesOptions): void {
+export function composeSolutionsPages({ addPage, g, fonts, grids, mono }: SolutionsPagesOptions): void {
   if (grids.length === 0) return;
   const { tileW, pages } = paginateSolutions(grids, g);
 
   pages.forEach((placements, pi) => {
     const { page, g: pg } = addPage();
-    page.drawRectangle({ x: 0, y: 0, width: pg.pageW, height: pg.pageH, color: hex2rgb(PAGE_BG) });
+    page.drawRectangle({ x: 0, y: 0, width: pg.pageW, height: pg.pageH, color: mono ? hex2rgb("#ffffff") : hex2rgb(PAGE_BG) });
     const hSize = 20;
     page.drawText(pi === 0 ? "SOLUTIONS" : "SOLUTIONS (SUITE)", {
       x: pg.contentX,
@@ -170,7 +172,7 @@ export function composeSolutionsPages({ addPage, g, fonts, grids }: SolutionsPag
           y: captionY,
           size: CAPTION_SIZE,
           font: fonts.heading,
-          color: hex2rgb(PRIMARY),
+          color: mono ? hex2rgb(INK) : hex2rgb(PRIMARY),
         });
       }
 
