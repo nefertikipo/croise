@@ -28,6 +28,8 @@ export const gridCompletions = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    // Player-chosen display name for the board (falls back to the account name).
+    username: text("username"),
     timeMs: integer("time_ms").notNull(),
     revealed: boolean("revealed").notNull().default(false),
     autocheck: boolean("autocheck").notNull().default(false),

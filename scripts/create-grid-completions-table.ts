@@ -26,6 +26,8 @@ async function main() {
     CREATE UNIQUE INDEX IF NOT EXISTS grid_completions_user_grid
       ON grid_completions (crossword_id, user_id)
   `;
+  // Added later: player-chosen display name for the leaderboard.
+  await sql`ALTER TABLE grid_completions ADD COLUMN IF NOT EXISTS username text`;
   const cols = await sql`
     SELECT column_name FROM information_schema.columns
     WHERE table_name = 'grid_completions' ORDER BY ordinal_position
