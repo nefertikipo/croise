@@ -273,6 +273,11 @@ interface FlecheGridProps {
    * to stop the timer and record a leaderboard time.
    */
   onComplete?: () => void;
+  /**
+   * Fires once on the first letter the player *types* (not reveals). The parent
+   * uses it to start the timer only when solving actually begins.
+   */
+  onFirstInput?: () => void;
 }
 
 /** Imperative controls exposed to the parent (reveal buttons live outside). */
@@ -436,6 +441,7 @@ export const FlecheGrid = forwardRef<FlecheGridHandle, FlecheGridProps>(
       hideCustomTint = false,
       autoCheck = false,
       onComplete,
+      onFirstInput,
     }: FlecheGridProps,
     ref,
   ) {
@@ -508,6 +514,8 @@ export const FlecheGrid = forwardRef<FlecheGridHandle, FlecheGridProps>(
 
   // Fire onComplete once when every letter cell matches the solution.
   const completedRef = useRef(false);
+  // Fire onFirstInput once, on the first typed (not revealed) letter.
+  const firstInputRef = useRef(false);
   useEffect(() => {
     if (!interactive || !onComplete) return;
     let allFilled = true;
@@ -643,6 +651,10 @@ export const FlecheGrid = forwardRef<FlecheGridHandle, FlecheGridProps>(
   // `nextInput` is only a best-effort hint for the advance's skip logic.
   function commitLetter(r: number, c: number, letter: string) {
     const key = `${r},${c}`;
+    if (!firstInputRef.current) {
+      firstInputRef.current = true;
+      onFirstInput?.();
+    }
     setUserInput((prev) => {
       const merged = new Map(prev);
       merged.set(key, letter);

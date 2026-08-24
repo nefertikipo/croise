@@ -46,7 +46,6 @@ interface LeaderboardEntry {
   rank: number;
   name: string;
   timeMs: number;
-  autocheck: boolean;
   isMe: boolean;
 }
 
@@ -134,6 +133,8 @@ export default function GrillePage() {
   const [finished, setFinished] = useState(false);
   const [finishedMs, setFinishedMs] = useState<number | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [started, setStarted] = useState(false);
+  const [username, setUsername] = useState("");
   const [board, setBoard] = useState<LeaderboardEntry[] | null>(null);
 
   const timerKey = `fleche-timer:${code}`;
@@ -154,20 +155,36 @@ export default function GrillePage() {
     if (isOriginale) loadBoard();
   }, [isOriginale, loadBoard]);
 
-  // Timer: starts when an Originale is opened, persisted so a reload keeps
-  // counting; ticks each second until solved.
+  // Prefill the board name from a previous choice, else the account name.
   useEffect(() => {
-    if (!isOriginale || !grid || finished) return;
-    let start = Number(window.localStorage.getItem(timerKey));
-    if (!start) {
-      start = Date.now();
-      window.localStorage.setItem(timerKey, String(start));
-    }
+    if (!isOriginale) return;
+    const saved = window.localStorage.getItem("fleche-username");
+    setUsername(saved || session?.user?.name || "");
+  }, [isOriginale, session?.user?.name]);
+
+  // Resume a timer already running from before a reload (they'd started typing).
+  useEffect(() => {
+    if (!isOriginale || !grid) return;
+    if (Number(window.localStorage.getItem(timerKey)) > 0) setStarted(true);
+  }, [isOriginale, grid, timerKey]);
+
+  // Tick once solving has begun (first letter typed), until solved.
+  useEffect(() => {
+    if (!isOriginale || !started || finished) return;
+    const start = Number(window.localStorage.getItem(timerKey)) || Date.now();
     const tick = () => setElapsedMs(Date.now() - start);
     tick();
     const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, [isOriginale, grid, finished, timerKey]);
+  }, [isOriginale, started, finished, timerKey]);
+
+  // Start the clock on the first letter the player types.
+  const handleFirstInput = useCallback(() => {
+    if (!(Number(window.localStorage.getItem(timerKey)) > 0)) {
+      window.localStorage.setItem(timerKey, String(Date.now()));
+    }
+    setStarted(true);
+  }, [timerKey]);
 
   const handleComplete = useCallback(() => {
     if (!isOriginale) return;
@@ -179,11 +196,16 @@ export default function GrillePage() {
     fetch(`/api/grille/${code}/leaderboard`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ timeMs: ms, revealed, autocheck: autoCheck }),
+      body: JSON.stringify({
+        timeMs: ms,
+        revealed,
+        autocheck: autoCheck,
+        username: username.trim() || undefined,
+      }),
     })
       .then(() => loadBoard())
       .catch(() => {});
-  }, [isOriginale, code, revealed, autoCheck, timerKey, loadBoard]);
+  }, [isOriginale, code, revealed, autoCheck, username, timerKey, loadBoard]);
 
   function handleRevealWord() {
     gridRef.current?.revealWord();
@@ -192,6 +214,21 @@ export default function GrillePage() {
   function handleRevealPuzzle() {
     gridRef.current?.revealPuzzle();
     setRevealed(true);
+  }
+
+  // Persist the board name; if already recorded, update it on the server too.
+  function saveUsername() {
+    const v = username.trim();
+    window.localStorage.setItem("fleche-username", v);
+    if (finished && v) {
+      fetch(`/api/grille/${code}/leaderboard`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: v }),
+      })
+        .then(() => loadBoard())
+        .catch(() => {});
+    }
   }
 
   if (loading) {
@@ -284,31 +321,47 @@ export default function GrillePage() {
         </div>
 
         {isOriginale && !showSolution && (
-          <div className="flex flex-wrap items-center gap-3 border-2 border-ink bg-paper px-4 py-3 shadow-[4px_4px_0_0_var(--ink)]">
-            <span className="font-display text-xl tabular-nums tracking-wide text-brand">
-              ⏱ {formatTime(finished && finishedMs != null ? finishedMs : elapsedMs)}
-            </span>
-            <span className="mx-1 hidden h-6 w-px bg-ink/20 sm:block" />
-            <Button
-              onClick={() => setAutoCheck((v) => !v)}
-              className={`btn-lapos rounded-none px-3 py-2 text-sm ${
-                autoCheck ? "bg-turquoise text-paper" : "bg-paper text-ink"
-              }`}
-            >
-              {autoCheck ? "Auto-vérif ✓" : "Auto-vérif"}
-            </Button>
-            <Button
-              onClick={handleRevealWord}
-              className="btn-lapos rounded-none bg-paper px-3 py-2 text-sm text-ink"
-            >
-              Révéler le mot
-            </Button>
-            <Button
-              onClick={handleRevealPuzzle}
-              className="btn-lapos rounded-none bg-paper px-3 py-2 text-sm text-ink"
-            >
-              Révéler la grille
-            </Button>
+          <div className="space-y-3 border-2 border-ink bg-paper px-4 py-3 shadow-[4px_4px_0_0_var(--ink)]">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <span className="font-display text-xl tabular-nums tracking-wide text-brand">
+                ⏱ {formatTime(finished && finishedMs != null ? finishedMs : elapsedMs)}
+              </span>
+              <label className="flex items-center gap-2">
+                <span className="font-display text-xs uppercase tracking-wide text-ink/60">
+                  Pseudo
+                </span>
+                <input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  onBlur={saveUsername}
+                  maxLength={24}
+                  placeholder="Votre nom"
+                  className="w-32 border-2 border-ink bg-paper px-2 py-1 font-sans text-sm outline-none focus:border-brand"
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => setAutoCheck((v) => !v)}
+                className={`btn-lapos flex-1 rounded-none px-3 py-2 text-sm sm:flex-none ${
+                  autoCheck ? "bg-turquoise text-paper" : "bg-paper text-ink"
+                }`}
+              >
+                {autoCheck ? "Auto-vérif ✓" : "Auto-vérif"}
+              </Button>
+              <Button
+                onClick={handleRevealWord}
+                className="btn-lapos flex-1 rounded-none bg-paper px-3 py-2 text-sm text-ink sm:flex-none"
+              >
+                Révéler le mot
+              </Button>
+              <Button
+                onClick={handleRevealPuzzle}
+                className="btn-lapos flex-1 rounded-none bg-paper px-3 py-2 text-sm text-ink sm:flex-none"
+              >
+                Révéler la grille
+              </Button>
+            </div>
           </div>
         )}
 
@@ -317,9 +370,10 @@ export default function GrillePage() {
             <p className="font-display text-lg uppercase tracking-wide text-ink">
               Résolu en {formatTime(finishedMs ?? elapsedMs)}&nbsp;🎉
             </p>
-            {revealed && (
+            {(revealed || autoCheck) && (
               <p className="mt-1 font-serif-accent text-sm italic text-ink/70">
-                Grille révélée — ce temps n&apos;entre pas au classement.
+                {revealed ? "Grille révélée" : "Auto-vérif activé"} — ce temps
+                n&apos;entre pas au classement.
               </p>
             )}
           </div>
@@ -352,6 +406,7 @@ export default function GrillePage() {
                   revealErrors={checkErrors}
                   autoCheck={isOriginale && autoCheck}
                   onComplete={isOriginale ? handleComplete : undefined}
+                  onFirstInput={isOriginale ? handleFirstInput : undefined}
                   solverLayout
                   highlightedCells={hiddenCells}
                   persistKey={code}
@@ -413,11 +468,6 @@ export default function GrillePage() {
                   <span className="flex-1 truncate font-sans text-sm text-ink">
                     {e.name}
                     {e.isMe ? " (vous)" : ""}
-                    {e.autocheck && (
-                      <span className="ml-2 align-middle text-[0.7rem] uppercase tracking-wide text-ink/40">
-                        auto-vérif
-                      </span>
-                    )}
                   </span>
                   <span className="font-display text-base tabular-nums text-ink">
                     {formatTime(e.timeMs)}
