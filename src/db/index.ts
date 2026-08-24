@@ -8,6 +8,7 @@ import * as postcards from "@/db/schema/postcards";
 import * as calendars from "@/db/schema/calendars";
 import * as auth from "@/db/schema/auth";
 import * as leads from "@/db/schema/leads";
+import * as gridCompletions from "@/db/schema/grid-completions";
 
 const sql = neon(process.env.DATABASE_URL!);
 
@@ -21,5 +22,6 @@ export const db = drizzle(sql, {
     ...calendars,
     ...auth,
     ...leads,
+    ...gridCompletions,
   },
 });

@@ -5,12 +5,16 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   type CSSProperties,
 } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/lib/auth-client";
-import { FlecheGrid } from "@/components/fleche/fleche-grid";
+import {
+  FlecheGrid,
+  type FlecheGridHandle,
+} from "@/components/fleche/fleche-grid";
 import { ShareGridButton } from "@/components/fleche/share-grid-button";
 import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
 import {
@@ -36,6 +40,24 @@ interface FlecheCell {
   clues?: ClueInCell[];
   breakRight?: boolean;
   breakBottom?: boolean;
+}
+
+interface LeaderboardEntry {
+  rank: number;
+  name: string;
+  timeMs: number;
+  autocheck: boolean;
+  isMe: boolean;
+}
+
+/** ms -> "m:ss" (or "h:mm:ss" past an hour). */
+function formatTime(ms: number): string {
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const mm = h > 0 ? String(m).padStart(2, "0") : String(m);
+  return `${h > 0 ? `${h}:` : ""}${mm}:${String(s).padStart(2, "0")}`;
 }
 
 interface GridData {
@@ -103,6 +125,73 @@ export default function GrillePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title }),
     });
+  }
+
+  // --- Originales solver: timer, reveal, autocheck, leaderboard ------------
+  const gridRef = useRef<FlecheGridHandle>(null);
+  const [autoCheck, setAutoCheck] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+  const [finished, setFinished] = useState(false);
+  const [finishedMs, setFinishedMs] = useState<number | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [board, setBoard] = useState<LeaderboardEntry[] | null>(null);
+
+  const timerKey = `fleche-timer:${code}`;
+
+  const loadBoard = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/grille/${code}/leaderboard`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setBoard(data.entries ?? []);
+    } catch {
+      /* best-effort */
+    }
+  }, [code]);
+
+  // Fetch the leaderboard once the grid is known to be an Originale.
+  useEffect(() => {
+    if (isOriginale) loadBoard();
+  }, [isOriginale, loadBoard]);
+
+  // Timer: starts when an Originale is opened, persisted so a reload keeps
+  // counting; ticks each second until solved.
+  useEffect(() => {
+    if (!isOriginale || !grid || finished) return;
+    let start = Number(window.localStorage.getItem(timerKey));
+    if (!start) {
+      start = Date.now();
+      window.localStorage.setItem(timerKey, String(start));
+    }
+    const tick = () => setElapsedMs(Date.now() - start);
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [isOriginale, grid, finished, timerKey]);
+
+  const handleComplete = useCallback(() => {
+    if (!isOriginale) return;
+    const start = Number(window.localStorage.getItem(timerKey)) || Date.now();
+    const ms = Date.now() - start;
+    setFinished(true);
+    setFinishedMs(ms);
+    setElapsedMs(ms);
+    fetch(`/api/grille/${code}/leaderboard`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ timeMs: ms, revealed, autocheck: autoCheck }),
+    })
+      .then(() => loadBoard())
+      .catch(() => {});
+  }, [isOriginale, code, revealed, autoCheck, timerKey, loadBoard]);
+
+  function handleRevealWord() {
+    gridRef.current?.revealWord();
+    setRevealed(true);
+  }
+  function handleRevealPuzzle() {
+    gridRef.current?.revealPuzzle();
+    setRevealed(true);
   }
 
   if (loading) {
@@ -194,6 +283,48 @@ export default function GrillePage() {
           )}
         </div>
 
+        {isOriginale && !showSolution && (
+          <div className="flex flex-wrap items-center gap-3 border-2 border-ink bg-paper px-4 py-3 shadow-[4px_4px_0_0_var(--ink)]">
+            <span className="font-display text-xl tabular-nums tracking-wide text-brand">
+              ⏱ {formatTime(finished && finishedMs != null ? finishedMs : elapsedMs)}
+            </span>
+            <span className="mx-1 hidden h-6 w-px bg-ink/20 sm:block" />
+            <Button
+              onClick={() => setAutoCheck((v) => !v)}
+              className={`btn-lapos rounded-none px-3 py-2 text-sm ${
+                autoCheck ? "bg-turquoise text-paper" : "bg-paper text-ink"
+              }`}
+            >
+              {autoCheck ? "Auto-vérif ✓" : "Auto-vérif"}
+            </Button>
+            <Button
+              onClick={handleRevealWord}
+              className="btn-lapos rounded-none bg-paper px-3 py-2 text-sm text-ink"
+            >
+              Révéler le mot
+            </Button>
+            <Button
+              onClick={handleRevealPuzzle}
+              className="btn-lapos rounded-none bg-paper px-3 py-2 text-sm text-ink"
+            >
+              Révéler la grille
+            </Button>
+          </div>
+        )}
+
+        {isOriginale && finished && (
+          <div className="border-2 border-ink bg-sun px-4 py-3 shadow-[4px_4px_0_0_var(--ink)]">
+            <p className="font-display text-lg uppercase tracking-wide text-ink">
+              Résolu en {formatTime(finishedMs ?? elapsedMs)}&nbsp;🎉
+            </p>
+            {revealed && (
+              <p className="mt-1 font-serif-accent text-sm italic text-ink/70">
+                Grille révélée — ce temps n&apos;entre pas au classement.
+              </p>
+            )}
+          </div>
+        )}
+
         <div
           className="fleche-print-area"
           style={
@@ -212,12 +343,15 @@ export default function GrillePage() {
               <FlechePrintHeader title={title.trim() || undefined} />
               <div className="overflow-x-auto">
                 <FlecheGrid
+                  ref={gridRef}
                   cells={grid.cells}
                   width={grid.width}
                   height={grid.height}
                   showSolution={showSolution}
                   interactive={!showSolution}
                   revealErrors={checkErrors}
+                  autoCheck={isOriginale && autoCheck}
+                  onComplete={isOriginale ? handleComplete : undefined}
                   solverLayout
                   highlightedCells={hiddenCells}
                   persistKey={code}
@@ -257,6 +391,40 @@ export default function GrillePage() {
                 {showSolution ? cleanHidden[i] : i + 1}
               </div>
             ))}
+          </div>
+        )}
+
+        {isOriginale && board && board.length > 0 && (
+          <div className="print:hidden">
+            <h2 className="font-display text-xl uppercase tracking-wide text-brand">
+              Classement
+            </h2>
+            <ol className="mt-3 divide-y-2 divide-ink/10 border-2 border-ink bg-paper">
+              {board.map((e) => (
+                <li
+                  key={`${e.rank}-${e.name}`}
+                  className={`flex items-center gap-3 px-4 py-2.5 ${
+                    e.isMe ? "bg-sun/40" : ""
+                  }`}
+                >
+                  <span className="w-6 font-display text-lg text-ink/50">
+                    {e.rank}
+                  </span>
+                  <span className="flex-1 truncate font-sans text-sm text-ink">
+                    {e.name}
+                    {e.isMe ? " (vous)" : ""}
+                    {e.autocheck && (
+                      <span className="ml-2 align-middle text-[0.7rem] uppercase tracking-wide text-ink/40">
+                        auto-vérif
+                      </span>
+                    )}
+                  </span>
+                  <span className="font-display text-base tabular-nums text-ink">
+                    {formatTime(e.timeMs)}
+                  </span>
+                </li>
+              ))}
+            </ol>
           </div>
         )}
 
