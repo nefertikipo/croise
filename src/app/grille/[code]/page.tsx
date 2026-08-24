@@ -221,6 +221,7 @@ export default function GrillePage() {
                   solverLayout
                   highlightedCells={hiddenCells}
                   persistKey={code}
+                  hideCustomTint={isOriginale}
                 />
               </div>
               <FlechePrintMotCache count={hiddenCells.size} />
