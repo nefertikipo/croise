@@ -253,6 +253,13 @@ interface FlecheGridProps {
    * `interactive`. Typically the grid's share code.
    */
   persistKey?: string;
+  /**
+   * Suppress the tinted background on user-written ("custom") clue cells so
+   * they look identical to dictionary clues. Used by Les Flèches originales,
+   * where every clue is personal and singling out the custom ones by colour
+   * would give away which cells the gifter wrote.
+   */
+  hideCustomTint?: boolean;
 }
 
 const CELL_SIZE = 70;
@@ -405,6 +412,7 @@ export function FlecheGrid({
   plain = false,
   sketch = false,
   persistKey,
+  hideCustomTint = false,
 }: FlecheGridProps) {
   const sketchTheme = sketch && !plain;
   const accent = accentColor || DEFAULT_ACCENT;
@@ -841,7 +849,8 @@ export function FlecheGrid({
                       flexGrow: hasTwo ? bandGrow[i] : 1,
                       flexBasis: 0,
                       borderColor: clueRule,
-                      backgroundColor: cl.isCustom ? customBg : undefined,
+                      backgroundColor:
+                        cl.isCustom && !hideCustomTint ? customBg : undefined,
                     }}
                     title={cl.text}
                   >
