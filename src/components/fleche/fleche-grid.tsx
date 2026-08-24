@@ -6,6 +6,8 @@ import {
   useRef,
   useEffect,
   useLayoutEffect,
+  useImperativeHandle,
+  forwardRef,
 } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -260,6 +262,23 @@ interface FlecheGridProps {
    * would give away which cells the gifter wrote.
    */
   hideCustomTint?: boolean;
+  /**
+   * Live error-checking: tints filled cells green/red against the solution as
+   * you type (unlike the on-demand {@link revealErrors}). Used by the Originales
+   * solver's "auto-vérif" toggle.
+   */
+  autoCheck?: boolean;
+  /**
+   * Fires once when every letter cell matches the solution. The parent uses it
+   * to stop the timer and record a leaderboard time.
+   */
+  onComplete?: () => void;
+}
+
+/** Imperative controls exposed to the parent (reveal buttons live outside). */
+export interface FlecheGridHandle {
+  revealWord: () => void;
+  revealPuzzle: () => void;
 }
 
 const CELL_SIZE = 70;
@@ -398,22 +417,28 @@ function GridArrow({
   );
 }
 
-export function FlecheGrid({
-  cells,
-  width,
-  height,
-  showSolution = false,
-  interactive = false,
-  revealErrors = false,
-  solverLayout = false,
-  className,
-  highlightedCells,
-  accentColor,
-  plain = false,
-  sketch = false,
-  persistKey,
-  hideCustomTint = false,
-}: FlecheGridProps) {
+export const FlecheGrid = forwardRef<FlecheGridHandle, FlecheGridProps>(
+  function FlecheGrid(
+    {
+      cells,
+      width,
+      height,
+      showSolution = false,
+      interactive = false,
+      revealErrors = false,
+      solverLayout = false,
+      className,
+      highlightedCells,
+      accentColor,
+      plain = false,
+      sketch = false,
+      persistKey,
+      hideCustomTint = false,
+      autoCheck = false,
+      onComplete,
+    }: FlecheGridProps,
+    ref,
+  ) {
   const sketchTheme = sketch && !plain;
   const accent = accentColor || DEFAULT_ACCENT;
   const clueBg = plain
@@ -451,6 +476,58 @@ export function FlecheGrid({
       // Ignore quota / privacy-mode failures — persistence is best-effort.
     }
   }, [userInput, interactive, persistKey]);
+
+  // Reveal helpers (parent triggers them via the ref). They write correct
+  // letters into the same map typing uses, so persistence + completion
+  // detection fire exactly as if the player had typed them.
+  function revealWord() {
+    if (!selectedCell) return;
+    const run = wordCells(selectedCell.r, selectedCell.c, direction);
+    setUserInput((prev) => {
+      const next = new Map(prev);
+      for (const { r, c } of run) {
+        const L = cells[r][c].letter;
+        if (L) next.set(`${r},${c}`, L);
+      }
+      return next;
+    });
+  }
+  function revealPuzzle() {
+    setUserInput((prev) => {
+      const next = new Map(prev);
+      for (let r = 0; r < height; r++) {
+        for (let c = 0; c < width; c++) {
+          const cell = cells[r][c];
+          if (cell.type === "letter" && cell.letter) next.set(`${r},${c}`, cell.letter);
+        }
+      }
+      return next;
+    });
+  }
+  useImperativeHandle(ref, () => ({ revealWord, revealPuzzle }));
+
+  // Fire onComplete once when every letter cell matches the solution.
+  const completedRef = useRef(false);
+  useEffect(() => {
+    if (!interactive || !onComplete) return;
+    let allFilled = true;
+    outer: for (let r = 0; r < height; r++) {
+      for (let c = 0; c < width; c++) {
+        const cell = cells[r][c];
+        if (cell.type !== "letter") continue;
+        if (userInput.get(`${r},${c}`) !== cell.letter) {
+          allFilled = false;
+          break outer;
+        }
+      }
+    }
+    if (allFilled && !completedRef.current) {
+      completedRef.current = true;
+      onComplete();
+    } else if (!allFilled) {
+      completedRef.current = false;
+    }
+  }, [userInput, interactive, onComplete, cells, height, width]);
 
   const setRef = useCallback((key: string, el: HTMLInputElement | null) => {
     if (el) inputRefs.current.set(key, el);
@@ -872,9 +949,9 @@ export function FlecheGrid({
             const isSelected = selectedCell?.r === r && selectedCell?.c === c;
             const isHighlighted = highlighted.has(key);
             const inputVal = userInput.get(key) ?? "";
-            // Only judge letters when the solver explicitly asks (Vérifier);
-            // otherwise the grid never reveals correctness as you type.
-            const correct = revealErrors ? isCorrect(r, c) : null;
+            // Judge letters on the on-demand "Vérifier" check or when live
+            // auto-vérif is on; otherwise the grid never reveals correctness.
+            const correct = revealErrors || autoCheck ? isCorrect(r, c) : null;
             const hiddenNum = highlightedCells?.get(key);
             const isHiddenCell = hiddenNum !== undefined;
 
@@ -1121,4 +1198,5 @@ export function FlecheGrid({
       )}
     </div>
   );
-}
+  },
+);
