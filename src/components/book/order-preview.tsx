@@ -142,7 +142,7 @@ export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPh
         <section className="space-y-2">
           <div className="flex items-baseline justify-between">
             <h2 className="font-display text-sm uppercase tracking-[0.2em]">
-              Intérieur du livre
+              Intérieur du carnet
             </h2>
             <a href={interiorUrl} target="_blank" rel="noreferrer" className="text-xs underline">
               Ouvrir en plein écran
@@ -150,7 +150,7 @@ export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPh
           </div>
           <iframe
             src={interiorUrl}
-            title="Intérieur du livre (grilles, index, solutions)"
+            title="Intérieur du carnet (grilles, index, solutions)"
             className="h-[75vh] w-full border-2 border-ink bg-white"
           />
           <p className="text-xs text-muted-foreground">
@@ -169,15 +169,15 @@ export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPh
               className="mt-0.5 h-4 w-4 accent-ink"
             />
             <span>
-              J&apos;ai vérifié chaque page de mon livre (mots, indices, photos,
-              dédicace). Le livre sera imprimé exactement comme dans cet aperçu.
+              J&apos;ai vérifié chaque page de mon carnet (mots, indices, photos,
+              dédicace). Le carnet sera imprimé exactement comme dans cet aperçu.
             </span>
           </label>
 
           {sent ? (
             <p className="text-sm font-semibold">
               Merci ! Les commandes ouvrent très bientôt : nous vous écrivons dès
-              que votre livre pourra partir à l&apos;impression.
+              que votre carnet pourra partir à l&apos;impression.
             </p>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
@@ -191,11 +191,11 @@ export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPh
                 />
               )}
               <Button disabled={!canOrder || sending} onClick={registerIntent}>
-                {sending ? "Un instant…" : "Commander mon livre"}
+                {sending ? "Un instant…" : "Commander mon carnet"}
               </Button>
               <span className="text-xs text-muted-foreground">
                 {tooThin
-                  ? `Ajoutez des grilles : un livre imprimé compte au moins ${BOOK_MIN_INTERIOR_PAGES} pages.`
+                  ? `Ajoutez des grilles : un carnet imprimé compte au moins ${BOOK_MIN_INTERIOR_PAGES} pages.`
                   : tooThick
                     ? `Retirez des pages : la reliure accepte au maximum ${SADDLE_MAX_INTERIOR_PAGES} pages.`
                     : "Ouverture des commandes très prochainement."}
