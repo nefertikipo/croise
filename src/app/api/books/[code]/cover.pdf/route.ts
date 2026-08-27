@@ -39,7 +39,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
       return Response.json({ error: "Ajoutez une photo de couverture." }, { status: 400 });
     }
     if (err instanceof MissingPhotoError) {
-      return Response.json({ error: "Une photo du livre est introuvable. Veuillez la retélécharger." }, { status: 400 });
+      return Response.json({ error: "Une photo du carnet est introuvable. Veuillez la retélécharger." }, { status: 400 });
     }
     console.error("Cover PDF generation failed:", err);
     return Response.json({ error: "Echec de la generation de la couverture." }, { status: 500 });

@@ -75,7 +75,7 @@ export default async function WordIdeasRecipientPage({ params }: RouteProps) {
             Le message caché
           </h2>
           <p className="mt-2 text-lg leading-relaxed text-ink">
-            Chaque grille cache un mot. Au fil des pages du livre, ils composent un message.
+            Chaque grille cache un mot. Au fil des pages du carnet, ils composent un message.
             Quelques idées : {data.hiddenMessages.join(", ")}.
           </p>
         </section>

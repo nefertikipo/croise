@@ -264,9 +264,9 @@ export function CalendarCreator({ initialCalendar }: { initialCalendar?: Calenda
       {/* Order */}
       {generatedCount > 0 && code && (
         <div className="frame max-w-md bg-background p-5">
-          <h3 className="font-display text-lg uppercase tracking-wide text-ink">Commander</h3>
+          <h3 className="font-display text-lg uppercase tracking-wide text-ink">Bientôt disponible</h3>
           <p className="mt-1 font-serif text-sm italic text-ink/60">
-            Calendrier mural A3, relié spirale, 12 mois de grilles. {generatedCount < 12 ? `Il manque ${12 - generatedCount} mois.` : "Complet."}
+            Calendrier mural A3, relié spirale, 12 mois de grilles. {generatedCount < 12 ? `Il manque ${12 - generatedCount} mois.` : "Complet."} Les commandes ouvrent bientôt : laissez votre email pour être prévenu·e.
           </p>
           <div className="mt-4 flex gap-2">
             <input
@@ -277,7 +277,7 @@ export function CalendarCreator({ initialCalendar }: { initialCalendar?: Calenda
               className="flex-1 rounded-none border-2 border-ink bg-paper px-3 py-2 text-sm"
             />
             <Button onClick={handleOrder} className="btn-lapos rounded-none bg-ink text-paper">
-              Commander
+              Me prévenir
             </Button>
           </div>
         </div>

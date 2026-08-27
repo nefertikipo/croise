@@ -372,7 +372,7 @@ export default function GrillePage() {
             </p>
             {(revealed || autoCheck) && (
               <p className="mt-1 font-serif-accent text-sm italic text-ink/70">
-                {revealed ? "Grille révélée" : "Auto-vérif activé"} — ce temps
+                {revealed ? "Grille révélée" : "Auto-vérif activé"} : ce temps
                 n&apos;entre pas au classement.
               </p>
             )}
