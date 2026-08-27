@@ -12,10 +12,12 @@
  */
 
 import type { GridPage, WordIndexEntry } from "@/types/book";
+import { POD_TRIM } from "@/lib/books/constants";
 
-/** Design-space page box, A5 proportions. The rendered frame scales this. */
+/** Design-space page box, proportioned to the active POD trim (POD_PAGE_SIZE).
+ * The rendered frame scales this. */
 export const PREVIEW_PAGE_W = 560;
-export const PREVIEW_PAGE_H = Math.round(PREVIEW_PAGE_W * 1.414); // 792
+export const PREVIEW_PAGE_H = Math.round(PREVIEW_PAGE_W * (POD_TRIM.h / POD_TRIM.w));
 const PAD_X = 36;
 const PAD_Y = 32;
 export const PREVIEW_USABLE_W = PREVIEW_PAGE_W - 2 * PAD_X; // 488

@@ -74,39 +74,13 @@ export async function composeGridPage({ doc, page, g, fonts, grid, gridNumber, m
   const cleanHidden = normalizeHiddenWord(hidden);
   const hasStrip = hiddenCells.size > 0;
 
-  // ---- Title band ----
+  // ---- Grid metrics FIRST, so the title band can align to the grid's actual
+  // width. A portrait grid on a wider page (Crown/A4) is height-constrained and
+  // ends up narrower than the content column; the title, meta and rule should
+  // sit over the grid, not span the full column. ----
   const headTop = g.contentTop;
-  const heading = nfc(headingOverride ?? grid.config.title ?? `Grille N°${gridNumber}`);
   const headSize = 15; // band height stays fixed; only the drawn size shrinks
-  const meta = `${grid.width}×${grid.height}`;
-  const metaSize = 7;
-  const metaW = fonts.letter.widthOfTextAtSize(meta.toUpperCase(), metaSize);
-  // Shrink-to-fit so a long custom title never collides with the right-aligned
-  // meta or escapes the safe box; below the floor, truncate with an ellipsis.
-  const headMaxW = g.contentW - metaW - 10;
-  let headText = heading.toUpperCase();
-  let headDrawSize = headSize;
-  while (headDrawSize > 8 && fonts.heading.widthOfTextAtSize(headText, headDrawSize) > headMaxW) headDrawSize -= 0.5;
-  headText = ellipsize(fonts.heading, headText, headDrawSize, headMaxW);
-  page.drawText(headText, {
-    x: g.contentX,
-    y: g.pageH - (headTop + headSize),
-    size: headDrawSize,
-    font: fonts.heading,
-    color: inkRgb,
-  });
-  page.drawText(meta.toUpperCase(), {
-    x: g.contentX + g.contentW - metaW,
-    y: g.pageH - (headTop + headSize - 2),
-    size: metaSize,
-    font: fonts.letter,
-    color: muted,
-  });
-  const ruleY = g.pageH - (headTop + headSize + 5);
-  page.drawLine({ start: { x: g.contentX, y: ruleY }, end: { x: g.contentX + g.contentW, y: ruleY }, thickness: 1.5, color: inkRgb });
-
-  // ---- Grid, scaled to fit the area between the band and the strip ----
-  // Strip metrics first: the write-in boxes wrap onto as many rows as needed
+  // Strip metrics: the write-in boxes wrap onto as many rows as needed
   // (mirrors the on-screen flex-wrap band), and the grid shrinks to leave room.
   const BOX = 20;
   const BOX_GAP = 4;
@@ -125,6 +99,35 @@ export async function composeGridPage({ doc, page, g, fonts, grid, gridNumber, m
   // Vertically centre in the free area so a portrait grid on a taller page (A4)
   // sits balanced rather than hugging the title band.
   const originTop = gridTop + Math.max(0, (availH - gridH) / 2);
+
+  // ---- Title band, spanning exactly the grid's width (originX .. +gridW) ----
+  const heading = nfc(headingOverride ?? grid.config.title ?? `Grille N°${gridNumber}`);
+  const meta = `${grid.width}×${grid.height}`;
+  const metaSize = 7;
+  const metaW = fonts.letter.widthOfTextAtSize(meta.toUpperCase(), metaSize);
+  // Shrink-to-fit within the grid width so a long custom title never collides
+  // with the right-aligned meta or escapes the grid; below the floor, ellipsize.
+  const headMaxW = gridW - metaW - 10;
+  let headText = heading.toUpperCase();
+  let headDrawSize = headSize;
+  while (headDrawSize > 8 && fonts.heading.widthOfTextAtSize(headText, headDrawSize) > headMaxW) headDrawSize -= 0.5;
+  headText = ellipsize(fonts.heading, headText, headDrawSize, headMaxW);
+  page.drawText(headText, {
+    x: originX,
+    y: g.pageH - (headTop + headSize),
+    size: headDrawSize,
+    font: fonts.heading,
+    color: inkRgb,
+  });
+  page.drawText(meta.toUpperCase(), {
+    x: originX + gridW - metaW,
+    y: g.pageH - (headTop + headSize - 2),
+    size: metaSize,
+    font: fonts.letter,
+    color: muted,
+  });
+  const ruleY = g.pageH - (headTop + headSize + 5);
+  page.drawLine({ start: { x: originX, y: ruleY }, end: { x: originX + gridW, y: ruleY }, thickness: 1.5, color: inkRgb });
 
   drawFlecheGrid({
     page,

@@ -6,6 +6,7 @@ import { PhotoCropDialog } from "@/components/book/photo-crop-dialog";
 import { PhotoPagePreview } from "@/components/book/photo-page-preview";
 import { uploadBookPhoto } from "@/components/book/upload-photo";
 import { getPhotoLayout } from "@/lib/book-pdf/photo-layouts";
+import { POD_TRIM } from "@/lib/books/constants";
 import { cn } from "@/lib/utils";
 import type { ContentPageConfig, PageDesign } from "@/types/book";
 
@@ -72,8 +73,9 @@ export function PhotoPageEditor({ config, onChange, onDelete }: PhotoPageEditorP
               key={id}
               type="button"
               onClick={() => onChange({ photoLayout: id })}
+              style={{ aspectRatio: `${POD_TRIM.w} / ${POD_TRIM.h}` }}
               className={cn(
-                "aspect-[148/210] overflow-hidden border-2",
+                "overflow-hidden border-2",
                 layoutId === id ? "border-primary ring-2 ring-primary ring-offset-1" : "border-black",
               )}
             >

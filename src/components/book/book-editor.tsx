@@ -24,6 +24,7 @@ import { bookAuthors } from "@/lib/books/authors";
 import {
   BOOK_MIN_GRIDS,
   BOOK_MIN_INTERIOR_PAGES,
+  POD_PAGE_SIZE,
   SADDLE_MAX_INTERIOR_PAGES,
 } from "@/lib/books/constants";
 import { rehydrateDesignPreview, stripDesignPreview } from "@/lib/books/photo-preview";
@@ -295,22 +296,24 @@ export function BookEditor({
     await openPdf(`/api/books/${code}/cover.pdf`);
   }
 
-  /** Print-ready A5 interior (full spine). Below the recommended grid count,
-   * warn first — the printed book would feel thin. */
-  function downloadBook(size: "a5" = "a5") {
+  /** Print-ready interior for the POD book (B&W standard edition, POD trim).
+   * Below the recommended grid count, warn first — the printed book would feel
+   * thin. */
+  function downloadBook() {
+    const url = `/api/books/${code}/book.pdf?size=${POD_PAGE_SIZE}&bw=1`;
     if (!readOnly && gridPages.length > 0 && gridPages.length < BOOK_MIN_GRIDS) {
       toast(
         `Votre livre compte ${gridPages.length} grille${gridPages.length > 1 ? "s" : ""} sur les ${BOOK_MIN_GRIDS} recommandées pour l'impression.`,
         {
           action: {
             label: "Télécharger quand même",
-            onClick: () => void openPdf(`/api/books/${code}/book.pdf?size=${size}`),
+            onClick: () => void openPdf(url),
           },
         },
       );
       return;
     }
-    void openPdf(`/api/books/${code}/book.pdf?size=${size}`);
+    void openPdf(url);
   }
 
   function updateDedication(text: string) {
@@ -784,7 +787,7 @@ export function BookEditor({
             <Button variant="outline" onClick={downloadCover}>
               Couverture (PDF)
             </Button>
-            <Button variant="outline" onClick={() => downloadBook("a5")}>
+            <Button variant="outline" onClick={() => downloadBook()}>
               Livre (PDF)
             </Button>
             <Link href={`/book/${code}/apercu`} className={buttonVariants()}>

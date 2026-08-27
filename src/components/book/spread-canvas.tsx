@@ -1,6 +1,7 @@
 "use client";
 
 import { SlotCard, buildSlots, type SlotData, type SlotId } from "@/components/book/page-slot";
+import { POD_TRIM } from "@/lib/books/constants";
 
 interface SpreadCanvasProps extends SlotData {
   selectedId: SlotId;
@@ -40,7 +41,10 @@ export function SpreadCanvas({
     if (id === null) {
       // Blank side (facing the cover, or an odd final page).
       return (
-        <div className="w-full max-w-[420px] aspect-[1/1.414] border-2 border-dashed border-black/15" />
+        <div
+          className="w-full max-w-[420px] border-2 border-dashed border-black/15"
+          style={{ aspectRatio: `${POD_TRIM.w} / ${POD_TRIM.h}` }}
+        />
       );
     }
     return (
