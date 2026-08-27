@@ -201,7 +201,7 @@ export async function generateBookInteriorPdf(
     const { page, g } = addPage();
     if (p.kind === "grid") {
       gridNumber += 1;
-      await composeGridPage({ doc, page, g, fonts, grid: p, gridNumber, mode: "puzzle", mono });
+      await composeGridPage({ doc, page, g, fonts, grid: p, gridNumber, mode: "puzzle", mono, hideTitle: size === "a5" });
     } else if (p.config.layout === "photo") {
       photoPageIdx.add(doc.getPageCount() - 1); // folio needs a plate over the image
       const layout = getPhotoLayout(p.config.photoLayout);
