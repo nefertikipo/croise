@@ -18,7 +18,9 @@ export default async function PosterPage({ params }: { params: Promise<{ code: s
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
       <header className="mb-8 border-b-2 border-ink pb-4">
-        <p className="font-display text-xs uppercase tracking-[0.3em] text-brand">Le poster</p>
+        <p className="font-display text-xs uppercase tracking-[0.3em] text-brand">
+          Le poster · Bientôt disponible
+        </p>
         <h1 className="mt-2 font-display text-4xl uppercase tracking-wide text-brand">
           {poster.title?.trim() || "Votre poster"}
         </h1>

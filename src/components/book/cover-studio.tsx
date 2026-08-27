@@ -179,7 +179,7 @@ export function CoverStudio({ title, cover, authors, onTitleChange, onCoverChang
           <input
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}
-            placeholder="Mon livre"
+            placeholder="Mon carnet"
             className="block w-52 border-2 border-black px-2 py-1.5 text-sm"
           />
         </div>

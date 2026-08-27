@@ -52,8 +52,8 @@ export function DedicationEditor({
     <div className="space-y-4">
       <h3 className="font-heading text-xl uppercase">Dédicace</h3>
       <p className="text-sm text-muted-foreground">
-        Un mot personnel, imprimé au début du livre. Laissez vide pour ne pas l&apos;afficher.
-        Le titre du livre est ajouté en surtitre au-dessus de votre message.
+        Un mot personnel, imprimé au début du carnet. Laissez vide pour ne pas l&apos;afficher.
+        Le titre du carnet est ajouté en surtitre au-dessus de votre message.
       </p>
       <Field label="Message">
         <TextAreaField

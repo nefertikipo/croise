@@ -16,10 +16,10 @@ const STEPS = ["Pour qui ?", "Vos mots", "Message caché", "Difficulté"] as con
 
 /** Occasion chip → editable dedication seed. "Autre" seeds nothing on purpose. */
 const OCCASIONS: { label: string; seed: string }[] = [
-  { label: "Anniversaire", seed: "Pour ton anniversaire, un livre rien que pour toi." },
-  { label: "Noël", seed: "Joyeux Noël ! Un livre rien que pour toi." },
+  { label: "Anniversaire", seed: "Pour ton anniversaire, un carnet rien que pour toi." },
+  { label: "Noël", seed: "Joyeux Noël ! Un carnet rien que pour toi." },
   { label: "Retraite", seed: "Pour ta retraite, des grilles à savourer sans compter." },
-  { label: "Fête", seed: "Bonne fête ! Un livre rien que pour toi." },
+  { label: "Fête", seed: "Bonne fête ! Un carnet rien que pour toi." },
   { label: "Autre", seed: "" },
 ];
 
@@ -108,7 +108,7 @@ export function CreationWizard() {
       }
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error || "Impossible de créer le livre. Réessayez.");
+        throw new Error(data.error || "Impossible de créer le carnet. Réessayez.");
       }
       const { code } = (await res.json()) as { code: string };
       const plan = buildWizardPlan({ ideas, messageWords, difficulty });
@@ -129,7 +129,7 @@ export function CreationWizard() {
       toast.error(
         err instanceof Error && err.message
           ? err.message
-          : "Impossible de créer le livre. Réessayez.",
+          : "Impossible de créer le carnet. Réessayez.",
       );
       setSubmitting(false);
     }
@@ -143,7 +143,7 @@ export function CreationWizard() {
       <div className="mx-auto max-w-lg space-y-6">
         <div className="text-center">
           <h1 className="text-4xl text-ink">
-            Créer un <span className="text-brand">livre</span>
+            Créer un <span className="text-brand">carnet</span>
           </h1>
           <p className="font-serif-accent mt-1 text-lg italic text-ink/75">
             Quatre questions, et vos grilles se préparent toutes seules.
@@ -186,7 +186,7 @@ export function CreationWizard() {
                 />
                 {firstName.trim() && (
                   <p className="text-xs text-muted-foreground">
-                    Le livre s&apos;appellera «&nbsp;Les flèches de {firstName.trim()}&nbsp;»,
+                    Le carnet s&apos;appellera «&nbsp;Les flèches de {firstName.trim()}&nbsp;»,
                     modifiable ensuite.
                   </p>
                 )}
@@ -225,7 +225,7 @@ export function CreationWizard() {
                 <textarea
                   id="wizard-dedication"
                   rows={2}
-                  placeholder="Quelques mots imprimés en ouverture du livre…"
+                  placeholder="Quelques mots imprimés en ouverture du carnet…"
                   value={dedication}
                   onChange={(e) => setDedication(composeInput(e.target.value))}
                   className="w-full rounded-none border-2 border-ink/20 bg-white px-3 py-2 text-sm"
@@ -240,7 +240,7 @@ export function CreationWizard() {
               <p className="text-sm text-muted-foreground">
                 Prénoms, surnoms, lieux, souvenirs, clins d&apos;œil : chaque mot
                 accompagné de son indice sera glissé dans les grilles. Visez 10 à
-                30 mots pour un livre bien personnalisé.
+                30 mots pour un carnet bien personnalisé.
               </p>
 
               {/* Reassurance: the wizard is not a one-shot commitment. */}
@@ -305,7 +305,7 @@ export function CreationWizard() {
 
               {validRows.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Aucun mot pour l&apos;instant&nbsp;? Continuez : le livre sera généré
+                  Aucun mot pour l&apos;instant&nbsp;? Continuez : le carnet sera généré
                   avec des grilles classiques, à personnaliser ensuite.
                 </p>
               )}
@@ -317,7 +317,7 @@ export function CreationWizard() {
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Un mot caché par grille : à chaque grille résolue, la personne
-                découvre un mot, et le message se révèle au fil du livre.
+                découvre un mot, et le message se révèle au fil du carnet.
                 Facultatif, vous pouvez passer cette étape.
               </p>
               <textarea
@@ -433,7 +433,7 @@ export function CreationWizard() {
                 disabled={submitting}
                 className="btn-lapos rounded-none bg-brand px-7 py-3 text-base text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
               >
-                {submitting ? "Création…" : "Créer mon livre"}
+                {submitting ? "Création…" : "Créer mon carnet"}
               </button>
             ) : (
               <Button disabled={!canContinue} onClick={() => setStep(step + 1)}>
@@ -448,7 +448,7 @@ export function CreationWizard() {
           <p className="text-center text-sm text-muted-foreground">
             Vous préférez partir d&apos;une page blanche&nbsp;?{" "}
             <CreateEmptyBookButton className="underline underline-offset-2 hover:text-foreground disabled:opacity-50">
-              Créer un livre vide
+              Créer un carnet vide
             </CreateEmptyBookButton>
           </p>
         )}

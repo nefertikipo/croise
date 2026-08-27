@@ -23,7 +23,7 @@ export function CreateBookLink({
 }) {
   return (
     <Link href="/livre/nouveau" className={className ?? NAV_CLASS}>
-      {children ?? "Créer un livre"}
+      {children ?? "Créer un carnet"}
     </Link>
   );
 }
@@ -59,7 +59,7 @@ export function CreateEmptyBookButton({
       }
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error || "Impossible de créer le livre. Réessayez.");
+        throw new Error(data.error || "Impossible de créer le carnet. Réessayez.");
       }
       const { code } = await res.json();
       // Replace (not push): creating the book is a transient hand-off, so a
@@ -70,7 +70,7 @@ export function CreateEmptyBookButton({
       toast.error(
         err instanceof Error && err.message
           ? err.message
-          : "Impossible de créer le livre. Réessayez.",
+          : "Impossible de créer le carnet. Réessayez.",
       );
       setCreating(false);
     }
@@ -83,7 +83,7 @@ export function CreateEmptyBookButton({
       disabled={creating}
       className={className ?? NAV_CLASS}
     >
-      {creating ? "Création…" : (children ?? "Créer un livre vide")}
+      {creating ? "Création…" : (children ?? "Créer un carnet vide")}
     </button>
   );
 }

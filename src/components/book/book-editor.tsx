@@ -240,13 +240,13 @@ export function BookEditor({
         body: JSON.stringify(sanitizeBody(body)),
       });
       if (!res.ok) {
-        toast.error(await readError(res, "Échec de l'enregistrement du livre."));
+        toast.error(await readError(res, "Échec de l'enregistrement du carnet."));
         await resyncBook();
         return false;
       }
       return true;
     } catch {
-      toast.error("Échec de l'enregistrement du livre. Vérifiez votre connexion.");
+      toast.error("Échec de l'enregistrement du carnet. Vérifiez votre connexion.");
       await resyncBook();
       return false;
     }
@@ -303,7 +303,7 @@ export function BookEditor({
     const url = `/api/books/${code}/book.pdf?size=${POD_PAGE_SIZE}&bw=1`;
     if (!readOnly && gridPages.length > 0 && gridPages.length < BOOK_MIN_GRIDS) {
       toast(
-        `Votre livre compte ${gridPages.length} grille${gridPages.length > 1 ? "s" : ""} sur les ${BOOK_MIN_GRIDS} recommandées pour l'impression.`,
+        `Votre carnet compte ${gridPages.length} grille${gridPages.length > 1 ? "s" : ""} sur les ${BOOK_MIN_GRIDS} recommandées pour l'impression.`,
         {
           action: {
             label: "Télécharger quand même",
@@ -788,7 +788,7 @@ export function BookEditor({
               Couverture (PDF)
             </Button>
             <Button variant="outline" onClick={() => downloadBook()}>
-              Livre (PDF)
+              Carnet (PDF)
             </Button>
             <Link href={`/book/${code}/apercu`} className={buttonVariants()}>
               Aperçu &amp; commande
@@ -808,7 +808,7 @@ export function BookEditor({
               <Link href="/connexion" className="underline hover:no-underline">
                 Connectez-vous
               </Link>{" "}
-              pour retrouver ce livre plus tard, sans compte, seul le lien y donne accès.
+              pour retrouver ce carnet plus tard, sans compte, seul le lien y donne accès.
             </span>
             <button
               type="button"
@@ -902,7 +902,7 @@ export function BookEditor({
                   <span>
                     <strong>{gridPages.length}</strong> grille
                     {gridPages.length > 1 ? "s" : ""} sur {BOOK_MIN_GRIDS} : un
-                    livre imprimé en compte au moins {BOOK_MIN_GRIDS}.
+                    carnet imprimé en compte au moins {BOOK_MIN_GRIDS}.
                   </span>
                   {busy && genBatch ? (
                     <span className="text-muted-foreground">
@@ -968,7 +968,7 @@ export function BookEditor({
               {showEmptyState ? (
                 <div className="mx-auto max-w-md border-2 border-dashed border-black/30 px-8 py-16 text-center">
                   <p className="font-heading text-xl uppercase">
-                    Votre livre est vide
+                    Votre carnet est vide
                   </p>
                   <p className="mt-2 text-sm text-muted-foreground">
                     Commencez par générer vos grilles, vous pourrez ensuite y
@@ -1065,7 +1065,7 @@ export function BookEditor({
           )}
           {backMatterKind(selectedId) === "solutions" && (
             <p className="text-sm text-muted-foreground">
-              Les solutions sont générées automatiquement et imprimées à la fin du livre.
+              Les solutions sont générées automatiquement et imprimées à la fin du carnet.
             </p>
           )}
           {selectedPage?.kind === "grid" && (

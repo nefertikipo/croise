@@ -2,44 +2,62 @@ import Link from "next/link";
 import { HeroCarousel } from "@/components/shared/hero-carousel";
 import { CreateBookLink } from "@/components/shared/create-book-link";
 import { WORD_IDEAS } from "@/lib/word-ideas";
+import { cn } from "@/lib/utils";
 
-// The things you can make/offer with Les Flèches.
-const PRODUCTS = [
+// The things you can make with Les Flèches. Only the free generator and the
+// carnet are live today; the printed formats are marked "bientôt" and stay
+// non-clickable until their order flow ships.
+type Product = {
+  kicker: string;
+  title: string;
+  body: string;
+  cta?: string;
+  href?: string;
+  book?: boolean;
+  grille?: boolean;
+  soon?: boolean;
+};
+
+const PRODUCTS: Product[] = [
+  {
+    kicker: "Gratuit",
+    title: "Une grille",
+    body: "Générez une grille de mots fléchés à vos mots, prête à imprimer, en quelques secondes.",
+    cta: "Générer une grille",
+    href: "/fleche",
+    grille: true,
+  },
+  {
+    kicker: "À feuilleter",
+    title: "Un carnet",
+    body: "Plusieurs grilles reliées en un carnet paginé, avec les solutions à la fin.",
+    cta: "Créer un carnet",
+    href: "/fleche",
+    book: true,
+  },
   {
     kicker: "À poster",
     title: "Une carte",
     body: "Une grille personnalisée sur une carte postale A6, votre message au dos, prête à envoyer.",
-    cta: "Créer une carte",
-    href: "/carte/nouveau",
+    soon: true,
   },
   {
     kicker: "À encadrer",
     title: "Un poster",
-    body: "Une grille unique, imprimée grand format, à encadrer, à accrocher, à offrir.",
-    cta: "Créer un poster",
-    href: "/fleche?intent=poster",
+    body: "Une grille unique imprimée en grand format, à encadrer et à offrir.",
+    soon: true,
   },
   {
     kicker: "Toute l'année",
     title: "Un calendrier",
     body: "Douze grilles, une par mois, sur un calendrier mural A3 relié spirale.",
-    cta: "Créer un calendrier",
-    href: "/calendrier/nouveau",
-  },
-    {
-    kicker: "À feuilleter",
-    title: "Un livre",
-    body: "Plusieurs grilles reliées en un petit livret paginé, avec les solutions à la fin.",
-    cta: "Créer un livre",
-    href: "/fleche",
-    book: true,
+    soon: true,
   },
   {
-    kicker: "Toute l'année",
-    title: "Chaque mois",
-    body: "Offrez une nouvelle grille personnalisée, livrée fraîche chaque mois de l'année.",
-    cta: "Offrir un abonnement",
-    href: "/offrir",
+    kicker: "Chaque mois",
+    title: "Un abonnement",
+    body: "Une nouvelle grille personnalisée dans la boîte aux lettres, chaque mois de l'année.",
+    soon: true,
   },
 ];
 
@@ -64,18 +82,18 @@ export default function Home() {
         <div className="bg-paper">
           <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-4 py-8 sm:flex-row sm:justify-between">
             <p className="font-serif-accent max-w-md text-center text-lg italic text-ink/80 sm:text-left">
-              Créez des mots fléchés personnalisés avec vos propres mots, un
-              message caché, un vrai cadeau, imprimé et offert.
+              Des mots fléchés à vos mots, avec un message caché. Un cadeau à
+              imprimer et à offrir.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/fleche"
-                className="btn-lapos rounded-none bg-brand px-7 py-3 text-base text-brand-foreground"
+                className="btn-lapos rounded-none bg-brand px-8 py-3.5 text-base text-brand-foreground"
               >
-                Créer une grille
+                Générer une grille gratuitement
               </Link>
               <CreateBookLink className="btn-lapos rounded-none bg-paper px-7 py-3 text-base text-ink">
-                Créer un livre
+                Créer un carnet de grilles
               </CreateBookLink>
             </div>
           </div>
@@ -86,11 +104,25 @@ export default function Home() {
       <section className="border-b-2 border-ink bg-brand text-brand-foreground">
         <div className="mx-auto max-w-5xl px-4 py-16">
           <h2 className="text-center text-4xl text-brand-foreground sm:text-5xl">
-            Cinq façons d&apos;offrir
+            Ce que vous pouvez créer
           </h2>
+          <p className="font-serif-accent mx-auto mt-3 max-w-md text-center text-lg italic text-brand-foreground/80">
+            La grille et le carnet sont là. Les formats imprimés arrivent.
+          </p>
           <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {PRODUCTS.map((p) => (
-              <div key={p.title} className="frame flex flex-col bg-paper p-6 text-ink">
+              <div
+                key={p.title}
+                className={cn(
+                  "frame relative flex flex-col bg-paper p-6 text-ink",
+                  p.soon && "opacity-65",
+                )}
+              >
+                {p.soon ? (
+                  <span className="absolute right-3 top-3 border border-ink/20 bg-gold/50 px-2 py-0.5 font-display text-[10px] uppercase tracking-[0.15em] text-ink/70">
+                    Bientôt
+                  </span>
+                ) : null}
                 <div className="font-display text-xs uppercase tracking-[0.2em] text-brand">
                   {p.kicker}
                 </div>
@@ -98,17 +130,21 @@ export default function Home() {
                 <p className="font-serif-accent mt-3 flex-1 text-[15px] italic leading-snug text-ink/75">
                   {p.body}
                 </p>
-                {"book" in p && p.book ? (
+                {p.book ? (
                   <CreateBookLink className="btn-lapos mt-6 rounded-none bg-sun px-4 py-2.5 text-sm text-ink">
                     {p.cta}
                   </CreateBookLink>
-                ) : (
+                ) : p.grille ? (
                   <Link
-                    href={p.href}
-                    className="btn-lapos mt-6 rounded-none bg-sun px-4 py-2.5 text-sm text-ink"
+                    href={p.href ?? "/fleche"}
+                    className="btn-lapos mt-6 rounded-none bg-brand px-4 py-2.5 text-sm text-brand-foreground"
                   >
                     {p.cta}
                   </Link>
+                ) : (
+                  <span className="mt-6 inline-block select-none rounded-none border-2 border-ink/20 px-4 py-2.5 text-center font-display text-xs uppercase tracking-wide text-ink/45">
+                    Bientôt disponible
+                  </span>
                 )}
               </div>
             ))}

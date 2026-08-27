@@ -44,7 +44,7 @@ export async function POST(
     ) {
       return NextResponse.json(
         {
-          error: `Votre livre atteint la limite de ${SADDLE_MAX_INTERIOR_PAGES} pages imprimables. Supprimez des pages pour en ajouter une autre.`,
+          error: `Votre carnet atteint la limite de ${SADDLE_MAX_INTERIOR_PAGES} pages imprimables. Supprimez des pages pour en ajouter une autre.`,
         },
         { status: 409 },
       );

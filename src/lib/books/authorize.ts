@@ -23,7 +23,7 @@ export async function authorizeBookEdit(
 ): Promise<BookAuthResult> {
   const [book] = await db.select().from(books).where(eq(books.code, code)).limit(1);
   if (!book) {
-    return { ok: false, status: 404, error: "Livre introuvable" };
+    return { ok: false, status: 404, error: "Carnet introuvable" };
   }
   if (book.ownerId === null) {
     return { ok: true, book };

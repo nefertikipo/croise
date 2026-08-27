@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { CreationWizard } from "@/components/book/creation-wizard";
 
 export const metadata = {
-  title: "Créer un livre - Les Flèches",
+  title: "Créer un carnet - Les Flèches",
 };
 
 // Session-gated; never cache.

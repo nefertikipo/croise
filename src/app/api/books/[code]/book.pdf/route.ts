@@ -33,7 +33,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     return new Response(Buffer.from(pdf), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="livre-${code}-${size}.pdf"`,
+        "Content-Disposition": `inline; filename="carnet-${code}-${size}.pdf"`,
         "Cache-Control": "no-store",
         "X-Interior-Pages": String(pageCount),
       },
@@ -43,9 +43,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       return Response.json({ error: "Ajoutez au moins une grille." }, { status: 400 });
     }
     if (err instanceof MissingPhotoError) {
-      return Response.json({ error: "Une photo du livre est introuvable. Veuillez la retélécharger." }, { status: 400 });
+      return Response.json({ error: "Une photo du carnet est introuvable. Veuillez la retélécharger." }, { status: 400 });
     }
     console.error("Book interior PDF generation failed:", err);
-    return Response.json({ error: "Echec de la generation du livre." }, { status: 500 });
+    return Response.json({ error: "Echec de la generation du carnet." }, { status: 500 });
   }
 }

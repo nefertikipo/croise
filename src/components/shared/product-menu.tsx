@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
-export const PRODUCT_LINKS = [
-  { href: "/livre/nouveau", label: "Livre" },
-  { href: "/carte/nouveau", label: "Carte" },
-  { href: "/calendrier/nouveau", label: "Calendrier" },
+export const PRODUCT_LINKS: { href: string; label: string; soon?: boolean }[] = [
+  { href: "/livre/nouveau", label: "Carnet" },
+  { href: "/carte/nouveau", label: "Carte", soon: true },
+  { href: "/calendrier/nouveau", label: "Calendrier", soon: true },
 ];
 
 /**
@@ -64,17 +64,31 @@ export function ProductMenu() {
           role="menu"
           className="absolute left-1/2 top-full z-50 mt-2 min-w-44 -translate-x-1/2 border-2 border-ink bg-paper shadow-lg"
         >
-          {PRODUCT_LINKS.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className="block border-b border-ink/10 px-4 py-2.5 font-display text-sm uppercase tracking-wide text-ink transition-colors last:border-b-0 hover:bg-ink hover:text-paper"
-            >
-              {l.label}
-            </Link>
-          ))}
+          {PRODUCT_LINKS.map((l) =>
+            l.soon ? (
+              <span
+                key={l.href}
+                role="menuitem"
+                aria-disabled
+                className="flex cursor-default items-center justify-between gap-2 border-b border-ink/10 px-4 py-2.5 font-display text-sm uppercase tracking-wide text-ink/40 last:border-b-0"
+              >
+                {l.label}
+                <span className="text-[10px] tracking-[0.15em] text-ink/40">
+                  Bientôt
+                </span>
+              </span>
+            ) : (
+              <Link
+                key={l.href}
+                href={l.href}
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className="block border-b border-ink/10 px-4 py-2.5 font-display text-sm uppercase tracking-wide text-ink transition-colors last:border-b-0 hover:bg-ink hover:text-paper"
+              >
+                {l.label}
+              </Link>
+            ),
+          )}
         </div>
       ) : null}
     </div>

@@ -1,30 +1,10 @@
-import Link from "next/link";
 import { ShuffledPhrase } from "@/components/shared/shuffled-phrase";
 
 /**
- * "In our pocket" — the Lapo's-style testimonials / FAQ / newsletter sections.
- * Kept for reuse (landing pages, campaigns) but intentionally NOT rendered on
- * the homepage, which felt too e-commerce-y with them. Import a section where
- * it earns its place.
+ * The Lapo's-style FAQ / newsletter sections. Kept for reuse (landing pages,
+ * campaigns) but intentionally NOT rendered on the homepage, which felt too
+ * e-commerce-y with them. Import a section where it earns its place.
  */
-
-const TESTIMONIALS = [
-  {
-    quote:
-      "J'ai offert une grille avec nos souvenirs de voyage à ma mère. Elle a pleuré avant même d'avoir trouvé le mot caché.",
-    name: "Camille",
-  },
-  {
-    quote:
-      "Fait maison, imprimé, relié, un cadeau qui a demandé cinq minutes et qui a marqué toute la tablée de Noël.",
-    name: "Thomas",
-  },
-  {
-    quote:
-      "Je recommande à 100%. Nos prénoms, nos private jokes, tout y était. Un vrai moment, pas juste un objet.",
-    name: "Samira",
-  },
-];
 
 const FAQ = [
   {
@@ -40,35 +20,11 @@ const FAQ = [
     a: "Un message que vous choisissez, dissimulé dans certaines cases de la grille. Une fois la grille remplie, il apparaît.",
   },
   {
-    q: "Puis-je en faire un livre ?",
-    a: "Oui, regroupez plusieurs grilles en un petit livret paginé, avec les solutions à la fin, prêt à imprimer.",
+    q: "Puis-je en faire un carnet ?",
+    a: "Oui, regroupez plusieurs grilles en un carnet paginé, avec les solutions à la fin, prêt à imprimer.",
   },
 ];
 
-export function TestimonialsSection() {
-  return (
-    <section className="border-b-2 border-ink bg-paper">
-      <div className="mx-auto max-w-5xl px-4 py-16">
-        <h2 className="text-center text-4xl text-ink sm:text-5xl">
-          Tout le monde adore
-        </h2>
-        <div className="mt-12 grid gap-6 sm:grid-cols-3">
-          {TESTIMONIALS.map((t) => (
-            <figure key={t.name} className="frame flex flex-col bg-background p-6">
-              <div className="text-lg tracking-widest text-brand">★★★★★</div>
-              <blockquote className="font-serif-accent mt-3 flex-1 text-[15px] italic leading-snug text-ink/85">
-                “{t.quote}”
-              </blockquote>
-              <figcaption className="mt-4 font-display text-sm uppercase tracking-wide text-ink">
-                {t.name}
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
 
 export function FaqSection() {
   return (

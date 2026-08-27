@@ -59,16 +59,29 @@ export function MobileMenu() {
             <p className="pt-1 pb-1 font-display text-xs uppercase tracking-[0.2em] text-ink/40">
               Nos produits
             </p>
-            {PRODUCT_LINKS.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                onClick={() => setOpen(false)}
-                className="border-b border-ink/10 py-3 pl-3 font-display text-base uppercase tracking-wide text-ink transition-colors hover:text-brand"
-              >
-                {l.label}
-              </Link>
-            ))}
+            {PRODUCT_LINKS.map((l) =>
+              l.soon ? (
+                <span
+                  key={l.href}
+                  aria-disabled
+                  className="flex items-center justify-between gap-2 border-b border-ink/10 py-3 pl-3 font-display text-base uppercase tracking-wide text-ink/40"
+                >
+                  {l.label}
+                  <span className="text-[10px] tracking-[0.15em] text-ink/40">
+                    Bientôt
+                  </span>
+                </span>
+              ) : (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  onClick={() => setOpen(false)}
+                  className="border-b border-ink/10 py-3 pl-3 font-display text-base uppercase tracking-wide text-ink transition-colors hover:text-brand"
+                >
+                  {l.label}
+                </Link>
+              ),
+            )}
             {LINKS.map((l) => (
               <Link
                 key={l.href}

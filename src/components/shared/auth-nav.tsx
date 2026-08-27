@@ -51,7 +51,7 @@ export function AuthNav({
           Mes grilles
         </Link>
         <Link href="/mes-livres" onClick={onNavigate} className={row}>
-          Mes livres
+          Mes carnets
         </Link>
         <Link href="/mes-cartes" onClick={onNavigate} className={row}>
           Mes cartes
@@ -113,7 +113,7 @@ export function AuthNav({
               onClick={() => setOpen(false)}
               className="block border-t-2 border-ink px-4 py-2.5 font-display text-xs uppercase tracking-wide text-ink hover:bg-ink/5"
             >
-              Mes livres
+              Mes carnets
             </Link>
             <Link
               href="/mes-cartes"

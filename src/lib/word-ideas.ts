@@ -25,7 +25,7 @@ export const WORD_IDEAS: RecipientIdeas[] = [
     label: "sa grand-mère",
     title: "Quels mots mettre dans un mot fléché pour sa grand-mère",
     description:
-      "À court d'inspiration pour une grille destinée à votre grand-mère ? Voici des idées de mots à glisser dans le livre, par thème.",
+      "À court d'inspiration pour une grille destinée à votre grand-mère ? Voici des idées de mots à glisser dans le carnet, par thème.",
     intro:
       "Une grille pour une grand-mère touche d'autant plus qu'elle rassemble la famille et les petits souvenirs du quotidien. Voici des pistes pour trouver vos mots.",
     groups: [

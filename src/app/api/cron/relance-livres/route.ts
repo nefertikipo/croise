@@ -69,13 +69,13 @@ export async function GET(request: Request) {
     try {
       await sendEmail({
         to: book.email,
-        subject: "Votre livre de mots fléchés vous attend",
+        subject: "Votre carnet de mots fléchés vous attend",
         html: emailShell({
-          heading: "On termine votre livre ?",
-          bodyHtml: `<p>${greeting}</p><p>Vous avez commencé le livre <strong>${book.title}</strong> mais ne l'avez pas encore terminé. Il vous attend, exactement là où vous l'avez laissé.</p>`,
-          cta: { label: "Reprendre mon livre", url: `${SITE_URL}/book/${book.code}` },
+          heading: "On termine votre carnet ?",
+          bodyHtml: `<p>${greeting}</p><p>Vous avez commencé le carnet <strong>${book.title}</strong> mais ne l'avez pas encore terminé. Il vous attend, exactement là où vous l'avez laissé.</p>`,
+          cta: { label: "Reprendre mon carnet", url: `${SITE_URL}/book/${book.code}` },
           footer:
-            "Vous recevez cet e-mail car vous avez commencé un livre sur Les Flèches.",
+            "Vous recevez cet e-mail car vous avez commencé un carnet sur Les Flèches.",
         }),
       });
       await db

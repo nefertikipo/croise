@@ -56,8 +56,8 @@ export default async function OriginalesPage() {
             Les Flèches Originales
           </h1>
           <p className="font-serif-accent mt-4 max-w-2xl text-xl italic text-ink/70">
-            Nos grilles maison : des mots fléchés écrits à la main, avec des définitions
-            cousues main. À jouer en ligne ou à imprimer, gratuitement.
+            Nos grilles maison : des mots fléchés écrits et définis par notre équipe.
+            À jouer en ligne ou à imprimer, gratuitement.
           </p>
         </div>
       </header>
