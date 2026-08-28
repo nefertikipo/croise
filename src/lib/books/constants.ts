@@ -40,6 +40,16 @@ export const POD_TRIM_MM: Record<PageSize, { w: number; h: number }> = {
 /** The active POD trim's mm dimensions (from {@link POD_PAGE_SIZE}). */
 export const POD_TRIM = POD_TRIM_MM[POD_PAGE_SIZE];
 
+/**
+ * Interior colour is OFF for the standard carnet — the inside prints black &
+ * white (only the cover is colour). While this is false the maker can't pick a
+ * grid colour and the on-screen preview renders in B&W, so what they see matches
+ * what prints. All the colour code (the grid ColorPicker, per-grid `gridColor`,
+ * FlecheGrid accent, colour PDF path) is kept intact and dormant — flip this to
+ * true when the colour PHOTO EDITION ships. See [[croise-print-economics-pricing]].
+ */
+export const INTERIOR_COLOR_ENABLED = false;
+
 export const BOOK_MIN_GRIDS = 8;
 
 /** Lulu saddle stitch accepts 4-48 interior pages; we floor at 12 (a full

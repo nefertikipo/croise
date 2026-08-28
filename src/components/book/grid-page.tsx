@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
 import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
 import { reservedRectForPreset } from "@/lib/crossword/photo-presets";
+import { INTERIOR_COLOR_ENABLED } from "@/lib/books/constants";
 import type { GridPage } from "@/types/book";
 
 const CELL_SIZE = 70;
@@ -50,7 +51,13 @@ export function GridPageView({
   /* Magazine composition: thin editorial title band, grid edge-to-edge,
      hidden-word band at the bottom — the grid is the page. */
   return (
-    <div className="flex flex-col gap-2" style={{ width: gridW * scale }}>
+    // Standard carnet prints B&W: render the interior preview greyscale so what
+    // the maker sees matches what prints. Colour returns with the photo edition
+    // (INTERIOR_COLOR_ENABLED). The colour code below stays untouched.
+    <div
+      className="flex flex-col gap-2"
+      style={{ width: gridW * scale, filter: INTERIOR_COLOR_ENABLED ? undefined : "grayscale(1)" }}
+    >
       {/* A5 book drops the per-grid title text, keeping only the rule as a top
           divider (mirrors composeGridPage's hideTitle path). */}
       <div className="border-b-2 border-ink" />
