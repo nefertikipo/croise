@@ -1,13 +1,11 @@
 import Link from "next/link";
 import { MobileMenu } from "@/components/shared/mobile-menu";
 import { AuthNav } from "@/components/shared/auth-nav";
-import { ProductMenu } from "@/components/shared/product-menu";
-
-const LINKS = [
-  { href: "/originales", label: "Originales" },
-  { href: "/idees-de-mots", label: "Idées de mots" },
-  { href: "/contribuer", label: "Contribuer" },
-];
+import {
+  NavDropdown,
+  PRODUCT_LINKS,
+  MORE_LINKS,
+} from "@/components/shared/nav-dropdown";
 
 export function Nav() {
   return (
@@ -37,16 +35,14 @@ export function Nav() {
             >
               Créer une grille
             </Link>
-            <ProductMenu />
-            {LINKS.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className="font-display text-sm uppercase tracking-wide text-ink transition-colors hover:text-brand"
-              >
-                {l.label}
-              </Link>
-            ))}
+            <NavDropdown label="Nos produits" links={PRODUCT_LINKS} />
+            <Link
+              href="/originales"
+              className="font-display text-sm uppercase tracking-wide text-ink transition-colors hover:text-brand"
+            >
+              Originales
+            </Link>
+            <NavDropdown label="Communauté" links={MORE_LINKS} />
             <AuthNav />
           </div>
 

@@ -3,18 +3,27 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
-export const PRODUCT_LINKS: { href: string; label: string; soon?: boolean }[] = [
+export type NavLink = { href: string; label: string; soon?: boolean };
+
+/** Product entry points, grouped under the "Nos produits" dropdown. */
+export const PRODUCT_LINKS: NavLink[] = [
   { href: "/livre/nouveau", label: "Carnet" },
   { href: "/carte/nouveau", label: "Carte", soon: true },
   { href: "/calendrier/nouveau", label: "Calendrier", soon: true },
 ];
 
+/** Secondary links, folded into a single "Communauté" dropdown. */
+export const MORE_LINKS: NavLink[] = [
+  { href: "/idees-de-mots", label: "Idées de mots" },
+  { href: "/contribuer", label: "Contribuer" },
+];
+
 /**
- * Desktop "Produit" dropdown: groups the product entry points (grid, book,
- * card, calendar) under a single nav item so the bar stays uncrowded. Opens on
- * hover or click, closes on outside-click / Escape / blur.
+ * Desktop nav dropdown: groups a set of nav links under a single trigger so the
+ * bar stays uncrowded. Opens on hover or click, closes on outside-click /
+ * Escape. Reused for "Nos produits" and "Communauté".
  */
-export function ProductMenu() {
+export function NavDropdown({ label, links }: { label: string; links: NavLink[] }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -50,7 +59,7 @@ export function ProductMenu() {
         aria-haspopup="menu"
         className="flex items-center gap-1 font-display text-sm uppercase tracking-wide text-ink transition-colors hover:text-brand"
       >
-        Nos produits
+        {label}
         <span
           className={`text-[0.6em] transition-transform ${open ? "rotate-180" : ""}`}
           aria-hidden
@@ -64,7 +73,7 @@ export function ProductMenu() {
           role="menu"
           className="absolute left-1/2 top-full z-50 mt-2 min-w-44 -translate-x-1/2 border-2 border-ink bg-paper shadow-lg"
         >
-          {PRODUCT_LINKS.map((l) =>
+          {links.map((l) =>
             l.soon ? (
               <span
                 key={l.href}
