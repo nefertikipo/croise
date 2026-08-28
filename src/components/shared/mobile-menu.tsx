@@ -3,13 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { AuthNav } from "@/components/shared/auth-nav";
-import { PRODUCT_LINKS } from "@/components/shared/product-menu";
-
-const LINKS = [
-  { href: "/originales", label: "Originales" },
-  { href: "/idees-de-mots", label: "Idées de mots" },
-  { href: "/contribuer", label: "Contribuer" },
-];
+import { PRODUCT_LINKS, MORE_LINKS } from "@/components/shared/nav-dropdown";
 
 /**
  * Mobile-only nav: a hamburger toggle that drops a full-width sheet with the
@@ -82,12 +76,22 @@ export function MobileMenu() {
                 </Link>
               ),
             )}
-            {LINKS.map((l) => (
+            <Link
+              href="/originales"
+              onClick={() => setOpen(false)}
+              className="border-b border-ink/10 py-3 font-display text-base uppercase tracking-wide text-ink transition-colors hover:text-brand"
+            >
+              Originales
+            </Link>
+            <p className="pt-1 pb-1 font-display text-xs uppercase tracking-[0.2em] text-ink/40">
+              Communauté
+            </p>
+            {MORE_LINKS.map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
                 onClick={() => setOpen(false)}
-                className="border-b border-ink/10 py-3 font-display text-base uppercase tracking-wide text-ink transition-colors hover:text-brand"
+                className="border-b border-ink/10 py-3 pl-3 font-display text-base uppercase tracking-wide text-ink transition-colors hover:text-brand"
               >
                 {l.label}
               </Link>
