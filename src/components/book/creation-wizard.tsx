@@ -417,6 +417,15 @@ export function CreationWizard() {
             </div>
           )}
 
+          {/* Set the print-format expectation before the book is created. */}
+          {lastStep && (
+            <p className="rounded-none border-2 border-ink/15 bg-paper px-3 py-2 text-xs text-ink/70">
+              Votre carnet, façon magazine de jeux&nbsp;: pages intérieures en{" "}
+              <span className="font-semibold text-ink">noir &amp; blanc</span>,
+              couverture en couleur avec votre photo.
+            </p>
+          )}
+
           {/* Navigation */}
           <div className="flex items-center justify-between gap-3 border-t-2 border-ink/10 pt-4">
             {step > 0 ? (
