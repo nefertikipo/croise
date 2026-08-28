@@ -1,3 +1,5 @@
+import type { PageSize } from "@/lib/book-pdf/geometry";
+
 /**
  * Product-level book sizing rules, shared by client and server code
  * (keep this file free of server-only imports).
@@ -13,6 +15,31 @@
  * - MIN (BOOK_MIN_INTERIOR_PAGES): the order flow refuses to send a book that
  *   is too thin to bind.
  */
+/**
+ * THE POD BOOK TRIM — the single switch for the printed book's size.
+ * "crown" = Crown Quarto (189×246mm, Lulu tier 2, ~28% wider than A5 → readable
+ * clues); "a5" = the original 148×210mm. Flip this back to "a5" to fully revert
+ * the trim migration: interior geometry, cover spread, SKU, cover template and
+ * all default page-count callers follow it. See [[croise-print-economics-pricing]].
+ * MUST stay in sync with PAGE_SPECS / POD_TRIM_MM below.
+ */
+export const POD_PAGE_SIZE: PageSize = "crown";
+
+/**
+ * Client-safe trim dimensions in mm (mirrors geometry.ts PAGE_SPECS, which is
+ * server-only because it pulls in pdf-lib). UI code — photo layouts, cover crop
+ * aspect, cover-studio preview — reads trim size from here. Keep in sync with
+ * PAGE_SPECS.
+ */
+export const POD_TRIM_MM: Record<PageSize, { w: number; h: number }> = {
+  a5: { w: 148, h: 210 },
+  a4: { w: 210, h: 297 },
+  crown: { w: 189, h: 246 },
+};
+
+/** The active POD trim's mm dimensions (from {@link POD_PAGE_SIZE}). */
+export const POD_TRIM = POD_TRIM_MM[POD_PAGE_SIZE];
+
 export const BOOK_MIN_GRIDS = 8;
 
 /** Lulu saddle stitch accepts 4-48 interior pages; we floor at 12 (a full

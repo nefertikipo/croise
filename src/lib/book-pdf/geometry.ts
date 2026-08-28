@@ -11,6 +11,7 @@
  */
 
 import { rgb, type PDFPage, type RGB } from "pdf-lib";
+import { POD_PAGE_SIZE } from "@/lib/books/constants";
 
 /** Print resolution for embedded raster (photos). Vector art is resolution-free. */
 export const DPI = 300;
@@ -37,8 +38,9 @@ export const spineWidthMm = (pageCount: number) => pageCount * PAPER_THICKNESS_M
 /** Minimum spine width for printing the title on it; below this, leave blank. */
 export const SPINE_TEXT_MIN_MM = 6;
 
-/** A named trim size. Interior pages use A5 (the book) or A4 (print-at-home). */
-export type PageSize = "a5" | "a4";
+/** A named trim size. The POD book uses "crown" (Crown Quarto) or "a5"; "a4"
+ * is the true print-at-home page. The active book trim is `POD_PAGE_SIZE`. */
+export type PageSize = "a5" | "a4" | "crown";
 
 export interface PageSpec {
   /** Trim size in millimetres. */
@@ -62,10 +64,20 @@ export const PAGE_SPECS: Record<PageSize, PageSpec> = {
   a5: { trimWmm: 148, trimHmm: 210, bleedMm: 3.175, marginTopMm: 10, marginBottomMm: 10, marginInnerMm: 12, marginOuterMm: 8 },
   // Print-at-home: TRUE A4, no bleed, symmetric ~10 mm margins.
   a4: { trimWmm: 210, trimHmm: 297, bleedMm: 0, marginTopMm: 10, marginBottomMm: 10, marginInnerMm: 10, marginOuterMm: 10 },
+  // Crown Quarto POD book: 189×246 mm (Lulu code 0744X0968). Same mirrored
+  // gutter margins as A5 (12 mm spine / 8 mm fore-edge / 10 mm top-bottom) and
+  // the same Lulu 0.125in bleed. The wider trim is what gives the grid bigger
+  // cells and readable clue text. Keep in sync with POD_TRIM_MM in constants.ts.
+  crown: { trimWmm: 189, trimHmm: 246, bleedMm: 3.175, marginTopMm: 10, marginBottomMm: 10, marginInnerMm: 12, marginOuterMm: 8 },
 };
 
+/** Resolve a size query param to a PageSize. Unknown/absent → the active POD
+ * book trim ({@link POD_PAGE_SIZE}); "a4" stays the print-at-home page. */
 export function resolvePageSize(size?: string): PageSize {
-  return size === "a4" ? "a4" : "a5";
+  if (size === "a4") return "a4";
+  if (size === "a5") return "a5";
+  if (size === "crown") return "crown";
+  return POD_PAGE_SIZE;
 }
 
 /**

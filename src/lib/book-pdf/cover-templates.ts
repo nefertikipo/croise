@@ -5,6 +5,7 @@
  */
 
 import type { CoverTemplate } from "@/lib/book-pdf/template-spec";
+import { POD_PAGE_SIZE } from "@/lib/books/constants";
 
 const DEEP_BLUE = "#0f4c81"; // aperitivo azzurro — the main colour
 const CREAM = "#ffefe1"; // warm paper
@@ -75,11 +76,10 @@ export function resolveCoverFont(key?: string) {
  * big gridified photo (no band around it), and the title below in the accent
  * colour (no box). Page colour + accent are a curated pair so the title reads.
  */
-const SOLID_COLOR_A5: CoverTemplate = {
-  id: "solid-color-a5",
+/** The solid-colour template's design (fractional rects), shared by every trim
+ * — only the trim dimensions differ per book size. */
+const SOLID_COLOR_DESIGN = {
   name: "Fond couleur + grande photo + titre",
-  trimWidthMm: 148,
-  trimHeightMm: 210,
   bleedMm: 3.175, // Lulu's exact 0.125in
   background: COVER_COLORS[DEFAULT_COVER_COLOR].bg,
   photo: {
@@ -88,20 +88,37 @@ const SOLID_COLOR_A5: CoverTemplate = {
   },
   title: {
     rect: { x: 0.04, y: 0.83, w: 0.92, h: 0.11 },
-    align: "center",
+    align: "center" as const,
     color: COVER_COLORS[DEFAULT_COVER_COLOR].border,
     sizeFrac: 0.072,
     uppercase: true,
   },
+} satisfies Omit<CoverTemplate, "id" | "trimWidthMm" | "trimHeightMm">;
+
+const SOLID_COLOR_A5: CoverTemplate = {
+  id: "solid-color-a5",
+  trimWidthMm: 148,
+  trimHeightMm: 210,
+  ...SOLID_COLOR_DESIGN,
 };
 
-export const COVER_TEMPLATES: CoverTemplate[] = [SOLID_COLOR_A5];
+const SOLID_COLOR_CROWN: CoverTemplate = {
+  id: "solid-color-crown",
+  trimWidthMm: 189,
+  trimHeightMm: 246,
+  ...SOLID_COLOR_DESIGN,
+};
 
-export const DEFAULT_COVER_TEMPLATE = SOLID_COLOR_A5.id;
+export const COVER_TEMPLATES: CoverTemplate[] = [SOLID_COLOR_CROWN, SOLID_COLOR_A5];
 
-/** Resolve a template id to its spec, falling back to the default. */
+/** The template matching the active POD trim (see POD_PAGE_SIZE). */
+const POD_COVER_TEMPLATE = POD_PAGE_SIZE === "a5" ? SOLID_COLOR_A5 : SOLID_COLOR_CROWN;
+
+export const DEFAULT_COVER_TEMPLATE = POD_COVER_TEMPLATE.id;
+
+/** Resolve a template id to its spec, falling back to the active POD default. */
 export function getCoverTemplate(id?: string): CoverTemplate {
-  return COVER_TEMPLATES.find((t) => t.id === id) ?? SOLID_COLOR_A5;
+  return COVER_TEMPLATES.find((t) => t.id === id) ?? POD_COVER_TEMPLATE;
 }
 
 /** Width/height aspect ratio of a template's photo slot (for the crop UI). */

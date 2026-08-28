@@ -3,11 +3,11 @@
  * and the book grid creator). Rationalized to named presets so the choice
  * reads as an editorial size, not a raw dimension: petite, moyenne, classique.
  *
- * "moyenne" is the default — big enough to feel like a real puzzle, but its
- * cells stay large enough on an A5 page that the clue text prints legibly (the
- * denser "classique" grid floors long clues at ~2 pt on A5). "classique" is
- * still one tap away for anyone who wants the fuller grid. Keep this file free of
- * client/server-only imports so both sides can share it.
+ * "classique" is the default — the standard, full mots fléchés grid. It floored
+ * long clues at ~2 pt on the old A5 book, but the book now prints on the wider
+ * Crown Quarto trim (see POD_PAGE_SIZE) where 11×17 clue text stays legible, so
+ * the fuller grid is the right default again. "moyenne"/"petite" remain one tap
+ * away. Keep this file free of client/server-only imports so both sides share it.
  */
 export interface GridFormat {
   /** Stable id used for selection and as the default marker. */

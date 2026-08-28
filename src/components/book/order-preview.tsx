@@ -7,6 +7,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import {
   BOOK_MIN_GRIDS,
   BOOK_MIN_INTERIOR_PAGES,
+  POD_PAGE_SIZE,
   SADDLE_MAX_INTERIOR_PAGES,
 } from "@/lib/books/constants";
 import { cn } from "@/lib/utils";
@@ -33,7 +34,8 @@ export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPh
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
 
-  const interiorUrl = `/api/books/${code}/book.pdf?size=a5`;
+  // Proof = exactly the file sent to Lulu: B&W interior at the POD trim.
+  const interiorUrl = `/api/books/${code}/book.pdf?size=${POD_PAGE_SIZE}&bw=1`;
   const coverUrl = `/api/books/${code}/cover.pdf`;
   const enoughGrids = gridCount >= BOOK_MIN_GRIDS;
   // HARD printable window: the printer binds 24–48 interior pages.

@@ -8,6 +8,7 @@
 
 import type { FracRect, BleedEdges } from "@/lib/book-pdf/template-spec";
 import type { Motif, HandDir } from "@/lib/book-pdf/graphic-motifs";
+import { POD_TRIM } from "@/lib/books/constants";
 
 export interface LayoutSlot {
   rect: FracRect;
@@ -51,8 +52,8 @@ const ALL_BLEED: BleedEdges = { top: true, right: true, bottom: true, left: true
 /** A uniform grid of square cells (SUNLEAK-style), centred on the A5 page with
  * tight cream gaps. Cells are square in millimetres. */
 function uniformGrid(cols: number, rows: number, id: string, label: string, margin = 5, gap = 2): PhotoLayout {
-  const W = 148;
-  const H = 210;
+  const W = POD_TRIM.w;
+  const H = POD_TRIM.h;
   const cell = (W - 2 * margin - (cols - 1) * gap) / cols;
   const blockH = rows * cell + (rows - 1) * gap;
   const top = (H - blockH) / 2;
@@ -76,8 +77,8 @@ function uniformGrid(cols: number, rows: number, id: string, label: string, marg
  * span rows/columns, heavy black rules, sparse b&w photos, warm-paper negative
  * space, colour blocks and pointing hands. */
 function hermesLayout(): PhotoLayout {
-  const W = 148;
-  const H = 210;
+  const W = POD_TRIM.w;
+  const H = POD_TRIM.h;
   const mx = 6;
   const my = 6;
   const gap = 3; // rule thickness

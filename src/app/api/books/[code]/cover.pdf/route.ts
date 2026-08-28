@@ -16,8 +16,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
       return Response.json({ error: "Book not found" }, { status: 404 });
     }
 
-    // The spine width derives from the final interior page count (A5 = the book).
-    const interiorPageCount = countInteriorPages(book, "a5");
+    // The spine width derives from the final interior page count (POD_PAGE_SIZE
+    // = the printed book trim). Saddle stitch has no spine, so this only feeds
+    // the cover-dimensions math, but keep it aligned with the interior.
+    const interiorPageCount = countInteriorPages(book);
     const pdf = await generateCoverSpreadPdf({
       title: book.title,
       cover: book.coverConfig,

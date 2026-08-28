@@ -73,23 +73,28 @@ async function renderShuffled(photo: Buffer, widthPt: number, heightPt: number, 
   const gap = Math.max(1, mm2px(fx.gapMm));
   const availW = Math.max(fx.cols, Math.round((widthPt / 72) * DPI));
   const availH = Math.max(fx.rows, Math.round((heightPt / 72) * DPI));
-  const tileW = Math.floor((availW - (fx.cols - 1) * gap) / fx.cols);
-  const tileH = Math.floor((availH - (fx.rows - 1) * gap) / fx.rows);
+  // Keep tiles SQUARE whatever the slot's aspect: fix the row density (fx.rows)
+  // and derive the column count from the slot aspect. Otherwise a wider trim
+  // (Crown vs A5) stretches the tiles wide and the grid reads out of proportion.
+  const rows = fx.rows;
+  const cols = Math.max(1, Math.round(rows * (widthPt / heightPt)));
+  const tileW = Math.floor((availW - (cols - 1) * gap) / cols);
+  const tileH = Math.floor((availH - (rows - 1) * gap) / rows);
 
-  const src = await sharp(photo).rotate().resize(tileW * fx.cols, tileH * fx.rows, { fit: "cover" }).toBuffer();
-  const perm = scramble(fx.cols, fx.rows, fx.intensity, fx.seed);
+  const src = await sharp(photo).rotate().resize(tileW * cols, tileH * rows, { fit: "cover" }).toBuffer();
+  const perm = scramble(cols, rows, fx.intensity, fx.seed);
 
   const tiles = await Promise.all(
     perm.map(async (source, pos) => {
       const tile = await sharp(src)
-        .extract({ left: (source % fx.cols) * tileW, top: Math.floor(source / fx.cols) * tileH, width: tileW, height: tileH })
+        .extract({ left: (source % cols) * tileW, top: Math.floor(source / cols) * tileH, width: tileW, height: tileH })
         .toBuffer();
-      return { input: tile, left: (pos % fx.cols) * (tileW + gap), top: Math.floor(pos / fx.cols) * (tileH + gap) };
+      return { input: tile, left: (pos % cols) * (tileW + gap), top: Math.floor(pos / cols) * (tileH + gap) };
     }),
   );
 
-  const baseW = fx.cols * tileW + (fx.cols - 1) * gap;
-  const baseH = fx.rows * tileH + (fx.rows - 1) * gap;
+  const baseW = cols * tileW + (cols - 1) * gap;
+  const baseH = rows * tileH + (rows - 1) * gap;
   return sharp({ create: { width: baseW, height: baseH, channels: 3, background: hexToObj(bgHex) } })
     .composite(tiles)
     .jpeg({ quality: 92 })
