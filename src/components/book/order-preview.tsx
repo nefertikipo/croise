@@ -9,7 +9,15 @@ import {
   BOOK_MIN_INTERIOR_PAGES,
   SADDLE_MAX_INTERIOR_PAGES,
 } from "@/lib/books/constants";
+import { CARNET_PRICE_CENTS, formatEuros } from "@/lib/books/pricing";
 import { cn } from "@/lib/utils";
+
+/**
+ * When "1", the CTA runs a real Stripe checkout; otherwise it captures a
+ * waitlist email (the pre-launch behavior). Lets checkout ship dark and flip on
+ * once Stripe keys + seller identity are in place.
+ */
+const CHECKOUT_ENABLED = process.env.NEXT_PUBLIC_CARNET_CHECKOUT === "1";
 
 interface OrderPreviewProps {
   code: string;
@@ -41,6 +49,26 @@ export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPh
   const tooThick = interiorPages > SADDLE_MAX_INTERIOR_PAGES;
   const printablePages = !tooThin && !tooThick;
   const canOrder = checked && printablePages && hasCoverPhoto;
+
+  async function startCheckout() {
+    if (sending) return;
+    setSending(true);
+    try {
+      const res = await fetch(`/api/books/${code}/checkout`, { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        toast.error(data.error ?? "Impossible de démarrer le paiement. Réessayez.");
+        setSending(false);
+        return;
+      }
+      // Redirect to Stripe's hosted checkout; keep `sending` so the button stays
+      // disabled through the navigation.
+      window.location.href = data.url;
+    } catch {
+      toast.error("Impossible de démarrer le paiement. Vérifiez votre connexion.");
+      setSending(false);
+    }
+  }
 
   async function registerIntent() {
     if (sending || sent) return;
@@ -174,7 +202,22 @@ export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPh
             </span>
           </label>
 
-          {sent ? (
+          {CHECKOUT_ENABLED ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <Button disabled={!canOrder || sending} onClick={startCheckout}>
+                {sending
+                  ? "Redirection…"
+                  : `Commander mon carnet — ${formatEuros(CARNET_PRICE_CENTS)}`}
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {tooThin
+                  ? `Ajoutez des grilles : un carnet imprimé compte au moins ${BOOK_MIN_INTERIOR_PAGES} pages.`
+                  : tooThick
+                    ? `Retirez des pages : la reliure accepte au maximum ${SADDLE_MAX_INTERIOR_PAGES} pages.`
+                    : "Paiement sécurisé via Stripe · livraison standard incluse, express en option."}
+              </span>
+            </div>
+          ) : sent ? (
             <p className="text-sm font-semibold">
               Merci ! Les commandes ouvrent très bientôt : nous vous écrivons dès
               que votre carnet pourra partir à l&apos;impression.
