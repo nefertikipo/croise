@@ -150,6 +150,11 @@ export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPh
               Ouvrir en plein écran
             </a>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Les pages intérieures sont imprimées en{" "}
+            <span className="font-semibold text-ink">noir &amp; blanc</span> (comme
+            un magazine de jeux) ; seule la couverture est en couleur.
+          </p>
           <iframe
             src={interiorUrl}
             title="Intérieur du carnet (grilles, index, solutions)"
