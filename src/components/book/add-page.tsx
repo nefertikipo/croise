@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import type { ContentLayout } from "@/types/book";
+import type { ContentLayout, PuzzleType } from "@/types/book";
 
 interface AddPageProps {
   busy: boolean;
@@ -9,8 +9,12 @@ interface AddPageProps {
   interiorPages: number;
   maxPages: number;
   minPages: number;
+  /** Carnet type — decides which grid buttons show. */
+  puzzleType: PuzzleType;
   /** Open the full-screen grid creator (owned by the book editor). */
   onCreateGrid: () => void;
+  /** Generate mots croisés grids into the book. */
+  onAddCroises: () => void;
   onAddContent: (layout: ContentLayout) => void;
 }
 
@@ -19,7 +23,9 @@ export function AddPage({
   interiorPages,
   maxPages,
   minPages,
+  puzzleType,
   onCreateGrid,
+  onAddCroises,
   onAddContent,
 }: AddPageProps) {
   // The printer binds a fixed page window; block adds once the book is full.
@@ -56,9 +62,21 @@ export function AddPage({
         <p className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">
           Grille
         </p>
-        <Button className="w-full" disabled={addDisabled} onClick={onCreateGrid}>
-          + Créer une grille
-        </Button>
+        {puzzleType !== "croise" && (
+          <Button className="w-full" disabled={addDisabled} onClick={onCreateGrid}>
+            + Créer des mots fléchés
+          </Button>
+        )}
+        {puzzleType !== "fleche" && (
+          <Button
+            className="w-full"
+            variant={puzzleType === "melange" ? "outline" : "default"}
+            disabled={addDisabled}
+            onClick={onAddCroises}
+          >
+            + Créer des mots croisés
+          </Button>
+        )}
         <p className="text-xs text-muted-foreground">
           Ajoutez vos mots personnalisés (prénoms, dates, clins d&apos;œil) pendant la
           création.

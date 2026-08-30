@@ -28,6 +28,10 @@ export function generateCalendarCode(): string {
   return `CAL-${generateCode()}`;
 }
 
+export function generateAmericanCode(): string {
+  return `CROI-${generateCode()}`;
+}
+
 /** True when a Postgres write failed on a unique constraint (SQLSTATE 23505). */
 export function isUniqueViolation(error: unknown): boolean {
   return (

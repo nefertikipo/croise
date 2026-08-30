@@ -10,9 +10,16 @@ import { CLUE_EXAMPLES, DIFFICULTY_INFO } from "@/lib/fleche/difficulty-guide";
 import { BOOK_MIN_GRIDS } from "@/lib/books/constants";
 import { buildWizardPlan, splitHiddenMessage } from "@/lib/books/wizard-plan";
 import { cn } from "@/lib/utils";
-import type { ClueIdea, GridDifficulty } from "@/types/book";
+import type { ClueIdea, GridDifficulty, PuzzleType } from "@/types/book";
 
 const STEPS = ["Pour qui ?", "Vos mots", "Message caché", "Difficulté"] as const;
+
+/** The three carnet types offered up front. */
+const PUZZLE_TYPES: { v: PuzzleType; label: string; hint: string }[] = [
+  { v: "fleche", label: "Mots fléchés", hint: "Définitions dans la grille, avec flèches" },
+  { v: "croise", label: "Mots croisés", hint: "Grille numérotée, définitions à côté" },
+  { v: "melange", label: "Mélange", hint: "Les deux, en alternance" },
+];
 
 /** Occasion chip → editable dedication seed. "Autre" seeds nothing on purpose. */
 const OCCASIONS: { label: string; seed: string }[] = [
@@ -61,6 +68,7 @@ export function CreationWizard() {
   ]);
   const [message, setMessage] = useState("");
   const [difficulty, setDifficulty] = useState<GridDifficulty>("facile");
+  const [puzzleType, setPuzzleType] = useState<PuzzleType>("fleche");
   const [submitting, setSubmitting] = useState(false);
 
   const validRows = rows.filter(
@@ -97,9 +105,13 @@ export function CreationWizard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: `Les flèches de ${firstName.trim()}`,
+          title:
+            puzzleType === "croise"
+              ? `Les mots croisés de ${firstName.trim()}`
+              : `Les flèches de ${firstName.trim()}`,
           dedicationText: dedication.trim() || undefined,
           clueIdeas: ideas.length > 0 ? ideas : undefined,
+          puzzleType,
         }),
       });
       if (res.status === 401) {
@@ -111,12 +123,17 @@ export function CreationWizard() {
         throw new Error(data.error || "Impossible de créer le carnet. Réessayez.");
       }
       const { code } = (await res.json()) as { code: string };
-      const plan = buildWizardPlan({ ideas, messageWords, difficulty });
-      try {
-        sessionStorage.setItem(`book-wizard-plan-${code}`, JSON.stringify(plan));
-      } catch {
-        // Storage unavailable: the book still opens; the editor's empty-book
-        // onboarding takes over (the words stay in the notepad).
+      // Only fléchés books auto-generate from a stashed plan today. Croisés /
+      // mélange books open in the editor, where grids are added from the notepad
+      // words (the hidden-message feature is fléchés-only).
+      if (puzzleType === "fleche") {
+        const plan = buildWizardPlan({ ideas, messageWords, difficulty });
+        try {
+          sessionStorage.setItem(`book-wizard-plan-${code}`, JSON.stringify(plan));
+        } catch {
+          // Storage unavailable: the book still opens; the editor's empty-book
+          // onboarding takes over (the words stay in the notepad).
+        }
       }
       // Replace (not push): the wizard is a transient hand-off, not a page to
       // return to. Otherwise a back-gesture from the editor lands on a
@@ -170,6 +187,37 @@ export function CreationWizard() {
           {/* Step 1: recipient */}
           {step === 0 && (
             <div className="space-y-4">
+              <div className="space-y-2">
+                <p className="font-display text-sm uppercase tracking-wide text-ink">
+                  Type de grilles
+                </p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {PUZZLE_TYPES.map((t) => (
+                    <button
+                      key={t.v}
+                      type="button"
+                      onClick={() => setPuzzleType(t.v)}
+                      className={cn(
+                        "rounded-none border-2 border-ink px-3 py-2 text-left transition-colors",
+                        puzzleType === t.v ? "bg-ink text-paper" : "bg-paper text-ink hover:bg-accent",
+                      )}
+                    >
+                      <span className="block font-display text-sm font-semibold uppercase tracking-wide">
+                        {t.label}
+                      </span>
+                      <span
+                        className={cn(
+                          "mt-0.5 block text-xs",
+                          puzzleType === t.v ? "text-paper/70" : "text-ink/60",
+                        )}
+                      >
+                        {t.hint}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="space-y-1">
                 <label
                   htmlFor="wizard-first-name"

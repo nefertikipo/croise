@@ -3,6 +3,7 @@ import { DedicationPage } from "@/components/book/dedication-page";
 import { dedicationCredit } from "@/lib/books/authors";
 import { ContentPageView } from "@/components/book/content-page";
 import { GridPageView } from "@/components/book/grid-page";
+import { CroisesPageView } from "@/components/book/croises-page-view";
 import { SolutionTile } from "@/components/book/solution-tile";
 import { WordIndexPage } from "@/components/book/word-index-page";
 import type { BookData, GridPage, WordIndexEntry } from "@/types/book";
@@ -48,6 +49,8 @@ export function BookPrintLayout({
         <PrintPage key={p.pageId}>
           {p.kind === "grid" ? (
             <GridPageView page={p} index={gridNumberByPage.get(p.pageId) ?? 0} maxWidth={700} />
+          ) : p.kind === "croises" ? (
+            <CroisesPageView page={p} index={gridNumberByPage.get(p.pageId) ?? 0} maxWidth={700} />
           ) : (
             <ContentPageView config={p.config} />
           )}

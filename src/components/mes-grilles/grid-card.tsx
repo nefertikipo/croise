@@ -14,12 +14,15 @@ export function GridCard({
   size,
   href,
   dateLabel,
+  kind = "fleche",
 }: {
   code: string;
   title: string;
   size: string;
   href: string;
   dateLabel: string;
+  /** Puzzle type — drives the badge and the delete endpoint. */
+  kind?: "fleche" | "croise";
 }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
@@ -30,7 +33,9 @@ export function GridCard({
     }
     setDeleting(true);
     try {
-      const res = await fetch(`/api/crosswords/${code}`, { method: "DELETE" });
+      const endpoint =
+        kind === "croise" ? `/api/croises/${code}` : `/api/crosswords/${code}`;
+      const res = await fetch(endpoint, { method: "DELETE" });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         alert(data.error || "Impossible de supprimer la grille.");
@@ -58,8 +63,11 @@ export function GridCard({
             {size}
           </span>
         </div>
-        <p className="mt-1 font-mono text-xs text-brand">{code}</p>
-        <p className="mt-2 font-serif text-xs italic text-ink/60">{dateLabel}</p>
+        <span className="mt-2 inline-block border border-ink/30 px-1.5 py-0.5 font-display text-[10px] uppercase tracking-wide text-ink/60">
+          {kind === "croise" ? "Mots croisés" : "Mots fléchés"}
+        </span>
+        <p className="mt-2 font-mono text-xs text-brand">{code}</p>
+        <p className="mt-1 font-serif text-xs italic text-ink/60">{dateLabel}</p>
       </Link>
       <button
         type="button"

@@ -17,6 +17,12 @@ import { composeIndexPages, countIndexPages } from "@/lib/book-pdf/compose-index
 import { dedicationCredit } from "@/lib/books/authors";
 import { composePhotoPage, type PhotoPageContent } from "@/lib/book-pdf/compose-photo-page";
 import { composeSolutionsPages, countSolutionsPages } from "@/lib/book-pdf/compose-solutions-page";
+import { composeCroisesPage } from "@/lib/book-pdf/compose-croises-page";
+import {
+  composeCroisesSolutionsPages,
+  countCroisesSolutionsPages,
+  type CroisesSolution,
+} from "@/lib/book-pdf/compose-croises-solutions-page";
 import { getPhotoLayout, type PhotoLayout } from "@/lib/book-pdf/photo-layouts";
 import { getOriginal } from "@/lib/book-pdf/photo-store";
 import {
@@ -33,7 +39,14 @@ import {
 } from "@/lib/book-pdf/geometry";
 import { POD_PAGE_SIZE } from "@/lib/books/constants";
 import type { BookFonts } from "@/lib/book-pdf/fonts";
-import type { BookData, ContentPageConfig, GridPage } from "@/types/book";
+import type { BookData, ContentPageConfig, CroisesPage, GridPage } from "@/types/book";
+
+/** The mots croisés puzzle pages in a book, numbered 1-based for solutions. */
+function croisesSolutionsOf(book: BookData): CroisesSolution[] {
+  return book.pages
+    .filter((p): p is CroisesPage => p.kind === "croises")
+    .map((p, i) => ({ puzzle: p.puzzle, number: i + 1 }));
+}
 
 const PAGE_BG = "#fff6ec";
 
@@ -103,12 +116,16 @@ export class EmptyBookError extends Error {
  */
 export function countInteriorPages(book: BookData, size: PageSize = POD_PAGE_SIZE): number {
   const grids = book.pages.filter((p): p is GridPage => p.kind === "grid");
-  if (grids.length === 0) throw new EmptyBookError();
+  const croises = croisesSolutionsOf(book);
+  if (grids.length === 0 && croises.length === 0) throw new EmptyBookError();
   const g = pageGeometry(PAGE_SPECS[size]); // content metrics are side-independent
   let n = 1; // opening page (dedication or default title page) is always present
   n += book.pages.length;
-  n += countIndexPages(book.wordIndex, g);
+  // The word index is fléchés-only; a croisés-only book has none, so skip it
+  // (otherwise an empty "0 MOTS" page prints).
+  if (book.wordIndex.length > 0) n += countIndexPages(book.wordIndex, g);
   n += countSolutionsPages(grids, g);
+  n += countCroisesSolutionsPages(croises, g);
   if (n % 4 !== 0) n += 4 - (n % 4); // blank pad to a multiple of 4 (signatures)
   return n;
 }
@@ -155,7 +172,8 @@ export async function generateBookInteriorPdf(
   opts: { mono?: boolean } = {},
 ): Promise<Uint8Array> {
   const grids = book.pages.filter((p): p is GridPage => p.kind === "grid");
-  if (grids.length === 0) throw new EmptyBookError();
+  const croisesSolutions = croisesSolutionsOf(book);
+  if (grids.length === 0 && croisesSolutions.length === 0) throw new EmptyBookError();
   // Black-and-white print mode: white pages + neutral-grey grids, so a book sent
   // to a mono printer looks intentional instead of a muddy auto grayscale.
   const mono = opts.mono ?? false;
@@ -198,11 +216,15 @@ export async function generateBookInteriorPdf(
   // 2) The spine, in editor order. Grids are numbered by their order among
   //    grid pages — the index and solutions reference these numbers.
   let gridNumber = 0;
+  let croisesNumber = 0;
   for (const p of book.pages) {
     const { page, g } = addPage();
     if (p.kind === "grid") {
       gridNumber += 1;
       await composeGridPage({ doc, page, g, fonts, grid: p, gridNumber, mode: "puzzle", mono, hideTitle: size === "a5" });
+    } else if (p.kind === "croises") {
+      croisesNumber += 1;
+      composeCroisesPage({ page, g, fonts, puzzle: p.puzzle, gridNumber: croisesNumber, mode: "puzzle", mono });
     } else if (p.config.layout === "photo") {
       photoPageIdx.add(doc.getPageCount() - 1); // folio needs a plate over the image
       const layout = getPhotoLayout(p.config.photoLayout);
@@ -215,8 +237,11 @@ export async function generateBookInteriorPdf(
 
   // 3) Word index + 4) Solutions (tiled plain answer-key mini grids).
   const gBase = pageGeometry(spec);
-  composeIndexPages({ addPage, g: gBase, fonts, entries: book.wordIndex, mono });
+  if (book.wordIndex.length > 0) {
+    composeIndexPages({ addPage, g: gBase, fonts, entries: book.wordIndex, mono });
+  }
   composeSolutionsPages({ addPage, g: gBase, fonts, grids, mono });
+  composeCroisesSolutionsPages({ addPage, g: gBase, fonts, sols: croisesSolutions, mono });
 
   // 5) Pad to a multiple-of-4 page count with blank (background-only) pages.
   while (doc.getPageCount() % 4 !== 0) {

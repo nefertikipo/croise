@@ -4,6 +4,11 @@
  * schema). Cover, dedication, word index and solutions are derived sections.
  */
 
+import type { AmPuzzle } from "@/lib/crossword/american/types";
+
+/** Which puzzle type(s) a carnet holds. */
+export type PuzzleType = "fleche" | "croise" | "melange";
+
 /** Decorative treatment of a page: an SVG motif, a frame style, or an uploaded image. */
 export interface PageDesign {
   /** Id of a programmatic SVG motif (see src/lib/design/patterns.tsx). */
@@ -158,7 +163,24 @@ export interface ContentPage {
   config: ContentPageConfig;
 }
 
-export type BookPageData = GridPage | ContentPage;
+/**
+ * A mots croisés (American) grid page. The whole puzzle (grid + Across/Down clue
+ * lists) is carried ready-to-render as an `AmPuzzle`; no reconstruction needed.
+ */
+export interface CroisesPage {
+  kind: "croises";
+  pageId: string;
+  /** american_crosswords.id */
+  gridId: string;
+  /** american_crosswords.code */
+  code: string;
+  position: number;
+  puzzle: AmPuzzle;
+  /** Reuses the grid-page config (title / gridColor). */
+  config: GridPageConfig;
+}
+
+export type BookPageData = GridPage | ContentPage | CroisesPage;
 
 /** One length-group of the word index: all words of a given length, alphabetical. */
 export interface WordIndexEntry {
@@ -185,6 +207,8 @@ export interface BookData {
   /** Design-time clue-idea notepad (not printed). Empty when never used. */
   clueIdeas: ClueIdea[];
   language: string;
+  /** Which puzzle type(s) this carnet holds (chosen in the wizard). */
+  puzzleType: PuzzleType;
   status: string;
   pages: BookPageData[];
   wordIndex: WordIndexEntry[];
