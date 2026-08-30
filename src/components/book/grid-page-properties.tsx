@@ -14,6 +14,7 @@ import { ClueList, difficultyBand } from "@/components/fleche/clue-list";
 import { estimateGenerationMs } from "@/lib/crossword/estimate-generation";
 import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
 import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
+import { INTERIOR_COLOR_ENABLED } from "@/lib/books/constants";
 import type { ClueIdea, GridPage, GridPageConfig, BookWord } from "@/types/book";
 
 /** Facile / moyen / difficile split of the grid's placed words, as a bar + legend. */
@@ -160,12 +161,16 @@ export function GridPageProperties({
         />
       </Field>
 
-      <Field label="Couleur de la grille">
-        <ColorPicker
-          value={page.config.gridColor}
-          onChange={(c) => onConfigChange({ gridColor: c })}
-        />
-      </Field>
+      {/* The standard carnet prints B&W, so no grid-colour choice. Kept in code,
+          re-enabled with INTERIOR_COLOR_ENABLED when the photo edition ships. */}
+      {INTERIOR_COLOR_ENABLED && (
+        <Field label="Couleur de la grille">
+          <ColorPicker
+            value={page.config.gridColor}
+            onChange={(c) => onConfigChange({ gridColor: c })}
+          />
+        </Field>
+      )}
 
       <DifficultyPicker
         value={page.config.difficulty ?? "balanced"}

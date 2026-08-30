@@ -45,12 +45,12 @@ export function AddPage({
         </p>
         {atCapacity ? (
           <p className="mt-1">
-            Votre livre a atteint la taille maximale imprimable ({maxPages} pages).
+            Votre carnet a atteint la taille maximale imprimable ({maxPages} pages).
             Supprimez une page pour en ajouter une autre.
           </p>
         ) : belowMin ? (
           <p className="mt-1">
-            Un livre imprimé compte au moins {minPages} pages : continuez d&apos;ajouter
+            Un carnet imprimé compte au moins {minPages} pages : continuez d&apos;ajouter
             des grilles.
           </p>
         ) : (

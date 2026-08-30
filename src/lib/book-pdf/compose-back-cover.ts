@@ -48,13 +48,20 @@ export function composeBackCoverPanel({ page, font, panel, title, cover, authors
   const faint = mixHex(border, bg, 0.42);
   const cx = panel.x + panel.w / 2;
   const panelTopY = panel.y + panel.h;
+  // Every size/gap below was tuned for the A5 panel; scale them to the actual
+  // panel so a larger trim (Crown Quarto) keeps the same visual proportions
+  // instead of small text cramped in a big panel. Scale off the HEIGHT factor
+  // (the block is a vertical stack) so the layout can never overflow the panel.
+  const A5_PANEL_H_PT = (210 * 72) / 25.4;
+  const k = panel.h / A5_PANEL_H_PT;
+  const S = (n: number) => n * k;
   const centered = (text: string, yTop: number, size: number, color = inkRgb) => {
     const w = font.widthOfTextAtSize(text, size);
     page.drawText(text, { x: cx - w / 2, y: panelTopY - (yTop + size), size, font, color });
   };
 
   // Discreet keyline frame inside the trim.
-  const inset = 12;
+  const inset = S(12);
   page.drawRectangle({
     x: panel.x + inset,
     y: panel.y + inset,
@@ -65,7 +72,7 @@ export function composeBackCoverPanel({ page, font, panel, title, cover, authors
   });
 
   // --- One optically-centred block: motif · imprint · title · credit. -------
-  const maxW = panel.w - 2 * inset - 24;
+  const maxW = panel.w - 2 * inset - S(24);
 
   const bookTitle = nfc(title).toUpperCase();
 
@@ -77,34 +84,34 @@ export function composeBackCoverPanel({ page, font, panel, title, cover, authors
   const creditText = hasCredit ? formatAuthorList(names) : "";
   // A long group roll-call gets a hair smaller so it reads as an intentional
   // list; the generous leading below is what keeps it from feeling cramped.
-  const creditNameSize = creditText.length > 90 ? 11.5 : 13;
+  const creditNameSize = S(creditText.length > 90 ? 15 : 17);
   const creditLines = hasCredit ? wrapText(font, creditText, creditNameSize, maxW) : [];
 
   // Optional personal line the maker can add under the credit.
   const messageText = nfc((cover?.backCoverMessage ?? "").trim());
-  const messageSize = 11.5;
+  const messageSize = S(14);
   const messageLines = messageText ? wrapText(font, messageText, messageSize, maxW) : [];
 
   // Title is the hero, but when many names sit below it, cap it so the whole
   // stack stays centred and airy instead of crowding the credit.
-  let titleSize = 25;
-  while (titleSize > 14 && font.widthOfTextAtSize(bookTitle, titleSize) > maxW) titleSize -= 0.5;
-  if (creditLines.length >= 3) titleSize = Math.min(titleSize, 20);
+  let titleSize = S(34);
+  while (titleSize > S(18) && font.widthOfTextAtSize(bookTitle, titleSize) > maxW) titleSize -= 0.5;
+  if (creditLines.length >= 3) titleSize = Math.min(titleSize, S(27));
   const titleText = ellipsize(font, bookTitle, titleSize, maxW);
 
   // Measure the block so it sits optically centred (nudged slightly high).
-  const motifH = 24;
-  const imprintSize = 14;
-  const gapMotif = 20;
-  const gapRule = 12;
-  const gapAfterRule = 22;
+  const motifH = S(28);
+  const imprintSize = S(18);
+  const gapMotif = S(20);
+  const gapRule = S(12);
+  const gapAfterRule = S(22);
   const titleLineH = titleSize * 1.1;
-  const gapCredit = hasCredit ? 24 : 0;
-  const creditLabelSize = 10.5;
+  const gapCredit = hasCredit ? S(24) : 0;
+  const creditLabelSize = S(12.5);
   const creditLabelH = hasCredit ? creditLabelSize : 0;
-  const gapLabelToNames = hasCredit ? 7 : 0; // air between the label and the names
+  const gapLabelToNames = hasCredit ? S(7) : 0; // air between the label and the names
   const creditLineH = creditNameSize * 1.6; // generous leading so a long list breathes
-  const gapMessage = messageLines.length > 0 ? 22 : 0;
+  const gapMessage = messageLines.length > 0 ? S(22) : 0;
   const messageLineH = messageSize * 1.5;
   const blockH =
     motifH + gapMotif + imprintSize + gapRule + 1 + gapAfterRule + titleLineH +
@@ -112,7 +119,7 @@ export function composeBackCoverPanel({ page, font, panel, title, cover, authors
     gapMessage + messageLines.length * messageLineH;
 
   let y = panel.h * 0.44 - blockH / 2; // optical centre, biased above true middle
-  if (y < inset + 20) y = inset + 20;
+  if (y < inset + S(20)) y = inset + S(20);
 
   // Motif.
   drawArrowMotif(page, cx, panelTopY - (y + motifH * 0.5), motifH, faint);
@@ -134,10 +141,10 @@ export function composeBackCoverPanel({ page, font, panel, title, cover, authors
   // Maker credit.
   if (hasCredit) {
     y += gapCredit;
-    centered("Imaginé avec amour par", y, 10, faint);
-    y += creditLabelH;
+    centered("Imaginé avec amour par", y, creditLabelSize, faint);
+    y += creditLabelH + gapLabelToNames;
     for (const line of creditLines) {
-      centered(line, y, 12, soft);
+      centered(line, y, creditNameSize, soft);
       y += creditLineH;
     }
   }
@@ -146,11 +153,11 @@ export function composeBackCoverPanel({ page, font, panel, title, cover, authors
   if (messageLines.length > 0) {
     y += gapMessage;
     for (const line of messageLines) {
-      centered(line, y, 11, soft);
+      centered(line, y, messageSize, soft);
       y += messageLineH;
     }
   }
 
   // Discreet footer.
-  centered("lesfleches.com", panel.h - 26, 9, faint);
+  centered("lesfleches.com", panel.h - S(26), S(11), faint);
 }

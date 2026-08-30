@@ -68,7 +68,7 @@ export function PosterOrder({ poster }: { poster: PosterData }) {
           <h2 className="font-display text-2xl uppercase tracking-wide text-ink">Le poster</h2>
           <p className="mt-2 font-serif text-sm italic text-ink/70">
             Votre grille {poster.width}×{poster.height} imprimée en 50 × 70 cm sur papier d&apos;art,
-            prête à encadrer.
+            prête à encadrer. Bientôt disponible : laissez votre email pour être prévenu·e.
           </p>
           <a
             href={`/api/posters/${poster.code}/poster.pdf`}
@@ -87,7 +87,7 @@ export function PosterOrder({ poster }: { poster: PosterData }) {
               className="flex-1 rounded-none border-2 border-ink bg-paper px-3 py-2 text-sm"
             />
             <Button onClick={handleOrder} className="btn-lapos rounded-none bg-ink text-paper">
-              Commander
+              Me prévenir
             </Button>
           </div>
         </div>

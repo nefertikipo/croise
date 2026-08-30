@@ -65,7 +65,7 @@ export async function POST(
     }
     if (grid.language !== book.language) {
       return NextResponse.json(
-        { error: "Cette grille n'est pas dans la même langue que le livre." },
+        { error: "Cette grille n'est pas dans la même langue que le carnet." },
         { status: 400 },
       );
     }
@@ -142,7 +142,7 @@ export async function POST(
       });
       if (!regenerated) {
         return NextResponse.json(
-          { error: "Impossible de régénérer la grille pour ce livre." },
+          { error: "Impossible de régénérer la grille pour ce carnet." },
           { status: 500 },
         );
       }

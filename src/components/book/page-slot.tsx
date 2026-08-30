@@ -1,6 +1,7 @@
 "use client";
 
 import { BookPageFrame } from "@/components/book/book-page-frame";
+import { POD_TRIM } from "@/lib/books/constants";
 import { useElementSize } from "@/components/book/use-element-size";
 import { CoverPage } from "@/components/book/cover-page";
 import { DedicationPage } from "@/components/book/dedication-page";
@@ -244,7 +245,7 @@ function ScaledSlot({ children }: { children: React.ReactNode }) {
   const { ref, size } = useElementSize<HTMLDivElement>();
   const scale = size.width > 0 ? size.width / PAGE_DESIGN_WIDTH : 0;
   return (
-    <div ref={ref} className="w-full overflow-hidden" style={{ aspectRatio: "1 / 1.414" }}>
+    <div ref={ref} className="w-full overflow-hidden" style={{ aspectRatio: `${POD_TRIM.w} / ${POD_TRIM.h}` }}>
       <div
         style={{
           width: PAGE_DESIGN_WIDTH,

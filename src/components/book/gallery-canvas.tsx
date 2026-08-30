@@ -10,6 +10,7 @@ import {
   type SlotId,
 } from "@/components/book/page-slot";
 import { buildSpreads } from "@/components/book/spread-canvas";
+import { POD_TRIM } from "@/lib/books/constants";
 import { cn } from "@/lib/utils";
 
 interface GalleryCanvasProps extends SlotData {
@@ -80,7 +81,10 @@ export function GalleryCanvas({
       // Inside back cover facing the front cover — mirrors a real open book.
       return (
         <div className="flex-1">
-          <div className="flex aspect-[1/1.414] items-center justify-center border border-dashed border-black/12 bg-black/[0.015]">
+          <div
+            className="flex items-center justify-center border border-dashed border-black/12 bg-black/[0.015]"
+            style={{ aspectRatio: `${POD_TRIM.w} / ${POD_TRIM.h}` }}
+          >
             <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground/50">
               Intérieur
             </span>

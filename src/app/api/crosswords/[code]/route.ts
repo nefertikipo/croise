@@ -87,7 +87,7 @@ export async function DELETE(
 
   if (inBook) {
     return NextResponse.json(
-      { error: "Cette grille fait partie d'un livre." },
+      { error: "Cette grille fait partie d'un carnet." },
       { status: 409 }
     );
   }

@@ -196,7 +196,7 @@ export default function FlechePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: "Mon livre de mots fleches",
+          title: "Mon carnet de mots fleches",
           // Carry the grid the user is looking at in as the first page.
           seedCrosswordCode: grid?.code,
           seedConfig: cleanHidden ? { hiddenWord: cleanHidden } : undefined,
@@ -497,7 +497,7 @@ export default function FlechePage() {
                 />
               )}
               <Button variant="outline" className="rounded-none" onClick={createBook}>
-                Creer un livre
+                Creer un carnet
               </Button>
               {grid.code && (
                 <AddToBook crosswordCode={grid.code} difficulty={difficulty} />

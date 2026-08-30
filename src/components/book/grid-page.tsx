@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { FlecheGrid } from "@/components/fleche/fleche-grid";
 import { findHiddenWordCells, normalizeHiddenWord } from "@/lib/crossword/hidden-word";
 import { reservedRectForPreset } from "@/lib/crossword/photo-presets";
+import { INTERIOR_COLOR_ENABLED } from "@/lib/books/constants";
 import type { GridPage } from "@/types/book";
 
 const CELL_SIZE = 70;
@@ -20,7 +21,6 @@ interface GridPageViewProps {
 /** Renders one grid page: title, scaled fléchés grid, and hidden-word strip. */
 export function GridPageView({
   page,
-  index,
   showSolution = false,
   interactive = false,
   maxWidth = 600,
@@ -51,21 +51,16 @@ export function GridPageView({
   /* Magazine composition: thin editorial title band, grid edge-to-edge,
      hidden-word band at the bottom — the grid is the page. */
   return (
-    <div className="flex flex-col gap-2" style={{ width: gridW * scale }}>
-      <div className="flex items-baseline justify-between border-b-2 border-ink pb-1">
-        <h3 className="font-heading text-xl uppercase leading-none text-foreground">
-          {page.config.title ? (
-            page.config.title
-          ) : (
-            <>
-              Grille <span className="text-primary">N°{index}</span>
-            </>
-          )}
-        </h3>
-        <span className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
-          {page.width}×{page.height}
-        </span>
-      </div>
+    // Standard carnet prints B&W: render the interior preview greyscale so what
+    // the maker sees matches what prints. Colour returns with the photo edition
+    // (INTERIOR_COLOR_ENABLED). The colour code below stays untouched.
+    <div
+      className="flex flex-col gap-2"
+      style={{ width: gridW * scale, filter: INTERIOR_COLOR_ENABLED ? undefined : "grayscale(1)" }}
+    >
+      {/* A5 book drops the per-grid title text, keeping only the rule as a top
+          divider (mirrors composeGridPage's hideTitle path). */}
+      <div className="border-b-2 border-ink" />
 
       <div style={{ width: gridW * scale, height: gridH * scale }}>
         <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: gridW, height: gridH, position: "relative" }}>

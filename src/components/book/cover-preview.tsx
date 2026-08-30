@@ -28,6 +28,12 @@ export function CoverPreview({ coverColor, title, imageUrl, titleFont, titleBold
   const fx = tmpl.photo.shuffle;
   const p = tmpl.photo.rect;
   const tr = tmpl.title.rect;
+  // Match the print engine (compose-cover.ts): keep the shuffle tiles SQUARE by
+  // deriving the column count from the photo slot's real aspect, so a wider trim
+  // (Crown) doesn't stretch them wide.
+  const shuffleCols = fx
+    ? Math.max(1, Math.round(fx.rows * ((p.w * tmpl.trimWidthMm) / (p.h * tmpl.trimHeightMm))))
+    : 0;
   const font = resolveCoverFont(titleFont);
   const shown = title || "Titre";
 
@@ -92,7 +98,7 @@ export function CoverPreview({ coverColor, title, imageUrl, titleFont, titleBold
         {imageUrl && fx ? (
           <ShuffledImage
             src={imageUrl}
-            cols={fx.cols}
+            cols={shuffleCols}
             rows={fx.rows}
             intensity={fx.intensity}
             seed={fx.seed}

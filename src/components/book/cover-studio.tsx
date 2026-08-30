@@ -6,6 +6,7 @@ import { BackCoverPreview } from "@/components/book/back-cover-preview";
 import { PhotoCropDialog } from "@/components/book/photo-crop-dialog";
 import { uploadBookPhoto } from "@/components/book/upload-photo";
 import { COVER_COLORS, COVER_FONTS, coverPhotoAspect } from "@/lib/book-pdf/cover-templates";
+import { POD_TRIM } from "@/lib/books/constants";
 import { cn } from "@/lib/utils";
 import type { CoverConfig, PageDesign } from "@/types/book";
 
@@ -88,7 +89,10 @@ export function CoverStudio({ title, cover, authors, onTitleChange, onCoverChang
 
       {/* Big centred preview */}
       <div className="flex flex-1 items-center justify-center rounded-md bg-muted p-6">
-        <div className="aspect-[148/210] h-full overflow-hidden border-2 border-black shadow-[6px_6px_0_0_rgba(0,0,0,0.15)]">
+        <div
+          className="h-full overflow-hidden border-2 border-black shadow-[6px_6px_0_0_rgba(0,0,0,0.15)]"
+          style={{ aspectRatio: `${POD_TRIM.w} / ${POD_TRIM.h}` }}
+        >
           {side === "front" ? (
             <CoverPreview
               coverColor={coverColor}
@@ -175,7 +179,7 @@ export function CoverStudio({ title, cover, authors, onTitleChange, onCoverChang
           <input
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}
-            placeholder="Mon livre"
+            placeholder="Mon carnet"
             className="block w-52 border-2 border-black px-2 py-1.5 text-sm"
           />
         </div>

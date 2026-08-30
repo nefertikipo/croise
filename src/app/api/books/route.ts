@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     const ownerId = authSession?.user.id;
     if (!ownerId) {
       return NextResponse.json(
-        { error: "Connectez-vous pour créer un livre." },
+        { error: "Connectez-vous pour créer un carnet." },
         { status: 401 },
       );
     }
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
         id: bookId,
         code: freshCode,
         ownerId,
-        title: parsed.title || "Mon livre de mots fleches",
+        title: parsed.title || "Mon carnet de mots fleches",
         description: parsed.description,
         dedicationText: parsed.dedicationText,
         clueIdeas: parsed.clueIdeas,

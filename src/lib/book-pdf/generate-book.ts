@@ -37,6 +37,7 @@ import {
   type PageSide,
   type PageSize,
 } from "@/lib/book-pdf/geometry";
+import { POD_PAGE_SIZE } from "@/lib/books/constants";
 import type { BookFonts } from "@/lib/book-pdf/fonts";
 import type { BookData, ContentPageConfig, CroisesPage, GridPage } from "@/types/book";
 
@@ -113,7 +114,7 @@ export class EmptyBookError extends Error {
  * this is what generateBookInteriorPdf will produce. The cover route needs it
  * for the spine width.
  */
-export function countInteriorPages(book: BookData, size: PageSize = "a5"): number {
+export function countInteriorPages(book: BookData, size: PageSize = POD_PAGE_SIZE): number {
   const grids = book.pages.filter((p): p is GridPage => p.kind === "grid");
   const croises = croisesSolutionsOf(book);
   if (grids.length === 0 && croises.length === 0) throw new EmptyBookError();
@@ -137,7 +138,7 @@ export function countInteriorPages(book: BookData, size: PageSize = "a5"): numbe
  * to a signature. Use this for the printable-window guards (add-page routes,
  * order gate); use countInteriorPages when a real PDF is about to be rendered.
  */
-export function interiorPageCountForCapacity(book: BookData, size: PageSize = "a5"): number {
+export function interiorPageCountForCapacity(book: BookData, size: PageSize = POD_PAGE_SIZE): number {
   try {
     return countInteriorPages(book, size);
   } catch (err) {
@@ -167,7 +168,7 @@ async function loadPhotoContent(layout: PhotoLayout, config: ContentPageConfig):
 
 export async function generateBookInteriorPdf(
   book: BookData,
-  size: PageSize = "a5",
+  size: PageSize = POD_PAGE_SIZE,
   opts: { mono?: boolean } = {},
 ): Promise<Uint8Array> {
   const grids = book.pages.filter((p): p is GridPage => p.kind === "grid");
@@ -220,7 +221,7 @@ export async function generateBookInteriorPdf(
     const { page, g } = addPage();
     if (p.kind === "grid") {
       gridNumber += 1;
-      await composeGridPage({ doc, page, g, fonts, grid: p, gridNumber, mode: "puzzle", mono });
+      await composeGridPage({ doc, page, g, fonts, grid: p, gridNumber, mode: "puzzle", mono, hideTitle: size === "a5" });
     } else if (p.kind === "croises") {
       croisesNumber += 1;
       composeCroisesPage({ page, g, fonts, puzzle: p.puzzle, gridNumber: croisesNumber, mode: "puzzle", mono });

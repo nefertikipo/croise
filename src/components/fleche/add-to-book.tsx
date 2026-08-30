@@ -50,7 +50,7 @@ export function AddToBook({ crosswordCode, difficulty }: AddToBookProps) {
       const data = (await res.json()) as { books: BookSummary[] };
       setBooks(data.books);
     } catch {
-      setError("Impossible de charger vos livres.");
+      setError("Impossible de charger vos carnets.");
       setBooks([]);
     } finally {
       setLoading(false);
@@ -93,7 +93,7 @@ export function AddToBook({ crosswordCode, difficulty }: AddToBookProps) {
   if (!open) {
     return (
       <Button variant="outline" className="rounded-none" onClick={openPanel}>
-        Ajouter à un livre
+        Ajouter à un carnet
       </Button>
     );
   }
@@ -101,7 +101,7 @@ export function AddToBook({ crosswordCode, difficulty }: AddToBookProps) {
   return (
     <div className="border-2 border-ink rounded-none bg-white p-4 space-y-3 w-full max-w-sm">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">Ajouter à un livre existant</p>
+        <p className="text-sm font-medium">Ajouter à un carnet existant</p>
         <button
           onClick={() => setOpen(false)}
           className="text-sm text-muted-foreground hover:text-foreground"
@@ -112,9 +112,9 @@ export function AddToBook({ crosswordCode, difficulty }: AddToBookProps) {
 
       {done && (
         <div className="text-sm space-y-2">
-          <p className="text-brand">✓ Grille ajoutée au livre.</p>
+          <p className="text-brand">✓ Grille ajoutée au carnet.</p>
           <a href={`/book/${done}`} className="underline hover:no-underline">
-            Ouvrir le livre →
+            Ouvrir le carnet →
           </a>
         </div>
       )}
@@ -136,7 +136,7 @@ export function AddToBook({ crosswordCode, difficulty }: AddToBookProps) {
                 {conflict.clues.length > 1 ? "s" : ""}
               </>
             )}{" "}
-            de ce livre.
+            de ce carnet.
           </p>
           {conflict.words.length > 0 && (
             <p className="text-xs font-mono text-muted-foreground break-words">
@@ -149,7 +149,7 @@ export function AddToBook({ crosswordCode, difficulty }: AddToBookProps) {
               disabled={busyCode === conflict.bookCode}
               onClick={() => attach(conflict.bookCode, { regenerateToFit: true })}
             >
-              {busyCode === conflict.bookCode ? "Régénération…" : "Régénérer pour ce livre"}
+              {busyCode === conflict.bookCode ? "Régénération…" : "Régénérer pour ce carnet"}
             </Button>
             <Button
               variant="outline"
@@ -168,7 +168,7 @@ export function AddToBook({ crosswordCode, difficulty }: AddToBookProps) {
           {loading && <p className="text-sm text-muted-foreground">Chargement…</p>}
           {!loading && books && books.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              Vous n&apos;avez pas encore de livre. Créez-en un avec « Créer un livre ».
+              Vous n&apos;avez pas encore de carnet. Créez-en un avec « Créer un carnet ».
             </p>
           )}
           {!loading && books && books.length > 0 && (
