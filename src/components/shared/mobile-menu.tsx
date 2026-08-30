@@ -43,13 +43,6 @@ export function MobileMenu() {
       {open ? (
         <div className="absolute inset-x-0 top-full border-b-2 border-ink bg-paper shadow-lg">
           <div className="mx-auto flex max-w-5xl flex-col gap-1 px-4 py-4">
-            <Link
-              href="/fleche"
-              onClick={() => setOpen(false)}
-              className="border-b border-ink/10 py-3 font-display text-base uppercase tracking-wide text-ink transition-colors hover:text-brand"
-            >
-              Créer une grille
-            </Link>
             <p className="pt-1 pb-1 font-display text-xs uppercase tracking-[0.2em] text-ink/40">
               Nos produits
             </p>
@@ -102,7 +95,7 @@ export function MobileMenu() {
               onClick={() => setOpen(false)}
               className="btn-lapos mt-3 rounded-none bg-ink px-4 py-3 text-center text-base text-paper"
             >
-              Commencer
+              Créer une grille
             </Link>
           </div>
         </div>

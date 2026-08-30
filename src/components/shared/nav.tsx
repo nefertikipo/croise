@@ -29,12 +29,6 @@ export function Nav() {
           </Link>
 
           <div className="hidden items-center gap-6 sm:flex">
-            <Link
-              href="/fleche"
-              className="font-display text-sm uppercase tracking-wide text-ink transition-colors hover:text-brand"
-            >
-              Créer une grille
-            </Link>
             <NavDropdown label="Nos produits" links={PRODUCT_LINKS} />
             <Link
               href="/originales"
@@ -51,7 +45,7 @@ export function Nav() {
               href="/fleche"
               className="btn-lapos rounded-none bg-ink px-4 py-2 text-sm text-paper"
             >
-              Commencer
+              Créer une grille
             </Link>
           </div>
 
