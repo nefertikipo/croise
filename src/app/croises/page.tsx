@@ -73,22 +73,24 @@ export default function CroisesPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="text-2xl font-bold">Mots croisés</h1>
-      <p className="mt-1 text-sm text-neutral-600">
+      <h1 className="font-display text-3xl uppercase tracking-wide text-brand">
+        Mots croisés
+      </h1>
+      <p className="mt-1 font-serif text-sm italic text-ink/70">
         Générateur de mots croisés à l&apos;américaine — grille symétrique, cases
         noires, définitions numérotées.
       </p>
 
-      <div className="mt-6 flex flex-wrap items-end gap-4 rounded-lg border bg-neutral-50 p-4">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Format</span>
-          <span className="text-xs font-normal text-neutral-500">
+      <div className="mt-6 flex flex-wrap items-end gap-4 rounded-none border-2 border-ink bg-card p-6 shadow-[4px_4px_0_0] shadow-ink/80">
+        <label className="flex flex-col gap-1">
+          <span className="font-display text-sm uppercase tracking-wide text-ink">Format</span>
+          <span className="font-display text-[11px] uppercase tracking-wide text-ink/45">
             s&apos;agrandit pour les mots longs
           </span>
           <select
             value={templateId}
             onChange={(e) => setTemplateId(e.target.value)}
-            className="rounded border px-2 py-1.5"
+            className="rounded-none border-2 border-ink/20 bg-paper px-3 py-1.5 text-sm text-ink focus:outline-none"
           >
             {TEMPLATES.map((t) => (
               <option key={t.id} value={t.id}>
@@ -97,12 +99,12 @@ export default function CroisesPage() {
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Difficulté</span>
+        <label className="flex flex-col gap-1">
+          <span className="font-display text-sm uppercase tracking-wide text-ink">Difficulté</span>
           <select
             value={difficulty}
             onChange={(e) => setDifficulty(e.target.value)}
-            className="rounded border px-2 py-1.5"
+            className="rounded-none border-2 border-ink/20 bg-paper px-3 py-1.5 text-sm text-ink focus:outline-none"
           >
             {DIFFICULTIES.map((d) => (
               <option key={d.id} value={d.id}>
@@ -111,39 +113,43 @@ export default function CroisesPage() {
             ))}
           </select>
         </label>
-        <label className="flex min-w-[16rem] flex-1 flex-col gap-1 text-sm">
-          <span className="font-medium">Mots personnalisés (un par ligne, « MOT: définition »)</span>
+        <label className="flex min-w-[16rem] flex-1 flex-col gap-1">
+          <span className="font-display text-sm uppercase tracking-wide text-ink">
+            Mots personnalisés <span className="text-ink/45">(un par ligne, « MOT: définition »)</span>
+          </span>
           <textarea
             value={customText}
             onChange={(e) => setCustomText(e.target.value)}
             rows={3}
             placeholder={"ELISE: Prénom de la destinataire\nNOEL: Fête de décembre"}
-            className="rounded border px-2 py-1.5 font-mono text-xs"
+            className="rounded-none border-2 border-ink/20 bg-paper px-3 py-1.5 font-mono text-xs text-ink placeholder:text-ink/40 focus:outline-none"
           />
         </label>
         <button
           onClick={generate}
           disabled={loading}
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+          className="btn-lapos rounded-none bg-brand px-7 py-3 text-base text-brand-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
         >
           {loading ? "Génération…" : "Générer"}
         </button>
       </div>
 
       {error && (
-        <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        <p className="mt-4 rounded-none border-2 border-brand/40 bg-brand/5 px-3 py-2 text-sm text-ink">
+          {error}
+        </p>
       )}
       {unplaced.length > 0 && (
-        <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <p className="mt-4 rounded-none border-2 border-ink/15 bg-muted/30 px-3 py-2 text-sm text-ink">
           Mots non placés dans ce format : {unplaced.join(", ")}. Essayez un format plus grand.
         </p>
       )}
 
       {code && (
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-none border-2 border-ink/15 bg-accent/40 px-3 py-2 text-sm text-ink">
           <span>
             Lien de partage :{" "}
-            <a href={`/croises/${code}`} className="font-medium underline">
+            <a href={`/croises/${code}`} className="font-medium text-brand underline">
               /croises/{code}
             </a>
           </span>
@@ -151,7 +157,7 @@ export default function CroisesPage() {
             href={`/api/croises/${code}/pdf`}
             target="_blank"
             rel="noopener"
-            className="font-medium underline"
+            className="font-medium text-brand underline"
           >
             Télécharger le PDF
           </a>

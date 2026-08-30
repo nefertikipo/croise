@@ -231,7 +231,7 @@ export function CrosswordGrid({ puzzle }: { puzzle: AmPuzzle }) {
           ref={containerRef}
           tabIndex={0}
           onKeyDown={onKeyDown}
-          className="inline-grid select-none border-2 border-neutral-900 outline-none"
+          className="inline-grid select-none border-2 border-ink outline-none"
           style={{ gridTemplateColumns: `repeat(${width}, ${cellPx}px)` }}
         >
           {puzzle.cells.map((row, r) =>
@@ -240,7 +240,7 @@ export function CrosswordGrid({ puzzle }: { puzzle: AmPuzzle }) {
                 return (
                   <div
                     key={key(r, c)}
-                    className="bg-neutral-900"
+                    className="bg-ink"
                     style={{ width: cellPx, height: cellPx }}
                   />
                 );
@@ -255,24 +255,24 @@ export function CrosswordGrid({ puzzle }: { puzzle: AmPuzzle }) {
                   key={key(r, c)}
                   onClick={() => selectCell(r, c)}
                   className={[
-                    "relative flex items-center justify-center border border-neutral-300 text-lg font-semibold uppercase",
+                    "relative flex items-center justify-center border border-ink/20 text-lg font-semibold uppercase",
                     isSelected
-                      ? "bg-amber-300"
+                      ? "z-10 bg-[#d7e3f5] ring-2 ring-brand"
                       : inWord
-                        ? "bg-sky-100"
-                        : "bg-white",
-                    wrong ? "text-red-600" : right ? "text-emerald-600" : "text-neutral-900",
+                        ? "bg-brand/10"
+                        : "bg-[#fffcf5]",
+                    wrong ? "text-[#b3261e]" : right ? "text-[#2f6b4a]" : "text-ink",
                   ].join(" ")}
                   style={{ width: cellPx, height: cellPx }}
                 >
                   {cell.number != null && (
-                    <span className="absolute left-0.5 top-0 text-[9px] font-normal leading-none text-neutral-500">
+                    <span className="absolute left-0.5 top-0 text-[9px] font-normal leading-none text-ink/50">
                       {cell.number}
                     </span>
                   )}
                   {wrong && (
                     <span className="absolute inset-0 flex items-center justify-center">
-                      <span className="h-full w-px rotate-45 bg-red-400" />
+                      <span className="h-full w-px rotate-45 bg-[#b3261e]/50" />
                     </span>
                   )}
                   {v}
@@ -284,8 +284,8 @@ export function CrosswordGrid({ puzzle }: { puzzle: AmPuzzle }) {
 
         {/* Current-clue bar */}
         {currentClue && (
-          <div className="rounded-md bg-sky-100 px-3 py-2 text-sm text-neutral-800">
-            <span className="font-semibold">
+          <div className="rounded-none border-2 border-ink/15 bg-accent/40 px-3 py-2 text-sm text-ink">
+            <span className="font-display uppercase tracking-wide text-brand">
               {currentClue.number} {direction === "across" ? "Horizontal" : "Vertical"}.
             </span>{" "}
             {currentClue.clue}
@@ -293,25 +293,41 @@ export function CrosswordGrid({ puzzle }: { puzzle: AmPuzzle }) {
         )}
 
         {/* Controls */}
-        <div className="flex flex-wrap gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-ink">
           <label className="flex items-center gap-1.5">
             <input
               type="checkbox"
               checked={autocheck}
               onChange={(e) => setAutocheck(e.target.checked)}
+              className="accent-brand"
             />
             Vérification auto
           </label>
-          <button onClick={revealWord} className="rounded border px-2 py-1 hover:bg-neutral-100">
+          <button
+            onClick={revealWord}
+            className="rounded-none border-2 border-ink/20 bg-paper px-2 py-1 text-ink hover:bg-accent/40"
+          >
             Révéler le mot
           </button>
-          <button onClick={revealPuzzle} className="rounded border px-2 py-1 hover:bg-neutral-100">
+          <button
+            onClick={revealPuzzle}
+            className="rounded-none border-2 border-ink/20 bg-paper px-2 py-1 text-ink hover:bg-accent/40"
+          >
             Tout révéler
           </button>
-          <button onClick={clearAll} className="rounded border px-2 py-1 hover:bg-neutral-100">
+          <button
+            onClick={clearAll}
+            className="rounded-none border-2 border-ink/20 bg-paper px-2 py-1 text-ink hover:bg-accent/40"
+          >
             Effacer
           </button>
-          <span className={solved ? "font-semibold text-emerald-600" : "text-neutral-500"}>
+          <span
+            className={
+              solved
+                ? "font-display uppercase tracking-wide text-brand"
+                : "font-display text-xs uppercase tracking-wide text-ink/50"
+            }
+          >
             {solved ? "✓ Grille complète !" : `${filled}/${total}`}
           </span>
         </div>
@@ -360,20 +376,20 @@ function ClueColumn({
 }) {
   return (
     <div>
-      <h3 className="mb-2 border-b pb-1 text-sm font-bold uppercase tracking-wide text-neutral-700">
+      <h3 className="mb-2 border-b-2 border-ink/20 pb-1 font-display text-sm uppercase tracking-wide text-ink">
         {title}
       </h3>
-      <ol className="space-y-1 text-sm">
+      <ol className="space-y-0.5 text-sm text-ink">
         {clues.map((clue) => (
           <li key={clue.number}>
             <button
               onClick={() => onSelect(clue)}
               className={[
-                "flex w-full gap-2 rounded px-1.5 py-1 text-left hover:bg-neutral-100",
-                clue.number === activeNumber ? "bg-amber-100" : "",
+                "flex w-full gap-2 rounded-none px-1.5 py-1 text-left hover:bg-accent/30",
+                clue.number === activeNumber ? "bg-brand/10" : "",
               ].join(" ")}
             >
-              <span className="min-w-[1.5rem] font-semibold text-neutral-600">{clue.number}.</span>
+              <span className="min-w-[1.5rem] font-semibold text-brand">{clue.number}.</span>
               <span>{clue.clue}</span>
             </button>
           </li>

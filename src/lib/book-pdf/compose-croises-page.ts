@@ -132,42 +132,10 @@ export function composeCroisesPage({
     color: mono ? hex2rgb("#ffffff") : hex2rgb(PAGE_BG),
   });
 
-  // ---- Title band (identical treatment to the fléchés grid page) ----
+  // ---- Geometry: title band on top, grid below it, clue lists beneath. The
+  // grid is sized first so the title band can be aligned to its width. ----
   const headTop = g.contentTop;
-  const heading = nfc(headingOverride ?? `Mots croisés N°${gridNumber}`);
   const headSize = 15;
-  const meta = `${puzzle.width}×${puzzle.height}`;
-  const metaSize = 7;
-  const metaW = fonts.letter.widthOfTextAtSize(meta.toUpperCase(), metaSize);
-  const headMaxW = g.contentW - metaW - 10;
-  let headText = heading.toUpperCase();
-  let headDrawSize = headSize;
-  while (headDrawSize > 8 && fonts.heading.widthOfTextAtSize(headText, headDrawSize) > headMaxW)
-    headDrawSize -= 0.5;
-  headText = ellipsize(fonts.heading, headText, headDrawSize, headMaxW);
-  page.drawText(headText, {
-    x: g.contentX,
-    y: g.pageH - (headTop + headSize),
-    size: headDrawSize,
-    font: fonts.heading,
-    color: inkRgb,
-  });
-  page.drawText(meta.toUpperCase(), {
-    x: g.contentX + g.contentW - metaW,
-    y: g.pageH - (headTop + headSize - 2),
-    size: metaSize,
-    font: fonts.letter,
-    color: muted,
-  });
-  const ruleY = g.pageH - (headTop + headSize + 5);
-  page.drawLine({
-    start: { x: g.contentX, y: ruleY },
-    end: { x: g.contentX + g.contentW, y: ruleY },
-    thickness: 1.5,
-    color: inkRgb,
-  });
-
-  // ---- Grid (top region) + clue lists (below), sharing the safe area ----
   const gridTop = headTop + headSize + 12;
   const fullAvailH = g.contentTop + g.contentH - gridTop;
   // Give the grid up to ~58% of the free height; the clue lists take the rest.
@@ -176,6 +144,40 @@ export function composeCroisesPage({
   const gridW = cellPt * puzzle.width;
   const gridH = cellPt * puzzle.height;
   const originX = g.contentX + (g.contentW - gridW) / 2;
+
+  // ---- Title band, aligned to the grid's span so the rule never overflows
+  // past the grid edges. ----
+  const heading = nfc(headingOverride ?? `Mots croisés N°${gridNumber}`);
+  const meta = `${puzzle.width}×${puzzle.height}`;
+  const metaSize = 7;
+  const metaW = fonts.letter.widthOfTextAtSize(meta.toUpperCase(), metaSize);
+  const headMaxW = gridW - metaW - 10;
+  let headText = heading.toUpperCase();
+  let headDrawSize = headSize;
+  while (headDrawSize > 8 && fonts.heading.widthOfTextAtSize(headText, headDrawSize) > headMaxW)
+    headDrawSize -= 0.5;
+  headText = ellipsize(fonts.heading, headText, headDrawSize, headMaxW);
+  page.drawText(headText, {
+    x: originX,
+    y: g.pageH - (headTop + headSize),
+    size: headDrawSize,
+    font: fonts.heading,
+    color: inkRgb,
+  });
+  page.drawText(meta.toUpperCase(), {
+    x: originX + gridW - metaW,
+    y: g.pageH - (headTop + headSize - 2),
+    size: metaSize,
+    font: fonts.letter,
+    color: muted,
+  });
+  const ruleY = g.pageH - (headTop + headSize + 5);
+  page.drawLine({
+    start: { x: originX, y: ruleY },
+    end: { x: originX + gridW, y: ruleY },
+    thickness: 1.5,
+    color: inkRgb,
+  });
 
   drawCroisesGrid(page, puzzle, fonts, originX, gridTop, cellPt, g.pageH, mode !== "puzzle");
 
@@ -187,13 +189,15 @@ export function composeCroisesPage({
   const colW = (g.contentW - gutter * (COLS - 1)) / COLS;
 
   // Pre-wrap at a trial size, then shrink until everything fits the columns.
-  const blocks: { text: string; heading?: boolean }[] = [];
-  const push = (label: string, clues: AmClue[]) => {
-    blocks.push({ text: label, heading: true });
+  // `breakBefore` forces a fresh column — so the VERTICAL list always starts at
+  // the top of its own column rather than continuing under HORIZONTAL.
+  const blocks: { text: string; heading?: boolean; breakBefore?: boolean }[] = [];
+  const push = (label: string, clues: AmClue[], breakBefore = false) => {
+    blocks.push({ text: label, heading: true, breakBefore });
     for (const c of clues) blocks.push({ text: `${c.number}. ${c.clue}` });
   };
   push("HORIZONTAL", puzzle.across);
-  push("VERTICAL", puzzle.down);
+  push("VERTICAL", puzzle.down, true);
 
   const fits = (size: number): boolean => {
     const lead = size * 1.28;
@@ -202,6 +206,11 @@ export function composeCroisesPage({
     let y = 0;
     const capacity = clueAreaH;
     for (const b of blocks) {
+      if (b.breakBefore && y > 0) {
+        col++;
+        y = 0;
+        if (col >= COLS) return false;
+      }
       if (b.heading) {
         if (y + headLead > capacity) {
           col++;
@@ -239,6 +248,10 @@ export function composeCroisesPage({
   };
   for (const b of blocks) {
     if (col >= COLS) break; // safety: never overflow the page
+    if (b.breakBefore && y > clueTop) {
+      advanceColumn();
+      if (col >= COLS) break;
+    }
     if (b.heading) {
       if (y + headLead > g.contentTop + g.contentH) {
         advanceColumn();
