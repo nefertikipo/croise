@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { forgetDraft, isKnownDraft, rememberDraft } from "@/lib/books/draft-storage";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PageRail, type RailItem } from "@/components/book/page-rail";
 import { CoverStudio } from "@/components/book/cover-studio";
 import { DedicationEditor } from "@/components/book/dedication-editor";
 import { ClueIdeasEditor } from "@/components/book/clue-ideas-editor";
+import { ContributeInvite } from "@/components/book/contribute-invite";
 import { GridPageProperties } from "@/components/book/grid-page-properties";
 import { ContentPageEditor } from "@/components/book/content-page-editor";
 import { SpreadCanvas } from "@/components/book/spread-canvas";
@@ -50,6 +53,11 @@ interface BookEditorProps {
   readOnly?: boolean;
   /** True when the viewer is anonymous and the book has no owner. */
   showSigninNudge?: boolean;
+  /** True when a signed-in viewer opens a still-anonymous book — the editor
+   * auto-claims it if this device created the draft (deferred auth). */
+  claimable?: boolean;
+  /** True when the signed-in viewer owns this book (safe to invite others). */
+  owned?: boolean;
 }
 
 /** Human label of a content page's layout, used in the rail. */
@@ -65,7 +73,10 @@ export function BookEditor({
   initialInteriorPages,
   readOnly = false,
   showSigninNudge = false,
+  claimable = false,
+  owned = false,
 }: BookEditorProps) {
+  const router = useRouter();
   const [book, setBook] = useState<BookData>(initialBook);
   // Live interior page count, kept in sync from the add/delete responses so the
   // "Ajouter une page" controls know when the book has hit the printable ceiling.
@@ -174,6 +185,30 @@ export function BookEditor({
       if (failReason) toast.error(failReason);
     });
     // Mount-only by design: the plan must run exactly once for this book.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Deferred-auth auto-claim: a signed-in maker landed on their still-anonymous
+  // draft. If THIS device created it (tracked in localStorage), adopt it into
+  // their account so it shows in /mes-livres and edits lock to them. Guarded to
+  // this device so a shared anonymous link opened by someone else isn't stolen.
+  const claimRan = useRef(false);
+  useEffect(() => {
+    if (claimRan.current) return;
+    claimRan.current = true;
+    if (!claimable || !isKnownDraft(code)) return;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/books/${code}/claim`, { method: "POST" });
+        if (res.ok) {
+          forgetDraft(code);
+          router.refresh(); // re-render owned: drops the nudge, unlocks invite
+        }
+      } catch {
+        // Best effort — the maker can still use the sign-in nudge manually.
+      }
+    })();
+    // Mount-only: claim is a one-shot per load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -800,15 +835,21 @@ export function BookEditor({
         </div>
       </div>
 
-      {/* Anonymous-book nudge: without an account, only the link gives access. */}
+      {/* Deferred-auth save nudge: the draft lives only behind its link until
+          the maker signs in. Remember the code first so it auto-claims on the
+          way back. */}
       {showSigninNudge && !nudgeDismissed && (
         <div className="border-b border-black/15 bg-accent/40 print:hidden">
           <div className="max-w-7xl mx-auto flex items-center gap-3 px-4 py-2 text-sm">
-            <span className="min-w-0 flex-1 truncate">
-              <Link href="/connexion" className="underline hover:no-underline">
-                Connectez-vous
+            <span className="min-w-0 flex-1">
+              <Link
+                href={`/connexion?redirect=/book/${code}`}
+                onClick={() => rememberDraft(code)}
+                className="font-semibold underline hover:no-underline"
+              >
+                Créez un compte gratuit
               </Link>{" "}
-              pour retrouver ce carnet plus tard, sans compte, seul le lien y donne accès.
+              pour sauvegarder ce carnet et le retrouver sur tous vos appareils.
             </span>
             <button
               type="button"
@@ -1052,11 +1093,20 @@ export function BookEditor({
             />
           )}
           {selectedId === "ideas" && (
-            <ClueIdeasEditor
-              ideas={book.clueIdeas}
-              usage={ideaUsage}
-              onChange={updateClueIdeas}
-            />
+            <>
+              {!readOnly && (
+                <ContributeInvite
+                  code={code}
+                  initialEnabled={initialBook.contributionsEnabled}
+                  owned={owned}
+                />
+              )}
+              <ClueIdeasEditor
+                ideas={book.clueIdeas}
+                usage={ideaUsage}
+                onChange={updateClueIdeas}
+              />
+            </>
           )}
           {backMatterKind(selectedId) === "index" && (
             <p className="text-sm text-muted-foreground">

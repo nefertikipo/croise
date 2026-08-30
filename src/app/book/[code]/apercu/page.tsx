@@ -6,9 +6,9 @@ import { interiorPageCountForCapacity } from "@/lib/book-pdf/generate-book";
 import { OrderPreview } from "@/components/book/order-preview";
 
 /**
- * "Aperçu avant commande": the exact print files (cover spread + interior),
- * rendered for proofing before ordering. Doubles as the customer's explicit
- * "j'ai vérifié mon livre" step, which the future checkout will require.
+ * "Aperçu avant commande": a flip-through of the real pages (WYSIWYG, colour
+ * cover + B&W interior), rendered for proofing before ordering. Doubles as the
+ * customer's explicit "j'ai vérifié mon livre" step that checkout requires.
  */
 export default async function BookPreviewPage({
   params,
@@ -27,6 +27,7 @@ export default async function BookPreviewPage({
 
   return (
     <OrderPreview
+      book={book}
       code={code}
       title={book.title}
       gridCount={gridCount}

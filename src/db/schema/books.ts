@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, uuid, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, uuid, jsonb, boolean, index } from "drizzle-orm/pg-core";
 import { crosswords } from "@/db/schema/crosswords";
 import { user } from "@/db/schema/auth";
 
@@ -24,6 +24,11 @@ export const books = pgTable("books", {
   // Design-time notepad: brainstormed clue ideas (answer + clue) the maker can
   // drop into any grid. Not a printed section — a workspace. Typed as `ClueIdea[]`.
   clueIdeas: jsonb("clue_ideas"),
+  // When true, anyone holding the share code may append clue ideas via the
+  // public /participer/[code] page (credited as ClueIdea.author). The owner
+  // opts in explicitly from the editor; defaults off so a code alone never lets
+  // strangers write into an owned book.
+  contributionsEnabled: boolean("contributions_enabled").notNull().default(false),
   status: text("status").notNull().default("draft"),
   // When we last emailed the owner a "finish your book" reminder (null = never).
   reminderSentAt: timestamp("reminder_sent_at"),

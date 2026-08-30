@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { rememberDraft } from "@/lib/books/draft-storage";
 
 const NAV_CLASS =
   "font-display text-sm uppercase tracking-wide text-ink transition-colors hover:text-brand disabled:opacity-50";
@@ -31,8 +32,8 @@ export function CreateBookLink({
 /**
  * Instant-create escape hatch: POSTs an empty book and opens it in the editor,
  * skipping the wizard entirely. Used by the wizard's "partir d'une page
- * blanche" link. Requires a signed-in user (book creation is account-only);
- * a 401 sends the visitor to sign in and back.
+ * blanche" link. Works anonymously (deferred auth) — the draft is remembered
+ * on this device so it can be claimed once the maker signs in.
  */
 export function CreateEmptyBookButton({
   className,
@@ -53,15 +54,12 @@ export function CreateEmptyBookButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      if (res.status === 401) {
-        router.push("/connexion?redirect=/livre/nouveau");
-        return;
-      }
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(data.error || "Impossible de créer le carnet. Réessayez.");
       }
       const { code } = await res.json();
+      rememberDraft(code); // deferred auth: claimable if the maker signs in later
       // Replace (not push): creating the book is a transient hand-off, so a
       // back-gesture from the editor shouldn't return here and re-create a
       // duplicate empty book.

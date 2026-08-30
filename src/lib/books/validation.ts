@@ -29,3 +29,18 @@ export const clueIdeaSchema = z.object({
 });
 
 export const bookClueIdeasSchema = z.array(clueIdeaSchema).max(200);
+
+/** Total clue-idea notepad cap (mirrors `bookClueIdeasSchema.max`). */
+export const BOOK_CLUE_IDEAS_MAX = 200;
+
+/**
+ * One public contribution to a book's clue pool (the /participer/[code] form).
+ * The answer is normalized + length-checked server-side; author is the
+ * contributor's name, surfaced as `ClueIdea.author` and credited in the
+ * dedication.
+ */
+export const bookContributionSchema = z.object({
+  answer: z.string().min(1).max(120),
+  clue: z.string().max(500),
+  author: z.string().max(80).optional(),
+});

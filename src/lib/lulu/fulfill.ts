@@ -5,11 +5,18 @@ import {
   type LuluShippingLevel,
 } from "@/lib/lulu/client";
 import { bookSourceUrls, LULU_POD_PACKAGE_ID } from "@/lib/lulu/product";
+import { POD_PAGE_SIZE } from "@/lib/books/constants";
 import { SITE_URL } from "@/lib/site";
 
-/** The interior route reports its exact final page count in a response header. */
+/**
+ * The interior route reports its exact final page count in a response header.
+ * MUST use the same trim + ink params as the interior URL Lulu actually prints
+ * (see {@link bookSourceUrls}) — page capacity differs by trim, so counting a
+ * different geometry would declare a page count that mismatches the printed
+ * file and get the print job rejected.
+ */
 async function fetchInteriorPageCount(code: string): Promise<number> {
-  const url = `${SITE_URL}/api/books/${code}/book.pdf?size=a5`;
+  const url = `${SITE_URL}/api/books/${code}/book.pdf?size=${POD_PAGE_SIZE}&bw=1`;
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Interior PDF unreachable (${res.status}): ${url}`);

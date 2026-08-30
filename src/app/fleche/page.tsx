@@ -25,6 +25,7 @@ import {
   computeFlechePrintScale,
 } from "@/components/fleche/fleche-print-chrome";
 import { CLUE_EXAMPLES, DIFFICULTY_INFO } from "@/lib/fleche/difficulty-guide";
+import { rememberDraft } from "@/lib/books/draft-storage";
 import { GRID_FORMATS, DEFAULT_GRID_FORMAT } from "@/lib/crossword/grid-formats";
 import { GridFormatPreview } from "@/components/fleche/grid-format-preview";
 
@@ -202,14 +203,9 @@ export default function FlechePage() {
           seedConfig: cleanHidden ? { hiddenWord: cleanHidden } : undefined,
         }),
       });
-      // Book creation now requires an account — send anonymous users to sign
-      // in, then back here to retry.
-      if (res.status === 401) {
-        router.push("/connexion?redirect=/fleche");
-        return;
-      }
       if (!res.ok) throw new Error("Failed to create book");
       const { code } = await res.json();
+      rememberDraft(code); // deferred auth: claimable once the maker signs in
       router.push(`/book/${code}`);
     } catch (err) {
       console.error(err);

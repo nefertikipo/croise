@@ -68,17 +68,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    // Book creation requires an account: every new book gets an owner so it is
-    // always retrievable from "Mes livres" (legacy anonymous books are
-    // unaffected — read paths and edit authorization stay as they were).
+    // Deferred auth: a book can be created anonymously (ownerId null) so the
+    // maker can build first and sign in later — the share code is its credential
+    // until they claim it (POST /api/books/[code]/claim) at save / invite /
+    // checkout. Editing an anonymous book stays open to anyone with the code
+    // (see authorizeBookEdit); claiming it locks editing to the owner.
     const authSession = await auth.api.getSession({ headers: request.headers });
-    const ownerId = authSession?.user.id;
-    if (!ownerId) {
-      return NextResponse.json(
-        { error: "Connectez-vous pour créer un carnet." },
-        { status: 401 },
-      );
-    }
+    const ownerId = authSession?.user.id ?? null;
 
     const body = await request.json().catch(() => ({}));
     const result = requestSchema.safeParse(body ?? {});

@@ -4,14 +4,15 @@ import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { BookFlipPreview } from "@/components/book/book-flip-preview";
 import {
   BOOK_MIN_GRIDS,
   BOOK_MIN_INTERIOR_PAGES,
-  POD_PAGE_SIZE,
   SADDLE_MAX_INTERIOR_PAGES,
 } from "@/lib/books/constants";
 import { CARNET_PRICE_CENTS, formatEuros } from "@/lib/books/pricing";
 import { cn } from "@/lib/utils";
+import type { BookData } from "@/types/book";
 
 /**
  * When "1", the CTA runs a real Stripe checkout; otherwise it captures a
@@ -21,6 +22,8 @@ import { cn } from "@/lib/utils";
 const CHECKOUT_ENABLED = process.env.NEXT_PUBLIC_CARNET_CHECKOUT === "1";
 
 interface OrderPreviewProps {
+  /** Full book payload, rendered as an in-app flip-through preview. */
+  book: BookData;
   code: string;
   title: string;
   gridCount: number;
@@ -32,19 +35,17 @@ interface OrderPreviewProps {
 }
 
 /**
- * Proof-before-ordering page: embeds the REAL print PDFs (what Lulu receives),
- * a readiness checklist, and the explicit "j'ai vérifié" confirmation.
- * Until checkout ships, the CTA records order intent via /api/leads.
+ * Proof-before-ordering page: a flip-through preview of the real pages (the same
+ * components the editor renders, so it matches what prints), a readiness
+ * checklist, and the explicit "j'ai vérifié" confirmation. Until checkout ships,
+ * the CTA records order intent via /api/leads.
  */
-export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPhoto, sessionEmail }: OrderPreviewProps) {
+export function OrderPreview({ book, code, title, gridCount, interiorPages, hasCoverPhoto, sessionEmail }: OrderPreviewProps) {
   const [checked, setChecked] = useState(false);
   const [email, setEmail] = useState(sessionEmail ?? "");
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
 
-  // Proof = exactly the file sent to Lulu: B&W interior at the POD trim.
-  const interiorUrl = `/api/books/${code}/book.pdf?size=${POD_PAGE_SIZE}&bw=1`;
-  const coverUrl = `/api/books/${code}/cover.pdf`;
   const enoughGrids = gridCount >= BOOK_MIN_GRIDS;
   // HARD printable window: the printer binds 24–48 interior pages.
   const tooThin = interiorPages < BOOK_MIN_INTERIOR_PAGES;
@@ -147,51 +148,12 @@ export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPh
           </span>
         </div>
 
-        {/* Cover spread */}
-        <section className="space-y-2">
-          <div className="flex items-baseline justify-between">
-            <h2 className="font-display text-sm uppercase tracking-[0.2em]">Couverture</h2>
-            <a href={coverUrl} target="_blank" rel="noreferrer" className="text-xs underline">
-              Ouvrir en plein écran
-            </a>
-          </div>
-          {hasCoverPhoto ? (
-            <iframe
-              src={coverUrl}
-              title="Couverture (dos, tranche, face)"
-              className="h-[320px] w-full border-2 border-ink bg-white"
-            />
-          ) : (
-            <div className="border-2 border-dashed border-black/30 px-6 py-10 text-center text-sm text-muted-foreground">
-              Ajoutez une photo de couverture dans l&apos;éditeur pour la voir ici.
-            </div>
-          )}
-        </section>
-
-        {/* Interior */}
-        <section className="space-y-2">
-          <div className="flex items-baseline justify-between">
-            <h2 className="font-display text-sm uppercase tracking-[0.2em]">
-              Intérieur du carnet
-            </h2>
-            <a href={interiorUrl} target="_blank" rel="noreferrer" className="text-xs underline">
-              Ouvrir en plein écran
-            </a>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Les pages intérieures sont imprimées en{" "}
-            <span className="font-semibold text-ink">noir &amp; blanc</span> (comme
-            un magazine de jeux) ; seule la couverture est en couleur.
-          </p>
-          <iframe
-            src={interiorUrl}
-            title="Intérieur du carnet (grilles, index, solutions)"
-            className="h-[75vh] w-full border-2 border-ink bg-white"
-          />
-          <p className="text-xs text-muted-foreground">
-            Sur mobile, utilisez «&nbsp;Ouvrir en plein écran&nbsp;» pour feuilleter
-            toutes les pages.
-          </p>
+        {/* Flip-through preview of the real pages (matches what prints). */}
+        <section className="space-y-3 border-2 border-ink bg-card p-4 shadow-[4px_4px_0_0] shadow-ink/80">
+          <h2 className="font-display text-sm uppercase tracking-[0.2em]">
+            Feuilletez votre carnet
+          </h2>
+          <BookFlipPreview book={book} />
         </section>
 
         {/* Proof + order intent */}

@@ -9,6 +9,7 @@ import { composeInput, normalizeAnswer } from "@/lib/crossword/normalize";
 import { CLUE_EXAMPLES, DIFFICULTY_INFO } from "@/lib/fleche/difficulty-guide";
 import { BOOK_MIN_GRIDS } from "@/lib/books/constants";
 import { buildWizardPlan, splitHiddenMessage } from "@/lib/books/wizard-plan";
+import { rememberDraft } from "@/lib/books/draft-storage";
 import { cn } from "@/lib/utils";
 import type { ClueIdea, GridDifficulty } from "@/types/book";
 
@@ -102,15 +103,14 @@ export function CreationWizard() {
           clueIdeas: ideas.length > 0 ? ideas : undefined,
         }),
       });
-      if (res.status === 401) {
-        router.push("/connexion?redirect=/livre/nouveau");
-        return;
-      }
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(data.error || "Impossible de créer le carnet. Réessayez.");
       }
       const { code } = (await res.json()) as { code: string };
+      // Remember this draft on the device so, if the maker signs in later, the
+      // editor can auto-claim it into their account (deferred auth).
+      rememberDraft(code);
       const plan = buildWizardPlan({ ideas, messageWords, difficulty });
       try {
         sessionStorage.setItem(`book-wizard-plan-${code}`, JSON.stringify(plan));

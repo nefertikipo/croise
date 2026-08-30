@@ -6,6 +6,7 @@ import { interiorPageCountForCapacity } from "@/lib/book-pdf/generate-book";
 import {
   BOOK_MIN_GRIDS,
   BOOK_MIN_INTERIOR_PAGES,
+  POD_TRIM,
   SADDLE_MAX_INTERIOR_PAGES,
 } from "@/lib/books/constants";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/client";
@@ -72,7 +73,7 @@ export async function POST(
             unit_amount: CARNET_PRICE_CENTS,
             product_data: {
               name: `Carnet de mots fléchés — ${book.title}`,
-              description: `${gridCount} grilles · ${interiorPages} pages · format A5 · impression + livraison incluses`,
+              description: `${gridCount} grilles · ${interiorPages} pages · format ${Math.round(POD_TRIM.w / 10)} × ${Math.round(POD_TRIM.h / 10)} cm · impression + livraison incluses`,
             },
           },
         },

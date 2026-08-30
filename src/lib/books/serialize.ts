@@ -144,6 +144,7 @@ export async function loadBook(code: string): Promise<BookData | null> {
     dedicationSignoff: book.dedicationSignoff,
     coverConfig: (book.coverConfig as CoverConfig) ?? null,
     clueIdeas: (book.clueIdeas as ClueIdea[]) ?? [],
+    contributionsEnabled: book.contributionsEnabled,
     language: book.language,
     status: book.status,
     pages,

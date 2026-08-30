@@ -45,6 +45,7 @@ const patchSchema = z.object({
   dedicationSignoff: bookDedicationSignoffSchema.nullable().optional(),
   status: z.enum(["draft", "ready", "ordered"]).optional(),
   clueIdeas: bookClueIdeasSchema.optional(),
+  contributionsEnabled: z.boolean().optional(),
   coverConfig: z
     .record(z.string(), z.unknown())
     .refine((v) => JSON.stringify(v).length <= 50_000, {
@@ -84,6 +85,7 @@ export async function PATCH(
     if (data.dedicationSignoff !== undefined) updates.dedicationSignoff = data.dedicationSignoff;
     if (data.coverConfig !== undefined) updates.coverConfig = data.coverConfig;
     if (data.clueIdeas !== undefined) updates.clueIdeas = data.clueIdeas;
+    if (data.contributionsEnabled !== undefined) updates.contributionsEnabled = data.contributionsEnabled;
     if (data.status !== undefined) updates.status = data.status;
 
     await db.update(books).set(updates).where(eq(books.id, authz.book.id));

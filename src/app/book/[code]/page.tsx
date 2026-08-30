@@ -31,8 +31,12 @@ export default async function BookPage({
   // the link (via "Partager") gets a read-only view. Ownerless (anonymous)
   // books stay editable by whoever holds the link.
   const readOnly = ownerId !== null && session?.user?.id !== ownerId;
-  // Nudge anonymous makers to sign in so the book isn't link-only.
+  // Deferred auth: anonymous + not signed in → nudge to save (moment 1).
   const showSigninNudge = ownerId === null && !session;
+  // Anonymous + signed in → the editor auto-claims it (if this device made it).
+  const claimable = ownerId === null && !!session;
+  // Owned by the signed-in viewer → safe to open contributions (moment 2).
+  const owned = ownerId !== null && session?.user?.id === ownerId;
 
   return (
     <BookEditor
@@ -41,6 +45,8 @@ export default async function BookPage({
       initialInteriorPages={interiorPageCountForCapacity(book)}
       readOnly={readOnly}
       showSigninNudge={showSigninNudge}
+      claimable={claimable}
+      owned={owned}
     />
   );
 }

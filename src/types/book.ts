@@ -184,6 +184,9 @@ export interface BookData {
   coverConfig: CoverConfig | null;
   /** Design-time clue-idea notepad (not printed). Empty when never used. */
   clueIdeas: ClueIdea[];
+  /** When true, the public /participer/[code] page accepts clue ideas from
+   * anyone with the share link (each credited as ClueIdea.author). */
+  contributionsEnabled: boolean;
   language: string;
   status: string;
   pages: BookPageData[];
