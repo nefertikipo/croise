@@ -533,6 +533,40 @@ export function BookEditor({
     }
   }
 
+  /** Add one or more mots croisés grids (croise/melange books). */
+  async function addCroises(count = 1): Promise<void> {
+    setBusy(true);
+    setGenBatch({ current: 1, total: count });
+    try {
+      const res = await fetch(`/api/books/${code}/croises`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count, difficulty: "balanced" }),
+      });
+      if (!res.ok) {
+        toast.error(await readError(res, "La génération des mots croisés a échoué."));
+        return;
+      }
+      const data = (await res.json()) as {
+        pages: BookData["pages"];
+        interiorPages?: number;
+      };
+      if (typeof data.interiorPages === "number") setInteriorPages(data.interiorPages);
+      if (data.pages.length === 0) {
+        toast.error("La génération des mots croisés a échoué. Réessayez.");
+        return;
+      }
+      setBook((b) => ({ ...b, pages: [...b.pages, ...data.pages] }));
+      if (data.pages[0]) setSelectedId(data.pages[0].pageId);
+    } catch (err) {
+      console.error(err);
+      toast.error("La génération des mots croisés a échoué. Réessayez.");
+    } finally {
+      setBusy(false);
+      setGenBatch(null);
+    }
+  }
+
   async function addContent(layout: ContentLayout) {
     setBusy(true);
     try {
@@ -698,19 +732,25 @@ export function BookEditor({
   const railItems: RailItem[] = [
     { id: "cover", kind: "cover", label: "Couverture" },
     { id: "dedication", kind: "dedication", label: "Dédicace" },
-    ...book.pages.map((p): RailItem =>
-      p.kind === "grid"
-        ? {
-            id: p.pageId,
-            kind: "grid",
-            label: p.config.title || `Grille ${gridNumberByPage.get(p.pageId)}`,
-          }
-        : {
-            id: p.pageId,
-            kind: "content",
-            label: p.config.title || contentLabel(p.config.layout),
-          },
-    ),
+    ...book.pages.map((p): RailItem => {
+      if (p.kind === "grid")
+        return {
+          id: p.pageId,
+          kind: "grid",
+          label: p.config.title || `Grille ${gridNumberByPage.get(p.pageId)}`,
+        };
+      if (p.kind === "croises")
+        return {
+          id: p.pageId,
+          kind: "grid",
+          label: p.config.title || "Mots croisés",
+        };
+      return {
+        id: p.pageId,
+        kind: "content",
+        label: p.config.title || contentLabel(p.config.layout),
+      };
+    }),
     { id: "index#0", kind: "index", label: "Index des mots" },
     { id: "solutions#0", kind: "solutions", label: "Solutions" },
     // Design tools, not book pages — rendered under a separate "Atelier"
@@ -835,7 +875,13 @@ export function BookEditor({
               // "Ajouter une grille" jumps straight into the creator; the
               // add screen behind it keeps the note/citation/photo options.
               // At the printable-page ceiling, just show the capacity notice.
-              if (id === "add" && interiorPages < SADDLE_MAX_INTERIOR_PAGES) {
+              // Fléchés books jump straight into the grid creator; croisés /
+              // mélange books land on the add screen to pick a grid type.
+              if (
+                id === "add" &&
+                interiorPages < SADDLE_MAX_INTERIOR_PAGES &&
+                book.puzzleType === "fleche"
+              ) {
                 setGridCreator({});
               }
             }}
@@ -851,7 +897,9 @@ export function BookEditor({
                 interiorPages={interiorPages}
                 maxPages={SADDLE_MAX_INTERIOR_PAGES}
                 minPages={BOOK_MIN_INTERIOR_PAGES}
+                puzzleType={book.puzzleType}
                 onCreateGrid={() => setGridCreator({})}
+                onAddCroises={() => addCroises(1)}
                 onAddContent={addContent}
               />
             </div>
@@ -1079,6 +1127,25 @@ export function BookEditor({
               onRegenerate={(clues) => regenerateGrid(selectedPage, clues)}
               onDelete={() => deletePage(selectedPage.pageId)}
             />
+          )}
+          {selectedPage?.kind === "croises" && (
+            <div className="space-y-3">
+              <p className="font-heading text-sm uppercase tracking-wide">
+                {selectedPage.config.title || "Mots croisés"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Grille de mots croisés {selectedPage.puzzle.width}×{selectedPage.puzzle.height}.
+                Le solveur est disponible sur sa page partagée.
+              </p>
+              <Button
+                variant="outline"
+                className="w-full"
+                disabled={busy}
+                onClick={() => deletePage(selectedPage.pageId)}
+              >
+                Supprimer cette page
+              </Button>
+            </div>
           )}
           {selectedPage?.kind === "content" && (
             <ContentPageEditor

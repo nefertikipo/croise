@@ -2,6 +2,7 @@ import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as frenchCorpus from "@/db/schema/clue-entries";
 import * as crosswords from "@/db/schema/crosswords";
+import * as americanCrosswords from "@/db/schema/american-crosswords";
 import * as placedWords from "@/db/schema/placed-words";
 import * as books from "@/db/schema/books";
 import * as postcards from "@/db/schema/postcards";
@@ -16,6 +17,7 @@ export const db = drizzle(sql, {
   schema: {
     ...frenchCorpus,
     ...crosswords,
+    ...americanCrosswords,
     ...placedWords,
     ...books,
     ...postcards,

@@ -6,6 +6,7 @@ import { CoverPage } from "@/components/book/cover-page";
 import { DedicationPage } from "@/components/book/dedication-page";
 import { ContentPageView } from "@/components/book/content-page";
 import { GridPageView } from "@/components/book/grid-page";
+import { CroisesPageView } from "@/components/book/croises-page-view";
 import { SolutionsPreview } from "@/components/book/solutions-preview";
 import { IndexPreview } from "@/components/book/index-preview";
 import { paginateIndex, paginateSolutionTiles } from "@/lib/books/preview-layout";
@@ -72,6 +73,7 @@ export function slotLabel(id: SlotId, data: SlotData): string {
   if (!page) return "";
   if (page.kind === "grid")
     return page.config.title || `Grille ${data.gridNumberByPage.get(id) ?? ""}`.trim();
+  if (page.kind === "croises") return page.config.title || "Mots croisés";
   return (
     page.config.title ||
     (page.config.layout === "quote"
@@ -176,12 +178,58 @@ export function SlotInner({
   const page = book.pages.find((p) => p.pageId === id);
   if (!page) return null;
   if (page.kind === "content") return <ContentPageView config={page.config} />;
+  if (page.kind === "croises")
+    return (
+      <ScaledDesign designWidth={GRID_DESIGN_WIDTH}>
+        <CroisesPageView
+          page={page}
+          index={gridNumberByPage.get(page.pageId) ?? 0}
+          maxWidth={GRID_DESIGN_WIDTH}
+        />
+      </ScaledDesign>
+    );
   return (
     <GridSlot
       page={page}
       index={gridNumberByPage.get(page.pageId) ?? 0}
       interactive={interactive}
     />
+  );
+}
+
+/** Lay out children at a fixed design width, then scale to fit the frame. */
+function ScaledDesign({
+  designWidth,
+  children,
+}: {
+  designWidth: number;
+  children: React.ReactNode;
+}) {
+  const { ref: frameRef, size: avail } = useElementSize<HTMLDivElement>();
+  const { ref: blockRef, size: natural } = useElementSize<HTMLDivElement>();
+  const scale =
+    avail.width > 0 && natural.height > 0
+      ? Math.min(avail.width / designWidth, avail.height / natural.height, 1)
+      : 0;
+  return (
+    <BookPageFrame>
+      <div ref={frameRef} className="flex-1 flex items-center justify-center p-2 overflow-hidden">
+        <div
+          style={{
+            width: designWidth * scale,
+            height: natural.height * scale,
+            visibility: scale > 0 ? "visible" : "hidden",
+          }}
+        >
+          <div
+            ref={blockRef}
+            style={{ width: designWidth, transform: `scale(${scale || 1})`, transformOrigin: "top left" }}
+          >
+            {children}
+          </div>
+        </div>
+      </div>
+    </BookPageFrame>
   );
 }
 

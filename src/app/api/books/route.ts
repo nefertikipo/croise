@@ -19,6 +19,8 @@ const requestSchema = z.object({
   dedicationText: bookDedicationSchema.optional(),
   clueIdeas: bookClueIdeasSchema.optional(),
   coverConfig: z.record(z.string(), z.unknown()).optional(),
+  /** Which puzzle type this carnet holds (chosen in the wizard). */
+  puzzleType: z.enum(["fleche", "croise", "melange"]).optional(),
   /** Link an already-generated grid (e.g. from /fleche) as the first page. */
   seedCrosswordCode: z.string().optional(),
   seedConfig: z
@@ -121,6 +123,7 @@ export async function POST(request: Request) {
         clueIdeas: parsed.clueIdeas,
         coverConfig: parsed.coverConfig,
         language: "fr",
+        puzzleType: parsed.puzzleType ?? "fleche",
         status: "draft",
       });
       if (seedCrosswordId) {

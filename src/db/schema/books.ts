@@ -1,5 +1,6 @@
 import { pgTable, serial, text, integer, timestamp, uuid, jsonb, index } from "drizzle-orm/pg-core";
 import { crosswords } from "@/db/schema/crosswords";
+import { americanCrosswords } from "@/db/schema/american-crosswords";
 import { user } from "@/db/schema/auth";
 
 export const books = pgTable("books", {
@@ -21,6 +22,10 @@ export const books = pgTable("books", {
   // Null/empty falls back to a default keyed on the number of contributors.
   dedicationSignoff: text("dedication_signoff"),
   coverConfig: jsonb("cover_config"),
+  // Which puzzle type this carnet holds: "fleche" (mots fléchés, default),
+  // "croise" (mots croisés / American), or "melange" (a mix of both). Chosen in
+  // the creation wizard; drives which grids the editor lets you add.
+  puzzleType: text("puzzle_type").notNull().default("fleche"),
   // Design-time notepad: brainstormed clue ideas (answer + clue) the maker can
   // drop into any grid. Not a printed section — a workspace. Typed as `ClueIdea[]`.
   clueIdeas: jsonb("clue_ideas"),
@@ -38,7 +43,8 @@ export const books = pgTable("books", {
  * The ordered spine of a book: grid pages and content pages interleaved.
  * Replaces the old grids-only `book_crosswords` table.
  * - kind "grid": `crosswordId` is set, `config` holds per-book grid styling.
- * - kind "content": `crosswordId` is null, `config` holds the page content.
+ * - kind "croises": `americanCrosswordId` is set (mots croisés / American grid).
+ * - kind "content": both null, `config` holds the page content.
  * Cover, dedication, word index and solutions are derived sections, not rows.
  */
 export const bookPages = pgTable("book_pages", {
@@ -54,6 +60,12 @@ export const bookPages = pgTable("book_pages", {
   crosswordId: uuid("crossword_id").references(() => crosswords.id, {
     onDelete: "set null",
   }),
+  // For kind "croises": the mots croisés grid. Separate FK from crosswordId
+  // (different table) so fléchés pages/queries are entirely undisturbed.
+  americanCrosswordId: uuid("american_crossword_id").references(
+    () => americanCrosswords.id,
+    { onDelete: "set null" },
+  ),
   config: jsonb("config"),
 }, (table) => [
   // every spine read/update filters on the owning book

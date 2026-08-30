@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { books, bookPages } from "@/db/schema/books";
 import { crosswords } from "@/db/schema/crosswords";
+import { americanCrosswords } from "@/db/schema/american-crosswords";
 import { placedWords } from "@/db/schema/placed-words";
 import { eq, asc, inArray } from "drizzle-orm";
 import { reconstructCells } from "@/lib/crossword/reconstruct-cells";
@@ -11,16 +12,53 @@ import type {
   ClueIdea,
   ContentPageConfig,
   CoverConfig,
+  CroisesPage,
   GridPage,
   GridPageConfig,
+  PuzzleType,
 } from "@/types/book";
+import type { AmPuzzle } from "@/lib/crossword/american/types";
 
 interface PageRow {
   id: string;
   position: number;
   kind: string;
   crosswordId: string | null;
+  americanCrosswordId: string | null;
   config: unknown;
+}
+
+/** Load mots croisés rows for a set of ids, keyed by id. */
+async function loadCroisesData(
+  ids: string[],
+): Promise<Map<string, { id: string; code: string; puzzle: AmPuzzle }>> {
+  const byId = new Map<string, { id: string; code: string; puzzle: AmPuzzle }>();
+  if (ids.length === 0) return byId;
+  const rows = await db
+    .select({
+      id: americanCrosswords.id,
+      code: americanCrosswords.code,
+      puzzle: americanCrosswords.puzzle,
+    })
+    .from(americanCrosswords)
+    .where(inArray(americanCrosswords.id, ids));
+  for (const r of rows) byId.set(r.id, r);
+  return byId;
+}
+
+function buildCroisesPage(
+  page: PageRow,
+  data: { id: string; code: string; puzzle: AmPuzzle },
+): CroisesPage {
+  return {
+    kind: "croises",
+    pageId: page.id,
+    gridId: data.id,
+    code: data.code,
+    position: page.position,
+    puzzle: data.puzzle,
+    config: (page.config as GridPageConfig) ?? {},
+  };
 }
 
 interface GridData {
@@ -93,6 +131,7 @@ export async function serializePages(
       position: bookPages.position,
       kind: bookPages.kind,
       crosswordId: bookPages.crosswordId,
+      americanCrosswordId: bookPages.americanCrosswordId,
       config: bookPages.config,
     })
     .from(bookPages)
@@ -104,6 +143,11 @@ export async function serializePages(
     .map((r) => r.crosswordId as string);
   const gridData = await loadGridData(gridIds);
 
+  const croisesIds = rows
+    .filter((r) => r.kind === "croises" && r.americanCrosswordId !== null)
+    .map((r) => r.americanCrosswordId as string);
+  const croisesData = await loadCroisesData(croisesIds);
+
   const pages: BookPageData[] = [];
   for (const row of rows) {
     if (row.kind === "grid") {
@@ -113,6 +157,18 @@ export async function serializePages(
         continue;
       }
       pages.push(buildGridPage(row, data));
+    } else if (row.kind === "croises") {
+      const data = row.americanCrosswordId
+        ? croisesData.get(row.americanCrosswordId)
+        : undefined;
+      if (!data) {
+        console.error(
+          `[books] croisés page ${row.id} (book ${bookCode ?? bookId}) references ` +
+            `missing grid ${row.americanCrosswordId ?? "(null)"} — dropping`,
+        );
+        continue;
+      }
+      pages.push(buildCroisesPage(row, data));
     } else {
       pages.push({
         kind: "content",
@@ -145,6 +201,7 @@ export async function loadBook(code: string): Promise<BookData | null> {
     coverConfig: (book.coverConfig as CoverConfig) ?? null,
     clueIdeas: (book.clueIdeas as ClueIdea[]) ?? [],
     language: book.language,
+    puzzleType: (book.puzzleType as PuzzleType) ?? "fleche",
     status: book.status,
     pages,
     wordIndex: buildWordIndex(grids),
@@ -159,6 +216,7 @@ export async function serializePage(pageId: string): Promise<BookPageData | null
       position: bookPages.position,
       kind: bookPages.kind,
       crosswordId: bookPages.crosswordId,
+      americanCrosswordId: bookPages.americanCrosswordId,
       config: bookPages.config,
     })
     .from(bookPages)
@@ -175,6 +233,13 @@ export async function serializePage(pageId: string): Promise<BookPageData | null
       return null;
     }
     return buildGridPage(row, data);
+  }
+  if (row.kind === "croises") {
+    const data = row.americanCrosswordId
+      ? (await loadCroisesData([row.americanCrosswordId])).get(row.americanCrosswordId)
+      : undefined;
+    if (!data) return null;
+    return buildCroisesPage(row, data);
   }
   return {
     kind: "content",
