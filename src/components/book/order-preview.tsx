@@ -11,7 +11,18 @@ import {
   SADDLE_MAX_INTERIOR_PAGES,
 } from "@/lib/books/constants";
 import { CARNET_PRICE_CENTS, formatEuros } from "@/lib/books/pricing";
+import { CARNET_ALLOWED_COUNTRIES, type CarnetCountry } from "@/lib/books/shipping";
 import { cn } from "@/lib/utils";
+
+// "FR" → "France": shipping destinations, displayed in French, France first.
+const COUNTRY_NAMES = new Intl.DisplayNames(["fr"], { type: "region" });
+const DESTINATIONS: { code: CarnetCountry; label: string }[] =
+  CARNET_ALLOWED_COUNTRIES.map((code) => ({
+    code,
+    label: COUNTRY_NAMES.of(code) ?? code,
+  })).sort((a, b) =>
+    a.code === "FR" ? -1 : b.code === "FR" ? 1 : a.label.localeCompare(b.label, "fr"),
+  );
 
 /**
  * When "1", the CTA runs a real Stripe checkout; otherwise it captures a
@@ -41,6 +52,7 @@ export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPh
   const [email, setEmail] = useState(sessionEmail ?? "");
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
+  const [country, setCountry] = useState<CarnetCountry>("FR");
 
   // Proof = exactly the file sent to Lulu: B&W interior at the POD trim.
   const interiorUrl = `/api/books/${code}/book.pdf?size=${POD_PAGE_SIZE}&bw=1`;
@@ -56,7 +68,11 @@ export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPh
     if (sending) return;
     setSending(true);
     try {
-      const res = await fetch(`/api/books/${code}/checkout`, { method: "POST" });
+      const res = await fetch(`/api/books/${code}/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ country }),
+      });
       const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
       if (!res.ok || !data.url) {
         toast.error(data.error ?? "Impossible de démarrer le paiement. Réessayez.");
@@ -210,19 +226,48 @@ export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPh
           </label>
 
           {CHECKOUT_ENABLED ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <Button disabled={!canOrder || sending} onClick={startCheckout}>
-                {sending
-                  ? "Redirection…"
-                  : `Commander mon carnet — ${formatEuros(CARNET_PRICE_CENTS)}`}
-              </Button>
-              <span className="text-xs text-muted-foreground">
-                {tooThin
-                  ? `Ajoutez des grilles : un carnet imprimé compte au moins ${BOOK_MIN_INTERIOR_PAGES} pages.`
-                  : tooThick
-                    ? `Retirez des pages : la reliure accepte au maximum ${SADDLE_MAX_INTERIOR_PAGES} pages.`
-                    : "Paiement sécurisé via Stripe · livraison standard incluse, express en option."}
-              </span>
+            <div className="space-y-2">
+              <label className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-semibold">Pays de livraison :</span>
+                <select
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value as CarnetCountry)}
+                  className="rounded-none border-2 border-ink/20 bg-white px-2 py-1.5 text-sm"
+                >
+                  {DESTINATIONS.map((d) => (
+                    <option key={d.code} value={d.code}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-muted-foreground">
+                  Livraison standard incluse ; le tarif express dépend du pays et
+                  s&apos;affiche au paiement.
+                </span>
+              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button disabled={!canOrder || sending} onClick={startCheckout}>
+                  {sending
+                    ? "Redirection…"
+                    : `Commander mon carnet : ${formatEuros(CARNET_PRICE_CENTS)}`}
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {tooThin
+                    ? `Ajoutez des grilles : un carnet imprimé compte au moins ${BOOK_MIN_INTERIOR_PAGES} pages.`
+                    : tooThick
+                      ? `Retirez des pages : la reliure accepte au maximum ${SADDLE_MAX_INTERIOR_PAGES} pages.`
+                      : "Paiement sécurisé via Stripe · livraison standard incluse, express en option."}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                En commandant, vous acceptez nos{" "}
+                <Link href="/cgv" className="underline" target="_blank">
+                  conditions générales de vente
+                </Link>
+                . Carnet entièrement personnalisé : pas de droit de
+                rétractation (art. L221-28 3° du Code de la consommation) ;
+                tout défaut d&apos;impression est réimprimé ou remboursé.
+              </p>
             </div>
           ) : sent ? (
             <p className="text-sm font-semibold">

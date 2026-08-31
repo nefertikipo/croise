@@ -7,16 +7,15 @@ import {
   BOOK_MIN_GRIDS,
   BOOK_MIN_INTERIOR_PAGES,
   SADDLE_MAX_INTERIOR_PAGES,
+  POD_TRIM,
 } from "@/lib/books/constants";
-import { getStripe, isStripeConfigured } from "@/lib/stripe/client";
+import { getStripe, isStripeConfigured, isStripeLiveMode } from "@/lib/stripe/client";
+import { isLuluProductionConfigured } from "@/lib/lulu/client";
+import { getSeller, assertSellerConfigured } from "@/lib/billing/seller";
 import { CARNET_CURRENCY, CARNET_PRICE_CENTS } from "@/lib/books/pricing";
-import { CARNET_SHIPPING_OPTIONS } from "@/lib/books/shipping";
+import { CARNET_ALLOWED_COUNTRIES, type CarnetCountry } from "@/lib/books/shipping";
+import { quoteCarnetShippingOptions } from "@/lib/lulu/shipping-quote";
 import { SITE_URL } from "@/lib/site";
-
-/** Countries we currently sell/ship the carnet to (Lulu prints for all of these). */
-const ALLOWED_COUNTRIES = [
-  "FR", "BE", "CH", "LU", "MC", "DE", "ES", "IT", "NL", "PT", "IE", "AT", "GB",
-] as const;
 
 /**
  * Start a paid checkout for a carnet: validates the book is print-ready, then
@@ -24,18 +23,52 @@ const ALLOWED_COUNTRIES = [
  * phone Lulu needs) and returns its hosted-page URL. The order row and the Lulu
  * print job are created later, by the `checkout.session.completed` webhook —
  * never here — so an abandoned checkout leaves no order and no charge.
+ *
+ * The client sends the destination country up front (Stripe only collects the
+ * address later, inside checkout, after shipping options are fixed): express
+ * cost varies wildly by country, so the session's shipping options are quoted
+ * live from Lulu for that country and the address form is locked to it.
  */
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ code: string }> },
 ) {
   const { code } = await params;
+  const body = (await req.json().catch(() => ({}))) as { country?: string };
+  const country: CarnetCountry = (CARNET_ALLOWED_COUNTRIES as readonly string[]).includes(
+    body.country ?? "",
+  )
+    ? (body.country as CarnetCountry)
+    : "FR";
 
   if (!isStripeConfigured()) {
     return NextResponse.json(
       { error: "Le paiement n'est pas encore configuré." },
       { status: 503 },
     );
+  }
+
+  // Never take real money unless the order can complete legally and physically:
+  // a live charge with a sandbox Lulu config would look successful and never
+  // ship a book, and a live sale without seller identity issues a non-compliant
+  // invoice. Test mode stays unrestricted.
+  if (isStripeLiveMode()) {
+    const blockers: string[] = [];
+    if (!isLuluProductionConfigured()) {
+      blockers.push("Lulu hors production (LULU_ENV/LULU_CLIENT_KEY/LULU_CLIENT_SECRET)");
+    }
+    try {
+      assertSellerConfigured(getSeller());
+    } catch (err) {
+      blockers.push(err instanceof Error ? err.message : String(err));
+    }
+    if (blockers.length > 0) {
+      console.error(`Checkout live refusé : ${blockers.join(" · ")}`);
+      return NextResponse.json(
+        { error: "Le paiement est temporairement indisponible." },
+        { status: 503 },
+      );
+    }
   }
 
   const book = await loadBook(code);
@@ -61,6 +94,10 @@ export async function POST(
 
   const session = await auth.api.getSession({ headers: await headers() });
 
+  // Live per-country shipping tiers: standard is bundled in the price, express
+  // is the real Lulu delta for this destination (standard-only on quote failure).
+  const shippingOptions = await quoteCarnetShippingOptions(country, interiorPages);
+
   try {
     const checkout = await getStripe().checkout.sessions.create({
       mode: "payment",
@@ -72,17 +109,19 @@ export async function POST(
             unit_amount: CARNET_PRICE_CENTS,
             product_data: {
               name: `Carnet de mots fléchés — ${book.title}`,
-              description: `${gridCount} grilles · ${interiorPages} pages · format A5 · impression + livraison incluses`,
+              description: `${gridCount} grilles · ${interiorPages} pages · format ${POD_TRIM.w} × ${POD_TRIM.h} mm · impression + livraison incluses`,
             },
           },
         },
       ],
       // Lulu needs a full shipping address + phone; let Stripe collect both.
-      shipping_address_collection: { allowed_countries: [...ALLOWED_COUNTRIES] },
+      // Locked to the pre-selected country: the shipping prices quoted above
+      // are only valid there.
+      shipping_address_collection: { allowed_countries: [country] },
       phone_number_collection: { enabled: true },
       // Standard (included) vs express (surcharge). The chosen tier's Lulu level
       // travels in the rate's metadata so the webhook fulfills at the right speed.
-      shipping_options: CARNET_SHIPPING_OPTIONS.map((opt) => ({
+      shipping_options: shippingOptions.map((opt) => ({
         shipping_rate_data: {
           type: "fixed_amount",
           display_name: opt.label,

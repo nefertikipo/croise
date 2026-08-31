@@ -10,12 +10,27 @@
  * is confirmed available to France for our SKU (the Elise order shipped EXPRESS);
  * EXPEDITED did not return a FR quote, so avoid it.
  *
- * ⚠️ The express surcharge is a RETAIL figure to tune against a live Lulu
- * express quote (express costs materially more than MAIL). Override via
- * CARNET_EXPRESS_SURCHARGE_CENTS without a deploy.
+ * The express amountCents here is only a FALLBACK: at checkout the surcharge
+ * is re-priced from a live Lulu quote for the destination country (see
+ * lib/lulu/shipping-quote.ts), because real express cost spans €19 to €67
+ * all-in depending on the country. These static entries still provide the
+ * labels and delivery-day estimates.
  *
  * Keep this file free of server-only imports — it is shared by client and server.
  */
+/** Countries we currently sell/ship the carnet to (Lulu prints for all of
+ * these). Shared by the checkout route (Stripe allowed_countries) and the CGV
+ * page so the legal text never drifts from what checkout actually allows.
+ * ES and IT are excluded for now: Lulu requires a state/province on their
+ * addresses but Stripe Checkout does not collect one there, so fulfillment
+ * would fail after payment. Re-add once a postcode → province mapping exists
+ * (verified against the live cost-calc API 2026-08-31). */
+export const CARNET_ALLOWED_COUNTRIES = [
+  "FR", "BE", "CH", "LU", "MC", "DE", "NL", "PT", "IE", "AT", "GB",
+] as const;
+
+export type CarnetCountry = (typeof CARNET_ALLOWED_COUNTRIES)[number];
+
 export type CarnetShippingKey = "standard" | "express";
 
 export interface CarnetShippingOption {

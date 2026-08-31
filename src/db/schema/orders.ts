@@ -40,6 +40,9 @@ export const orders = pgTable(
     status: text("status").notNull().default("paid"),
     luluJobId: integer("lulu_job_id"),
     fulfillmentError: text("fulfillment_error"),
+    // { trackingId, trackingUrls } captured from Lulu when the job ships
+    // (see the suivi-commandes cron, which also emails the customer).
+    tracking: jsonb("tracking"),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

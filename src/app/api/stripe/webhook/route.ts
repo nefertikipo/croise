@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { orders } from "@/db/schema/orders";
 import { fulfillCarnetOrder } from "@/lib/lulu/fulfill";
 import { sendOrderConfirmation } from "@/lib/billing/order-email";
+import { sendOperatorAlert } from "@/lib/billing/operator-alert";
 import type { LuluShippingAddress, LuluShippingLevel } from "@/lib/lulu/client";
 import { CARNET_PRICE_CENTS } from "@/lib/books/pricing";
 
@@ -158,16 +159,45 @@ async function handleCompleted(raw: Stripe.Checkout.Session): Promise<void> {
       .update(orders)
       .set({ status: "in_production", luluJobId, updatedAt: new Date() })
       .where(eq(orders.id, order.id));
+    // Ops heads-up (there is no admin orders view yet) — never fail the webhook.
+    try {
+      await sendOperatorAlert({
+        subject: `Nouvelle commande — « ${bookTitle} »`,
+        heading: "Nouvelle commande",
+        lines: [
+          `Carnet <strong>« ${bookTitle} »</strong> (${bookCode}) — commande #${order.id}.`,
+          `Client : ${email} · livraison ${shippingLevel}.`,
+          `Job Lulu <strong>#${luluJobId}</strong> soumis, statut in_production.`,
+        ],
+      });
+    } catch (alertErr) {
+      console.error(`Alerte nouvelle commande échouée (commande ${order.id}):`, alertErr);
+    }
   } catch (err) {
     console.error(`Fulfillment Lulu échoué (commande ${order.id}):`, err);
+    const message = err instanceof Error ? err.message : String(err);
     await db
       .update(orders)
       .set({
         status: "failed",
-        fulfillmentError: err instanceof Error ? err.message : String(err),
+        fulfillmentError: message,
         updatedAt: new Date(),
       })
       .where(eq(orders.id, order.id));
+    try {
+      await sendOperatorAlert({
+        subject: `ACTION REQUISE — impression non lancée (commande #${order.id})`,
+        heading: "Commande payée, impression échouée",
+        lines: [
+          `Le client a payé mais le job Lulu n'a PAS été créé.`,
+          `Carnet <strong>« ${bookTitle} »</strong> (${bookCode}) — commande #${order.id} · client ${email}.`,
+          `Erreur : <code>${message}</code>`,
+          `À faire : corriger la cause puis relancer l'impression (scripts/lulu-order.ts) — le client ne doit pas être re-débité.`,
+        ],
+      });
+    } catch (alertErr) {
+      console.error(`Alerte échec fulfillment échouée (commande ${order.id}):`, alertErr);
+    }
   }
 
   // Confirmation + invoice (best-effort — never fail the webhook over email).

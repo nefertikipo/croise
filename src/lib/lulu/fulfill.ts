@@ -5,14 +5,14 @@ import {
   type LuluShippingLevel,
 } from "@/lib/lulu/client";
 import { bookSourceUrls, LULU_POD_PACKAGE_ID } from "@/lib/lulu/product";
-import { SITE_URL } from "@/lib/site";
 
-/** The interior route reports its exact final page count in a response header. */
-async function fetchInteriorPageCount(code: string): Promise<number> {
-  const url = `${SITE_URL}/api/books/${code}/book.pdf?size=a5`;
-  const res = await fetch(url);
+/** The interior route reports its exact final page count in a response header.
+ * Probe the SAME url Lulu will fetch: pagination depends on the trim, so a
+ * count taken at another size can disagree with the printed file. */
+async function fetchInteriorPageCount(interiorUrl: string): Promise<number> {
+  const res = await fetch(interiorUrl);
   if (!res.ok) {
-    throw new Error(`Interior PDF unreachable (${res.status}): ${url}`);
+    throw new Error(`Interior PDF unreachable (${res.status}): ${interiorUrl}`);
   }
   const pages = res.headers.get("x-interior-pages");
   if (!pages) throw new Error("Missing X-Interior-Pages header on the interior route.");
@@ -39,8 +39,8 @@ export async function fulfillCarnetOrder(input: {
   shipping: LuluShippingAddress;
   shippingLevel?: LuluShippingLevel;
 }): Promise<{ luluJobId: number }> {
-  const pageCount = await fetchInteriorPageCount(input.code);
   const { interiorUrl, coverUrl } = bookSourceUrls(input.code);
+  const pageCount = await fetchInteriorPageCount(interiorUrl);
   const job = await createPrintJob({
     externalId: input.code,
     contactEmail: input.email,
