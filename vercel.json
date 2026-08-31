@@ -1,5 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    { "path": "/api/cron/suivi-commandes", "schedule": "0 7,17 * * *" }
+  ],
   "functions": {
     "src/app/api/fleche/generate/boost/route.ts": { "memory": 3009 },
     "src/app/api/books/[code]/grids/route.ts": { "memory": 3009 },

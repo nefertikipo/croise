@@ -31,3 +31,9 @@ export function getStripe(): Stripe {
 export function isStripeConfigured(): boolean {
   return Boolean(process.env.STRIPE_SECRET_KEY);
 }
+
+/** True when the configured key charges real cards (sk_live_… / rk_live_…). */
+export function isStripeLiveMode(): boolean {
+  const key = process.env.STRIPE_SECRET_KEY ?? "";
+  return key.startsWith("sk_live_") || key.startsWith("rk_live_");
+}

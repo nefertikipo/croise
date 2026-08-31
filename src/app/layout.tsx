@@ -11,6 +11,7 @@ import {
 import "./globals.css";
 import { Toaster } from "sonner";
 import { SiteChrome } from "@/components/shared/site-chrome";
+import { SiteFooter } from "@/components/shared/site-footer";
 import { SanityLive } from "@/sanity/lib/live";
 import { sanityEnabled } from "@/sanity/env";
 import { SITE_URL } from "@/lib/site";
@@ -91,6 +92,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col font-sans">
         <SiteChrome />
         {children}
+        <SiteFooter />
         <Toaster position="bottom-right" richColors />
         {sanityEnabled && <SanityLive />}
       </body>

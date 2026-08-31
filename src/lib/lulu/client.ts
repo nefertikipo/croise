@@ -20,6 +20,19 @@ export function luluBaseUrl(): string {
   return process.env.LULU_ENV === "production" ? PRODUCTION_BASE : SANDBOX_BASE;
 }
 
+/**
+ * True when print jobs will really be produced: live API selected AND creds
+ * present. The checkout route refuses live-mode charges unless this holds —
+ * otherwise a real payment would land as a sandbox job that never prints.
+ */
+export function isLuluProductionConfigured(): boolean {
+  return (
+    process.env.LULU_ENV === "production" &&
+    Boolean(process.env.LULU_CLIENT_KEY) &&
+    Boolean(process.env.LULU_CLIENT_SECRET)
+  );
+}
+
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 async function getAccessToken(): Promise<string> {
@@ -190,7 +203,22 @@ export function createPrintJob(input: {
   });
 }
 
-export function getPrintJob(id: number): Promise<unknown> {
+/** The subset of the print-job detail the order-tracking cron reads. Lulu's
+ * job statuses: CREATED → UNPAID → PAYMENT_IN_PROGRESS → PRODUCTION_READY →
+ * IN_PRODUCTION → SHIPPED, or REJECTED / CANCELED. */
+export interface LuluPrintJobDetail {
+  id: number;
+  status?: { name?: string; message?: string } | null;
+  line_items?:
+    | {
+        status?: { name?: string; messages?: unknown } | null;
+        tracking_id?: string | null;
+        tracking_urls?: string[] | null;
+      }[]
+    | null;
+}
+
+export function getPrintJob(id: number): Promise<LuluPrintJobDetail> {
   return luluFetch(`/print-jobs/${id}/`);
 }
 
