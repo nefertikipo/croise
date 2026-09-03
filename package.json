@@ -22,6 +22,7 @@
     "@sanity/icons": "^5.0.0",
     "@sanity/image-url": "^2.1.1",
     "@sanity/vision": "^6.4.0",
+    "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.6.1",
     "ai": "^6.0.145",
     "better-auth": "^1.6.23",
