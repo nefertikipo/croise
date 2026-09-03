@@ -15,6 +15,7 @@ import { SiteFooter } from "@/components/shared/site-footer";
 import { SanityLive } from "@/sanity/lib/live";
 import { sanityEnabled } from "@/sanity/env";
 import { SITE_URL } from "@/lib/site";
+import { Analytics } from "@vercel/analytics/next";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -95,6 +96,7 @@ export default function RootLayout({
         <SiteFooter />
         <Toaster position="bottom-right" richColors />
         {sanityEnabled && <SanityLive />}
+        <Analytics />
       </body>
     </html>
   );
