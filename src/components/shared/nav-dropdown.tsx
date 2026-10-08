@@ -23,9 +23,30 @@ export const MORE_LINKS: NavLink[] = [
  * bar stays uncrowded. Opens on hover or click, closes on outside-click /
  * Escape. Reused for "Nos produits" and "Communauté".
  */
-export function NavDropdown({ label, links }: { label: string; links: NavLink[] }) {
+export function NavDropdown({
+  label,
+  links,
+}: {
+  label: string;
+  links: NavLink[];
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // Grace period before a hover-close, so the pointer can travel from the
+  // trigger to the menu (or briefly overshoot) without the menu vanishing.
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set when a mouse hover opened the menu, so the click that usually follows
+  // doesn't immediately toggle it shut again.
+  const openedByHover = useRef(false);
+
+  function cancelClose() {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }
+
+  useEffect(() => cancelClose, []);
 
   useEffect(() => {
     if (!open) return;
@@ -49,12 +70,30 @@ export function NavDropdown({ label, links }: { label: string; links: NavLink[] 
     <div
       ref={ref}
       className="relative"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onPointerEnter={(e) => {
+        if (e.pointerType !== "mouse") return;
+        cancelClose();
+        if (!open) openedByHover.current = true;
+        setOpen(true);
+      }}
+      onPointerLeave={(e) => {
+        if (e.pointerType !== "mouse") return;
+        cancelClose();
+        closeTimer.current = setTimeout(() => {
+          openedByHover.current = false;
+          setOpen(false);
+        }, 200);
+      }}
     >
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (openedByHover.current) {
+            openedByHover.current = false;
+            return;
+          }
+          setOpen((v) => !v);
+        }}
         aria-expanded={open}
         aria-haspopup="menu"
         className="flex items-center gap-1 font-display text-sm uppercase tracking-wide text-ink transition-colors hover:text-brand"
@@ -69,35 +108,39 @@ export function NavDropdown({ label, links }: { label: string; links: NavLink[] 
       </button>
 
       {open ? (
-        <div
-          role="menu"
-          className="absolute left-1/2 top-full z-50 mt-2 min-w-44 -translate-x-1/2 border-2 border-ink bg-paper shadow-lg"
-        >
-          {links.map((l) =>
-            l.soon ? (
-              <span
-                key={l.href}
-                role="menuitem"
-                aria-disabled
-                className="flex cursor-default items-center justify-between gap-2 border-b border-ink/10 px-4 py-2.5 font-display text-sm uppercase tracking-wide text-ink/40 last:border-b-0"
-              >
-                {l.label}
-                <span className="text-[10px] tracking-[0.15em] text-ink/40">
-                  Bientôt
+        // pt-2 (not mt-2) keeps the gap inside the hover area, so moving the
+        // pointer down from the trigger never leaves the dropdown.
+        <div className="absolute left-1/2 top-full z-50 -translate-x-1/2 pt-2">
+          <div
+            role="menu"
+            className="min-w-44 border-2 border-ink bg-paper shadow-lg"
+          >
+            {links.map((l) =>
+              l.soon ? (
+                <span
+                  key={l.href}
+                  role="menuitem"
+                  aria-disabled
+                  className="flex cursor-default items-center justify-between gap-2 border-b border-ink/10 px-4 py-2.5 font-display text-sm uppercase tracking-wide text-ink/40 last:border-b-0"
+                >
+                  {l.label}
+                  <span className="text-[10px] tracking-[0.15em] text-ink/40">
+                    Bientôt
+                  </span>
                 </span>
-              </span>
-            ) : (
-              <Link
-                key={l.href}
-                href={l.href}
-                role="menuitem"
-                onClick={() => setOpen(false)}
-                className="block border-b border-ink/10 px-4 py-2.5 font-display text-sm uppercase tracking-wide text-ink transition-colors last:border-b-0 hover:bg-ink hover:text-paper"
-              >
-                {l.label}
-              </Link>
-            ),
-          )}
+              ) : (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  role="menuitem"
+                  onClick={() => setOpen(false)}
+                  className="block border-b border-ink/10 px-4 py-2.5 font-display text-sm uppercase tracking-wide text-ink transition-colors last:border-b-0 hover:bg-ink hover:text-paper"
+                >
+                  {l.label}
+                </Link>
+              ),
+            )}
+          </div>
         </div>
       ) : null}
     </div>
