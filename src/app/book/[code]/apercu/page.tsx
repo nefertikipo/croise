@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { isAdminEmail } from "@/lib/admin";
 import { loadBook } from "@/lib/books/serialize";
 import { interiorPageCountForCapacity } from "@/lib/book-pdf/generate-book";
 import { OrderPreview } from "@/components/book/order-preview";
@@ -24,6 +25,11 @@ export default async function BookPreviewPage({
   if (gridCount === 0) redirect(`/book/${code}`);
 
   const session = await auth.api.getSession({ headers: await headers() });
+  const sessionEmail = session?.user?.email ?? null;
+  // Real checkout once NEXT_PUBLIC_CARNET_CHECKOUT=1; before that, only admins
+  // get it, so a live end-to-end test order can run before the public launch.
+  const checkoutEnabled =
+    process.env.NEXT_PUBLIC_CARNET_CHECKOUT === "1" || isAdminEmail(sessionEmail);
 
   return (
     <OrderPreview
@@ -32,7 +38,8 @@ export default async function BookPreviewPage({
       gridCount={gridCount}
       interiorPages={interiorPageCountForCapacity(book)}
       hasCoverPhoto={Boolean(book.coverConfig?.design?.photoRef)}
-      sessionEmail={session?.user?.email ?? null}
+      sessionEmail={sessionEmail}
+      checkoutEnabled={checkoutEnabled}
     />
   );
 }
