@@ -13,7 +13,8 @@ import { CARNET_PRICE_CENTS } from "@/lib/books/pricing";
 export const maxDuration = 60;
 
 /**
- * Stripe webhook. On `checkout.session.completed` we record the paid order
+ * Stripe webhook. On `checkout.session.completed` (or
+ * `checkout.session.async_payment_succeeded`) we record the paid order
  * (which assigns its sequential invoice number) and submit the print job to
  * Lulu. Everything is idempotent on the Stripe session id, so Stripe's retries
  * never double-charge, double-record, or double-print.
@@ -45,12 +46,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Signature invalide" }, { status: 400 });
   }
 
-  if (event.type === "checkout.session.completed") {
+  // Card payments arrive paid on `completed`; delayed methods (some wallets,
+  // bank redirects) complete unpaid and confirm later via
+  // `async_payment_succeeded`. Both run the same idempotent handler, which only
+  // records an order once the session is actually paid.
+  if (
+    event.type === "checkout.session.completed" ||
+    event.type === "checkout.session.async_payment_succeeded"
+  ) {
     try {
       await handleCompleted(event.data.object as Stripe.Checkout.Session);
     } catch (err) {
       // Log and 500 so Stripe retries; the handler itself is idempotent.
-      console.error("Traitement checkout.session.completed échoué:", err);
+      console.error(`Traitement ${event.type} échoué:`, err);
       return NextResponse.json({ error: "Erreur de traitement" }, { status: 500 });
     }
   }

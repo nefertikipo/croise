@@ -11,12 +11,15 @@ export const maxDuration = 60;
 
 const BATCH_LIMIT = 50;
 
+/** Lulu normally charges within minutes; still UNPAID after this → alert. */
+const UNPAID_ALERT_AFTER_MS = 2 * 60 * 60 * 1000;
+
 /**
  * Order-tracking cron: polls Lulu for every order still `in_production` and
  * closes the loop the confirmation email promises ("vous recevrez le suivi dès
  * l'expédition"). SHIPPED → status `shipped`, tracking stored, customer emailed
  * (once — only in_production orders are polled). REJECTED/CANCELED → status
- * `failed` + operator alert. Scheduled in vercel.json.
+ * `failed` + operator alert. UNPAID for over 2h → operator alert each run. Scheduled in vercel.json.
  */
 export async function GET(request: Request) {
   // Fail closed, same contract as the other crons: no CRON_SECRET, no run.
@@ -40,6 +43,7 @@ export async function GET(request: Request) {
 
   let shipped = 0;
   let failed = 0;
+  let unpaid = 0;
   let errors = 0;
 
   for (const order of open) {
@@ -47,7 +51,9 @@ export async function GET(request: Request) {
       const job = await getPrintJob(order.luluJobId!);
       const statusName = job.status?.name?.toUpperCase() ?? "";
 
-      if (statusName === "SHIPPED") {
+      // DELIVERED follows SHIPPED, sometimes within a day (express): a twice-
+      // daily poll can skip SHIPPED entirely, so both close the order.
+      if (statusName === "SHIPPED" || statusName === "DELIVERED") {
         const items = job.line_items ?? [];
         const trackingUrls = items
           .flatMap((li) => li.tracking_urls ?? [])
@@ -80,8 +86,24 @@ export async function GET(request: Request) {
           ],
         });
         failed++;
+      } else if (
+        statusName === "UNPAID" &&
+        Date.now() - order.updatedAt.getTime() > UNPAID_ALERT_AFTER_MS
+      ) {
+        // An unpaid job just waits, unprinted (no card on the Lulu account, or
+        // the charge failed). Nag every run until it is paid.
+        await sendOperatorAlert({
+          subject: `ACTION REQUISE — job Lulu impayé (commande #${order.id})`,
+          heading: "Impression en attente de paiement Lulu",
+          lines: [
+            `Le job Lulu <strong>#${order.luluJobId}</strong> est toujours UNPAID : Lulu attend le paiement de l'impression.`,
+            `Carnet « ${order.bookTitle} » (${order.bookCode}) · client ${order.email}.`,
+            `À faire : régler le job (et enregistrer une carte) sur le compte Lulu — rien ne s'imprime d'ici là.`,
+          ],
+        });
+        unpaid++;
       }
-      // Any other status (production, payment steps): nothing to do yet.
+      // Any other status (production, payment in progress): nothing to do yet.
     } catch (err) {
       // One bad order must not stall the rest of the batch; retried next run.
       console.error(`Suivi commande ${order.id} (job ${order.luluJobId}) échoué:`, err);
@@ -89,7 +111,7 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ polled: open.length, shipped, failed, errors });
+  return NextResponse.json({ polled: open.length, shipped, failed, unpaid, errors });
 }
 
 async function sendShippedEmail(
