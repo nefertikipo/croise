@@ -60,6 +60,21 @@ export const giftGuide = defineType({
       group: "content",
     }),
     defineField({
+      name: "group",
+      title: "Rubrique",
+      description: "Section de la page /guides où le guide apparaît.",
+      type: "string",
+      group: "content",
+      options: {
+        list: [
+          { title: "Fêtes de l'année", value: "fete" },
+          { title: "Pour qui", value: "destinataire" },
+          { title: "Pour quelle occasion", value: "occasion" },
+        ],
+        layout: "radio",
+      },
+    }),
+    defineField({
       name: "items",
       title: "Idées cadeaux",
       type: "array",

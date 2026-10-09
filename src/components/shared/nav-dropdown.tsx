@@ -14,6 +14,7 @@ export const PRODUCT_LINKS: NavLink[] = [
 
 /** Secondary links, folded into a single "Communauté" dropdown. */
 export const MORE_LINKS: NavLink[] = [
+  { href: "/guides", label: "Idées cadeaux" },
   { href: "/idees-de-mots", label: "Idées de mots" },
   { href: "/contribuer", label: "Contribuer" },
 ];

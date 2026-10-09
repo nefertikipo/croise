@@ -63,6 +63,7 @@ export const GIFT_GUIDES_QUERY = defineQuery(`
     "slug": slug.current,
     intro,
     occasion,
+    group,
     mainImage
   }
 `);
