@@ -63,8 +63,11 @@ export type GiftGuideListItem = {
   slug: string;
   intro?: string | null;
   occasion?: string | null;
+  group?: GiftGuideGroup | null;
   mainImage?: SanityImage | null;
 };
+
+export type GiftGuideGroup = "fete" | "destinataire" | "occasion";
 
 export type GiftItem = {
   name: string;
