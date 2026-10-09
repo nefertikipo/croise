@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { words, clues } from "@/db/schema/clue-entries";
 import { eq, and, isNull, inArray, sql } from "drizzle-orm";
+import { getAdminEmail } from "@/lib/admin";
 
 const CALIBRATION_IDS = [90046,31457,194506,221059,354367,39272,195364,286536,351978,81970,102892,206392,252773,190627,192798,187265,116811,193629,58496,275470,389742,53191,320573,346620,326808,264355,324166,246320,250460,88547,170652,45101,185970,135024,47936,117821,46754,96585,100648,108942,248668,216657,379863,336897,179414,243717,94348,263493,376389,257265,37381,245926,376232,118666,324165,274620,308028,89777,141653,73672,296701,53109,63459,359260,31386,149261,178479,332736,188280,200540,72920,161117,88048,228467,93805,350740,381424,142031,287063,272023,105937,348904,34209,292379,167106,230842,239303,53018,87070,202907,358448,189155,374537,315473,89514,57475,236194,123138,81184,276773];
 
 export async function GET(request: Request) {
+  if (!(await getAdminEmail())) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   try {
     const url = new URL(request.url);
     const calibration = url.searchParams.get("calibration") === "true";
@@ -92,6 +96,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!(await getAdminEmail())) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   try {
     const body = await request.json();
     const { clueId, difficulty, action } = body;

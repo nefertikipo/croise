@@ -1,14 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { headers } from "next/headers";
 import type Stripe from "stripe";
-import { eq } from "drizzle-orm";
 import { getStripe } from "@/lib/stripe/client";
 import { db } from "@/db";
 import { orders } from "@/db/schema/orders";
-import { fulfillCarnetOrder } from "@/lib/lulu/fulfill";
 import { sendOrderConfirmation } from "@/lib/billing/order-email";
-import { sendOperatorAlert } from "@/lib/billing/operator-alert";
-import type { LuluShippingAddress, LuluShippingLevel } from "@/lib/lulu/client";
+import { submitOrderForPrinting, type OrderShipping } from "@/lib/billing/submit-order";
+import type { LuluShippingLevel } from "@/lib/lulu/client";
 import { CARNET_PRICE_CENTS } from "@/lib/books/pricing";
 
 /** Lulu fetches PDFs + we hit our own interior route — give it room. */
@@ -104,7 +102,7 @@ async function handleCompleted(raw: Stripe.Checkout.Session): Promise<void> {
       ? "EXPRESS"
       : "MAIL";
 
-  const shipping = { name, address, phone, email, shippingLevel };
+  const shipping: OrderShipping = { name, address, phone, email, shippingLevel };
   const paymentIntent =
     typeof session.payment_intent === "string"
       ? session.payment_intent
@@ -131,79 +129,17 @@ async function handleCompleted(raw: Stripe.Checkout.Session): Promise<void> {
   // Conflict → another delivery of the same event already handled it.
   if (!order) return;
 
-  // Submit to Lulu (sandbox unless LULU_ENV=production). Record the outcome so
-  // a failure can be retried without re-charging.
-  try {
-    if (!address) {
-      throw new Error("Adresse de livraison absente de la session Stripe.");
-    }
-    const luluAddress: LuluShippingAddress = {
-      name,
-      street1: address.line1 ?? "",
-      street2: address.line2 ?? undefined,
-      city: address.city ?? "",
-      postcode: address.postal_code ?? "",
-      country_code: address.country ?? "FR",
-      state_code: address.state ?? undefined,
-      phone_number: phone ?? "",
-      email,
-    };
-    const { luluJobId } = await fulfillCarnetOrder({
-      code: bookCode,
-      title: bookTitle,
-      email,
-      shipping: luluAddress,
-      shippingLevel,
-    });
-    await db
-      .update(orders)
-      .set({ status: "in_production", luluJobId, updatedAt: new Date() })
-      .where(eq(orders.id, order.id));
-    // Ops heads-up (there is no admin orders view yet) — never fail the webhook.
+  // Print + emails run after the 200: Stripe's delivery never waits on PDF
+  // rendering and the Lulu API. The outcome lands on the order row either way
+  // (in_production / failed); one left at `paid` shows as stuck on
+  // /admin/commandes, where it can be relaunched without re-charging.
+  after(async () => {
+    await submitOrderForPrinting(order);
+    // Confirmation + invoice (best-effort — never fail over email).
     try {
-      await sendOperatorAlert({
-        subject: `Nouvelle commande — « ${bookTitle} »`,
-        heading: "Nouvelle commande",
-        lines: [
-          `Carnet <strong>« ${bookTitle} »</strong> (${bookCode}) — commande #${order.id}.`,
-          `Client : ${email} · livraison ${shippingLevel}.`,
-          `Job Lulu <strong>#${luluJobId}</strong> soumis, statut in_production.`,
-        ],
-      });
-    } catch (alertErr) {
-      console.error(`Alerte nouvelle commande échouée (commande ${order.id}):`, alertErr);
+      await sendOrderConfirmation(order);
+    } catch (err) {
+      console.error(`Email de confirmation échoué (commande ${order.id}):`, err);
     }
-  } catch (err) {
-    console.error(`Fulfillment Lulu échoué (commande ${order.id}):`, err);
-    const message = err instanceof Error ? err.message : String(err);
-    await db
-      .update(orders)
-      .set({
-        status: "failed",
-        fulfillmentError: message,
-        updatedAt: new Date(),
-      })
-      .where(eq(orders.id, order.id));
-    try {
-      await sendOperatorAlert({
-        subject: `ACTION REQUISE — impression non lancée (commande #${order.id})`,
-        heading: "Commande payée, impression échouée",
-        lines: [
-          `Le client a payé mais le job Lulu n'a PAS été créé.`,
-          `Carnet <strong>« ${bookTitle} »</strong> (${bookCode}) — commande #${order.id} · client ${email}.`,
-          `Erreur : <code>${message}</code>`,
-          `À faire : corriger la cause puis relancer l'impression (scripts/lulu-order.ts) — le client ne doit pas être re-débité.`,
-        ],
-      });
-    } catch (alertErr) {
-      console.error(`Alerte échec fulfillment échouée (commande ${order.id}):`, alertErr);
-    }
-  }
-
-  // Confirmation + invoice (best-effort — never fail the webhook over email).
-  try {
-    await sendOrderConfirmation(order);
-  } catch (err) {
-    console.error(`Email de confirmation échoué (commande ${order.id}):`, err);
-  }
+  });
 }

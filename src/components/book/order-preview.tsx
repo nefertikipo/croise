@@ -24,13 +24,6 @@ const DESTINATIONS: { code: CarnetCountry; label: string }[] =
     a.code === "FR" ? -1 : b.code === "FR" ? 1 : a.label.localeCompare(b.label, "fr"),
   );
 
-/**
- * When "1", the CTA runs a real Stripe checkout; otherwise it captures a
- * waitlist email (the pre-launch behavior). Lets checkout ship dark and flip on
- * once Stripe keys + seller identity are in place.
- */
-const CHECKOUT_ENABLED = process.env.NEXT_PUBLIC_CARNET_CHECKOUT === "1";
-
 interface OrderPreviewProps {
   code: string;
   title: string;
@@ -40,6 +33,8 @@ interface OrderPreviewProps {
   hasCoverPhoto: boolean;
   /** Signed-in viewer's email, used to register order intent without a form. */
   sessionEmail: string | null;
+  /** Real Stripe checkout (true) vs waitlist email capture (false). */
+  checkoutEnabled: boolean;
 }
 
 /**
@@ -47,7 +42,15 @@ interface OrderPreviewProps {
  * a readiness checklist, and the explicit "j'ai vérifié" confirmation.
  * Until checkout ships, the CTA records order intent via /api/leads.
  */
-export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPhoto, sessionEmail }: OrderPreviewProps) {
+export function OrderPreview({
+  code,
+  title,
+  gridCount,
+  interiorPages,
+  hasCoverPhoto,
+  sessionEmail,
+  checkoutEnabled,
+}: OrderPreviewProps) {
   const [checked, setChecked] = useState(false);
   const [email, setEmail] = useState(sessionEmail ?? "");
   const [sent, setSent] = useState(false);
@@ -225,7 +228,7 @@ export function OrderPreview({ code, title, gridCount, interiorPages, hasCoverPh
             </span>
           </label>
 
-          {CHECKOUT_ENABLED ? (
+          {checkoutEnabled ? (
             <div className="space-y-2">
               <label className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="font-semibold">Pays de livraison :</span>

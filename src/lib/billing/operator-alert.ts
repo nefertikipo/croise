@@ -3,10 +3,10 @@ import { sendEmail, emailShell } from "@/lib/email";
 import { getSeller } from "@/lib/billing/seller";
 
 /**
- * Notify the operator (seller email) about an order event. There is no admin
- * orders view yet, so these emails ARE the ops dashboard: every paid order
- * sends one, and a fulfillment failure sends an action-required alert —
- * otherwise a `failed` order would sit invisible in the database.
+ * Notify the operator about an order event: every paid order sends one, and a
+ * fulfillment failure sends an action-required alert (the full list lives on
+ * /admin/commandes). Goes to OPERATOR_EMAIL when set, else the public seller
+ * address — set it to an inbox that actually receives mail.
  *
  * Best-effort by design: callers must never fail a webhook over this.
  */
@@ -22,5 +22,9 @@ export async function sendOperatorAlert(opts: {
       .join(""),
     footer: "Alerte interne Les Flèches — non envoyée aux clients.",
   });
-  await sendEmail({ to: getSeller().email, subject: opts.subject, html });
+  await sendEmail({
+    to: process.env.OPERATOR_EMAIL || getSeller().email,
+    subject: opts.subject,
+    html,
+  });
 }
