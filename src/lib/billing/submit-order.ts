@@ -50,6 +50,7 @@ export async function submitOrderForPrinting(
   const shipping = order.shipping as OrderShipping;
   try {
     const { luluJobId } = await fulfillCarnetOrder({
+      orderId: order.id,
       code: order.bookCode,
       title: order.bookTitle,
       email: order.email,

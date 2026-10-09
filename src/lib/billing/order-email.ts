@@ -1,6 +1,6 @@
 import "server-only";
 import { sendEmail, emailShell } from "@/lib/email";
-import { formatEuros } from "@/lib/books/pricing";
+import { CARNET_PRICE_CENTS, formatEuros } from "@/lib/books/pricing";
 import {
   getSeller,
   assertSellerConfigured,
@@ -59,6 +59,17 @@ export async function sendOrderConfirmation(order: OrderForEmail): Promise<void>
     year: "numeric",
   });
   const ship = shippingLines(order.shipping);
+  // The charge = carnet (standard shipping included) + any express surcharge;
+  // the invoice must show them as separate lines.
+  const carnetCents = Math.min(order.amount, CARNET_PRICE_CENTS);
+  const expressCents = order.amount - carnetCents;
+  const lineRow = (label: string, cents: number) => `
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,.12)">${label}</td>
+        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,.12);text-align:right;white-space:nowrap">
+          ${formatEuros(cents)}
+        </td>
+      </tr>`;
 
   let sellerBlock = "";
   let legalInvoice = false;
@@ -89,14 +100,8 @@ export async function sendOrderConfirmation(order: OrderForEmail): Promise<void>
 
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
       style="margin:20px 0;border-collapse:collapse;font-size:14px">
-      <tr>
-        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,.12)">
-          Carnet de mots fléchés — ${order.bookTitle}
-        </td>
-        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,.12);text-align:right;white-space:nowrap">
-          ${formatEuros(order.amount)}
-        </td>
-      </tr>
+      ${lineRow(`Carnet de mots fléchés — ${order.bookTitle} (livraison standard incluse)`, carnetCents)}
+      ${expressCents > 0 ? lineRow("Supplément livraison express", expressCents) : ""}
       <tr>
         <td style="padding:10px 0;font-weight:700">Total payé</td>
         <td style="padding:10px 0;text-align:right;font-weight:700">${formatEuros(order.amount)}</td>
