@@ -8,6 +8,7 @@ import { generateCrosswordCode } from "@/lib/code";
 import { checkCapacity, needsBoostedCompute } from "@/lib/crossword/check-capacity";
 import { normalizeAnswer, answerBreaks } from "@/lib/crossword/normalize";
 import { auth } from "@/lib/auth";
+import { guardGenerate } from "@/lib/crossword/guard-generate";
 import type { Coord } from "@/lib/crossword/fleche-math";
 
 // 300s (Vercel Pro max) so a hard grid on the boosted endpoint has time to solve
@@ -36,6 +37,16 @@ function flowToDirection(flow: Coord): "right" | "down" {
 
 export async function POST(request: Request) {
   try {
+    // Who's asking: a signed-in user keys the rate limit and owns the saved grid
+    // (anonymous otherwise).
+    const authSession = await auth.api
+      .getSession({ headers: request.headers })
+      .catch(() => null);
+    const ownerId = authSession?.user.id ?? null;
+
+    const refused = await guardGenerate(request, ownerId);
+    if (refused) return refused;
+
     const body = await request.json();
     const params = requestSchema.parse(body);
 
@@ -210,10 +221,6 @@ export async function POST(request: Request) {
           solution += cell.kind === "white" && cell.letter ? cell.letter : "#";
         }
       }
-
-      // Attach to the signed-in user if there is one (anonymous otherwise).
-      const authSession = await auth.api.getSession({ headers: request.headers });
-      const ownerId = authSession?.user.id ?? null;
 
       gridCode = generateCrosswordCode();
       const [saved] = await db
